@@ -1,5 +1,9 @@
 # 技能、范围与行为差异：什么时候该拆场景？
 
+> **实现状态（2026-11）**：`CombatActionDefinition`、`ActionEffectDefinition`、
+> 统一 `ActionState`、`UnitBrain._select_action()` 与骑士·火焰斩击已落地。
+> 下文把 `AttackState` 称为通用 Action 执行器；文中部分迁移步骤是后续扩展方向。
+
 结论先说：
 
 > **技能范围、动画、帧数、冷却、目标优先级、技能释放顺序，都不需要为每个英雄拆独立场景。**
@@ -16,7 +20,7 @@
 | --- | --- | --- |
 | 节点结构 / 可复用表现 | `.tscn` | 单位骨架、血条、投射物、AOE 圈、召唤特效 |
 | 数值 / 动作参数 / 目标权重 | `.tres` Resource | 技能范围、动画名、起手时间、伤害倍率、优先级权重 |
-| 通用行为 | 共享脚本 | StateMachine、AttackState、Brain 主循环 |
+| 通用行为 | 共享脚本 | StateMachine、ActionState、Brain 主循环 |
 | 真正独有的行为 | 小型策略资源或继承场景 | 特殊目标规则、召唤阶段、变身阶段 |
 
 一句话：**场景负责“长什么样、由哪些节点组成”，资源负责“参数和差异”，脚本负责“通用规则”。**
@@ -38,7 +42,7 @@ scenes/battle/unit.tscn
 └─ StateMachine
    ├─ Idle
    ├─ Move
-   ├─ Attack
+   ├─ Action
    ├─ Hurt
    └─ Death
 ```
@@ -102,11 +106,11 @@ enum Delivery { MELEE, PROJECTILE, AOE, BUFF }
 - **不同动画帧**：动画帧仍在每个英雄的 `SpriteFrames` 里；
   动作只引用动画名，帧数和时长由 SpriteFrames 决定。
 - **不同起手/命中节奏**：改 `windup`；需要精确命中帧时再加 `hit_frame` 字段，
-  由 `AttackState` 按帧数换算时间。
+  由 `ActionState` 按帧数换算时间。
 - **不同伤害/冷却/蓝耗**：改字段。
 - **不同投射物/爆炸**：引用不同的可复用 effect/projectile 场景。
 
-`UnitAttackState` 不再写死 `attack_01`，而是接受一个 `CombatActionDefinition`：
+`UnitActionState` 不再写死 `attack_01`，而是接受一个 `CombatActionDefinition`：
 
 ```gdscript
 func begin_action(action: CombatActionDefinition) -> void:
@@ -272,13 +276,13 @@ werewolf_behavior.tres
 ```text
 Idle
 Move
-Attack (普通攻击)
+Action (普攻/技能)
 Skill  (由 CombatActionDefinition 驱动)
 Hurt
 Death
 ```
 
-`Skill` 可以是复用 `Attack` 的参数化版本；只有确实需要独立阶段（引导、变身、召唤阶段）时，
+`Skill` 可以是复用 `Action` 的参数化版本；只有确实需要独立阶段（引导、变身、召唤阶段）时，
 才拆成 `Channel`、`Transform`、`Summon` 这类**通用状态**。
 
 如果某个英雄必须有专属状态节点：
@@ -286,7 +290,7 @@ Death
 1. 新建继承场景 `scenes/battle/units/necromancer.tscn`，继承 `unit.tscn`；
 2. 在它的 StateMachine 下加一个 `SummonState` 节点；
 3. `UnitDefinition.unit_scene` 指向该场景；
-4. 共享的 Idle/Move/Attack/Hurt/Death 仍然复用，不复制逻辑。
+4. 共享的 Idle/Move/Action/Hurt/Death 仍然复用，不复制逻辑。
 
 这样即使有 3~5 个英雄需要特殊结构，也不会出现 22 份 FSM。
 
@@ -311,7 +315,7 @@ Death
 1. **抽出 CombatActionDefinition**
    - 先把当前普攻包装成一个 action；
    - `UnitDefinition` 增加 `actions`；
-   - `AttackState` 改为读取 action；
+   - `ActionState` 读取 action；
    - 行为与现在完全一致，测试保持通过。
 2. **抽出 BehaviorProfile**
    - 把 `_score_target` 的权重搬到资源；

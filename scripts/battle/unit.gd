@@ -31,8 +31,10 @@ var accent_color := Color.WHITE
 
 var target: Unit
 var alive := true
-var attack_cooldown := 0.0
 var facing := 1
+var actions: Array[CombatActionDefinition] = []
+var planned_action: CombatActionDefinition
+var action_cooldowns: Dictionary = {}
 var is_selected := false
 var initialized := false
 var preview_mode := false
@@ -74,6 +76,11 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	projectile_kind = p_definition.projectile_kind
 	attack_animation = p_definition.attack_animation
 	attack_anim_duration = _measure_animation(attack_animation, 0.4)
+	actions = p_definition.actions.duplicate()
+	action_cooldowns.clear()
+	for action in actions:
+		if action != null:
+			action_cooldowns[action.action_id] = 0.0
 
 	visual.sprite_frames = p_definition.sprite_frames
 	visual.scale = Vector2.ONE * p_definition.visual_scale
@@ -129,7 +136,8 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if not initialized or not alive:
 		return
-	attack_cooldown = maxf(0.0, attack_cooldown - delta)
+	for key in action_cooldowns.keys():
+		action_cooldowns[key] = maxf(0.0, float(action_cooldowns[key]) - delta)
 	_flinch_cooldown = maxf(0.0, _flinch_cooldown - delta)
 
 
@@ -210,8 +218,43 @@ func desired_combat_position() -> Vector2:
 	return battle.clamp_unit_position(target.global_position + Vector2(side * forward, lateral))
 
 
-func can_attack() -> bool:
-	return alive and attack_cooldown <= 0.0 and has_live_target() and is_target_in_range(6.0)
+func is_target_in_action_range(action: CombatActionDefinition, extra := 0.0) -> bool:
+	if action == null or not has_live_target():
+		return false
+	var reach := action.action_range + target.body_radius + body_radius * 0.35 + extra
+	return distance_to_target() <= reach
+
+
+func is_action_ready(action: CombatActionDefinition) -> bool:
+	if action == null:
+		return false
+	return float(action_cooldowns.get(action.action_id, 0.0)) <= 0.0001
+
+
+func action_cooldown(action: CombatActionDefinition) -> float:
+	if action == null:
+		return 0.0
+	return float(action_cooldowns.get(action.action_id, 0.0))
+
+
+func start_action_cooldown(action: CombatActionDefinition) -> void:
+	if action == null:
+		return
+	action_cooldowns[action.action_id] = maxf(action.cooldown, 0.0)
+
+
+func current_action_cooldown() -> float:
+	if planned_action != null:
+		return action_cooldown(planned_action)
+	if not actions.is_empty():
+		return action_cooldown(actions[0])
+	return 0.0
+
+
+func can_execute_planned_action() -> bool:
+	if planned_action == null or not alive or not has_live_target():
+		return false
+	return is_target_in_action_range(planned_action, 6.0)
 
 
 func battle_active() -> bool:
@@ -225,17 +268,55 @@ func move_step(direction: Vector2, delta: float) -> void:
 	position = battle.clamp_unit_position(position)
 
 
-func execute_attack() -> bool:
-	if not has_live_target() or not is_target_in_range(24.0):
-		return false
-	attack_cooldown = attack_interval
-	if projectile_kind != UnitDefinition.ProjectileKind.NONE and definition.is_ranged():
-		battle.spawn_projectile(self, target, attack_damage, projectile_kind, accent_color)
-	else:
-		var impact: Vector2 = target.get_hit_point()
-		battle.spawn_slash(impact, accent_color, signf(target.global_position.x - global_position.x))
-		target.take_damage(attack_damage, self, impact)
-	return true
+## 执行一个 ActionEffect。ActionState 在动作时间轴的对应帧调用。
+func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectDefinition) -> void:
+	if effect == null:
+		return
+	var damage := attack_damage * maxf(effect.damage_ratio, 0.0)
+	match effect.kind:
+		ActionEffectDefinition.Kind.DAMAGE:
+			_resolve_damage_effect(action, effect, damage)
+		ActionEffectDefinition.Kind.PROJECTILE:
+			if has_live_target() and is_target_in_action_range(action, 24.0):
+				battle.spawn_projectile(self, target, damage, effect.projectile_kind, accent_color)
+		ActionEffectDefinition.Kind.VISUAL:
+			_spawn_action_visual(effect)
+		_:
+			push_warning("ActionEffect kind %d 尚未实现" % effect.kind)
+
+	if effect.effect_scene != null and effect.kind != ActionEffectDefinition.Kind.VISUAL:
+		_spawn_action_visual(effect)
+
+
+func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffectDefinition, damage: float) -> void:
+	match effect.shape:
+		ActionEffectDefinition.Shape.SINGLE:
+			if not has_live_target() or not is_target_in_action_range(action, 24.0):
+				return
+			var impact := target.get_hit_point()
+			battle.spawn_slash(impact, accent_color, signf(target.global_position.x - global_position.x))
+			target.take_damage(damage, self, impact)
+		ActionEffectDefinition.Shape.CONE:
+			var victims: Array = battle.units_in_cone(
+				self, Vector2(float(facing), 0.0), effect.radius, effect.half_angle
+			)
+			for victim in victims:
+				victim.take_damage(damage, self, victim.get_hit_point())
+				battle.spawn_hit_spark(victim.get_hit_point(), Color(1.0, 0.55, 0.18), 1.4)
+		ActionEffectDefinition.Shape.CIRCLE:
+			if not has_live_target():
+				return
+			var center := target.global_position
+			for victim in battle.units_in_circle(self, center, effect.radius):
+				victim.take_damage(damage, self, victim.get_hit_point())
+		_:
+			pass
+
+
+func _spawn_action_visual(effect: ActionEffectDefinition) -> void:
+	if effect.effect_scene == null or battle == null:
+		return
+	battle.spawn_action_effect(effect.effect_scene, self, effect)
 
 
 func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null) -> void:
@@ -298,6 +379,13 @@ func set_selected(value: bool) -> void:
 
 
 func ai_snapshot() -> Dictionary:
+	var action_text := brain.last_action_text if brain != null else ""
+	if state_machine != null and state_machine.current_name == &"action" and planned_action != null:
+		action_text = "%s → %s（冷却 %.2fs）" % [
+			planned_action.display_name,
+			target.definition.display_name if has_live_target() else "无",
+			current_action_cooldown(),
+		]
 	return {
 		"name": definition.display_name if definition != null else "单位",
 		"team": team,
@@ -307,9 +395,10 @@ func ai_snapshot() -> Dictionary:
 		"observe": brain.last_observe_text if brain != null else "",
 		"judge": brain.last_judge_text if brain != null else "",
 		"decide": brain.last_decide_text if brain != null else "",
-		"action": brain.last_action_text if brain != null else "",
+		"action": action_text,
+		"action_name": planned_action.display_name if planned_action != null else "—",
 		"target": target.definition.display_name if has_live_target() else "无",
 		"hp": "%d / %d" % [roundi(hp), roundi(max_hp)],
-		"cooldown": "%.2f" % attack_cooldown,
+		"cooldown": "%.2f" % current_action_cooldown(),
 		"alive": alive,
 	}

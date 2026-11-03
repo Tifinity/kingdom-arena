@@ -5,15 +5,15 @@ extends Node
 ##
 ## 大脑只负责“想”，不直接改动画或位置；它把目标与意图写给 Unit，
 ## 由 StateMachine 中当前状态节点负责“做”。这样 AI 与表现/动画解耦，
-## 后续增加技能时只需要扩展决策分支与攻击状态的动作配置。
+## 行动由 ActionPlan 选择，具体动画/效果由 UnitActionState 执行。
 
-enum Intent { IDLE, ADVANCE, ATTACK, KITE }
+enum Intent { IDLE, ADVANCE, ACTION, KITE }
 
 const THINK_INTERVAL := 0.16
 const INTENT_LABELS := {
 	Intent.IDLE: "待机",
 	Intent.ADVANCE: "推进",
-	Intent.ATTACK: "攻击",
+	Intent.ACTION: "行动",
 	Intent.KITE: "拉开距离",
 }
 
@@ -23,6 +23,7 @@ var unit: Unit
 var intent: int = Intent.IDLE
 var intent_reason := ""
 var target: Unit
+var planned_action: CombatActionDefinition
 var observation: Dictionary = {}
 var judgment: Dictionary = {}
 
@@ -61,6 +62,9 @@ func force_think() -> void:
 
 func think() -> void:
 	if unit == null or unit.battle == null or not unit.alive:
+		return
+	# 动作/受击/死亡期间不再改写计划，避免 OODA 文本和实际执行的动作不一致。
+	if unit.state_machine != null and unit.state_machine.current_name in [&"action", &"hurt", &"death"]:
 		return
 	_observe()
 	_judge()
@@ -181,27 +185,72 @@ func _should_kite() -> bool:
 func _decide() -> void:
 	intent = Intent.IDLE
 	intent_reason = "等待战机"
+	planned_action = null
 
 	if target == null or not is_instance_valid(target) or not target.alive:
 		target = null
 		intent_reason = "没有可攻击目标"
-	elif unit.is_target_in_range(6.0):
-		if unit.attack_cooldown <= 0.0:
-			intent = Intent.ATTACK
-			intent_reason = "目标进入攻击距离，普攻就绪"
-		elif _should_kite():
-			intent = Intent.KITE
-			intent_reason = "冷却中且被近身，先后撤拉开距离"
-		else:
-			intent_reason = "目标在攻击距离内，等待攻击冷却"
+		last_decide_text = "%s：%s" % [INTENT_LABELS[intent], intent_reason]
+		return
+
+	var plan := _select_action()
+	if plan != null:
+		planned_action = plan.action
+		intent = Intent.ACTION
+		intent_reason = "使用 %s（%s）" % [planned_action.display_name, planned_action.category_label()]
 	elif _should_kite():
 		intent = Intent.KITE
 		intent_reason = "距离过近，后撤拉开射程"
+	elif unit.is_target_in_range(6.0):
+		intent_reason = "所有可用动作都在冷却，等待时机"
 	else:
 		intent = Intent.ADVANCE
-		intent_reason = "向目标推进"
+		intent_reason = "向目标推进，等待动作就绪"
 
 	last_decide_text = "%s：%s" % [INTENT_LABELS[intent], intent_reason]
+
+
+## 决策层的核心：从该单位所有 Action 中选一个当前可用的、优先级最高的动作。
+func _select_action() -> ActionPlan:
+	var best_plan: ActionPlan = null
+	var best_score := -INF
+	# 决策阶段先让 Unit 指向候选目标，动作范围和 AOE 数量都基于这个目标计算。
+	unit.target = target
+	for action in unit.actions:
+		if action == null:
+			continue
+		# 当前 MVP 的 Action 都指向敌人；友军/自身目标留给后续扩展。
+		if action.target_mode != CombatActionDefinition.TargetMode.ENEMY:
+			continue
+		if not unit.has_live_target() or not unit.is_action_ready(action):
+			continue
+		if not unit.is_target_in_action_range(action, 4.0):
+			continue
+		var score := float(action.priority)
+		# 扇形/圆形伤害动作在敌人聚集时提高权重。
+		for effect in action.effects:
+			if effect.kind != ActionEffectDefinition.Kind.DAMAGE:
+				continue
+			if effect.shape == ActionEffectDefinition.Shape.CONE or effect.shape == ActionEffectDefinition.Shape.CIRCLE:
+				score += _count_targets_in_effect(action, effect) * 1.5
+		if score > best_score:
+			best_score = score
+			best_plan = ActionPlan.create(action, target)
+	return best_plan
+
+
+func _count_targets_in_effect(_action: CombatActionDefinition, effect: ActionEffectDefinition) -> int:
+	if unit.battle == null:
+		return 0
+	var direction := Vector2(float(unit.facing), 0.0)
+	if target != null:
+		direction = (target.global_position - unit.global_position).normalized()
+	if effect.shape == ActionEffectDefinition.Shape.CONE:
+		return unit.battle.units_in_cone(unit, direction, effect.radius, effect.half_angle).size()
+	if effect.shape == ActionEffectDefinition.Shape.CIRCLE:
+		var center := target.global_position if target != null else unit.global_position
+		return unit.battle.units_in_circle(unit, center, effect.radius).size()
+	return 0
 
 
 # --- A：行动 ------------------------------------------------------------
@@ -210,12 +259,18 @@ func _act() -> void:
 	unit.target = target
 	unit.intent = intent
 	unit.intent_reason = intent_reason
+	unit.planned_action = planned_action
 
 	var valid_target := target != null and is_instance_valid(target) and target.alive
 	var target_name: String = target.definition.display_name if valid_target else "无"
 	match intent:
-		Intent.ATTACK:
-			last_action_text = "普通攻击 → %s（冷却 %.2fs）" % [target_name, unit.attack_cooldown]
+		Intent.ACTION:
+			if planned_action != null:
+				last_action_text = "%s → %s（冷却 %.2fs）" % [
+					planned_action.display_name, target_name, unit.action_cooldown(planned_action),
+				]
+			else:
+				last_action_text = "没有可执行动作"
 		Intent.ADVANCE:
 			last_action_text = "移动 → %s（距离 %.0fpx）" % [target_name, unit.distance_to_target()]
 		Intent.KITE:

@@ -18,9 +18,9 @@ func update(_delta: float) -> void:
 		return
 
 	match unit.brain.intent:
-		UnitBrain.Intent.ATTACK:
-			if unit.can_attack():
-				machine.transition_to(&"attack")
+		UnitBrain.Intent.ACTION:
+			if unit.can_execute_planned_action():
+				machine.transition_to(&"action")
 		UnitBrain.Intent.KITE:
 			if unit.has_live_target() and unit.distance_to_target() < unit.attack_range * 0.70:
 				machine.transition_to(&"move")

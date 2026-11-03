@@ -32,6 +32,7 @@ func _run_all() -> void:
 	_test_catalog()
 	await _test_setup_scene()
 	await _test_hero_lab()
+	await _test_flame_slash()
 	await _test_battle()
 	await _test_extra_lineup()
 
@@ -120,13 +121,86 @@ func _test_hero_lab() -> void:
 	GameState.reset_lineups()
 
 
+func _test_flame_slash() -> void:
+	print("\n[4] 火焰斩击 AOE")
+	var knight_definition := UnitCatalog.get_definition(&"knight")
+	var skill: CombatActionDefinition = null
+	for action in knight_definition.actions:
+		if action.action_id == &"knight_flame_slash":
+			skill = action
+			break
+	_check(skill != null, "骑士拥有火焰斩击 Action")
+	if skill == null:
+		return
+	_check(skill.animation == &"attack_03", "火焰斩击使用 attack_03 火焰帧动画")
+	_check(not skill.effects.is_empty() and skill.effects[0].shape == ActionEffectDefinition.Shape.CONE,
+		"火焰斩击配置为扇形 AOE")
+
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"archer")
+	GameState.set_slot(1, 2, &"skeleton")
+
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+
+	var knight: Unit = null
+	var enemies: Array[Unit] = []
+	for unit in battle.units:
+		if unit.team == 0:
+			knight = unit
+		else:
+			enemies.append(unit)
+	_check(knight != null and enemies.size() == 3, "AOE 测试生成骑士与 3 名敌人")
+	if knight == null or enemies.size() < 3:
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+
+	# 把敌人放到骑士前方扇形内/外，关闭敌人 AI，手动触发技能。
+	knight.position = Vector2(700, 650)
+	enemies[0].position = Vector2(820, 650)   # 扇形内
+	enemies[1].position = Vector2(820, 720)   # 扇形内
+	enemies[2].position = Vector2(600, 650)   # 身后，不应命中
+	for enemy in enemies:
+		enemy.brain.enabled = false
+	var hp_before: Array[float] = [enemies[0].hp, enemies[1].hp, enemies[2].hp]
+	# 先验证决策层：技能就绪且目标在范围内时，应选中火焰斩击而不是普攻。
+	knight.brain.enabled = true
+	knight.brain.force_think()
+	_check(knight.planned_action != null and knight.planned_action.action_id == &"knight_flame_slash",
+		"决策层在火焰斩击可用时选择技能 Action")
+	knight.brain.enabled = false
+	knight.target = enemies[0]
+	knight.planned_action = skill
+	knight.state_machine.transition_to(&"action", true)
+	_check(knight.state_machine.current_name == &"action", "骑士进入统一 Action 状态")
+
+	await get_tree().create_timer(1.1).timeout
+	_check(enemies[0].hp < hp_before[0] and enemies[1].hp < hp_before[1],
+		"扇形内两名敌人同时受到火焰斩击伤害")
+	_check(enemies[2].hp == hp_before[2], "身后敌人不受扇形 AOE 影响")
+	_check(battle.skill_casts > 0 and knight.action_cooldown(skill) > 0.0,
+		"技能计数并进入冷却")
+
+	Engine.time_scale = 1.0
+	# 等 Battle 的 3 秒倒计时协程结束，避免测试退出时留下 SceneTreeTimer。
+	await get_tree().create_timer(2.1).timeout
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
 func _test_battle() -> void:
-	print("\n[4] 默认阵容自动战斗")
+	print("\n[5] 默认阵容自动战斗")
 	await _run_battle("默认阵容")
 
 
 func _test_extra_lineup() -> void:
-	print("\n[5] 随机阵容自动战斗")
+	print("\n[6] 随机阵容自动战斗")
 	var pool: Array = UnitCatalog.all().duplicate()
 	pool.shuffle()
 	GameState.clear_lineup(0)
@@ -172,7 +246,7 @@ func _run_battle(label: String) -> void:
 	_check(battle.elapsed > 1.0, "%s: 战斗时长有效（%.1fs）" % [label, battle.elapsed])
 	if battle.winner == 0 or battle.winner == 1:
 		_check(battle.team_alive(1 - battle.winner) == 0, "%s: 败方全员阵亡" % label)
-	_check(states_seen.get("攻击", 0) > 0, "%s: 状态机进入过攻击状态" % label)
+	_check(states_seen.get("行动", 0) > 0, "%s: 状态机进入过行动状态" % label)
 	_check(states_seen.get("死亡", 0) > 0, "%s: 状态机进入过死亡状态" % label)
 	_check(states_seen.get("移动", 0) > 0, "%s: 状态机进入过移动状态" % label)
 	_check(states_seen.get("受击", 0) > 0, "%s: 状态机进入过受击状态" % label)

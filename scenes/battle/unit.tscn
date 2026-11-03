@@ -9,7 +9,7 @@
 [ext_resource type="Script" path="res://scripts/ai/unit_state_machine.gd" id="7"]
 [ext_resource type="Script" path="res://scripts/ai/states/idle_state.gd" id="8"]
 [ext_resource type="Script" path="res://scripts/ai/states/move_state.gd" id="9"]
-[ext_resource type="Script" path="res://scripts/ai/states/attack_state.gd" id="10"]
+[ext_resource type="Script" path="res://scripts/ai/states/action_state.gd" id="10"]
 [ext_resource type="Script" path="res://scripts/ai/states/hurt_state.gd" id="11"]
 [ext_resource type="Script" path="res://scripts/ai/states/death_state.gd" id="12"]
 
@@ -49,7 +49,7 @@ script = ExtResource("8")
 [node name="Move" type="Node" parent="StateMachine"]
 script = ExtResource("9")
 
-[node name="Attack" type="Node" parent="StateMachine"]
+[node name="Action" type="Node" parent="StateMachine"]
 script = ExtResource("10")
 
 [node name="Hurt" type="Node" parent="StateMachine"]

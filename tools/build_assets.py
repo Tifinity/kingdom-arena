@@ -33,6 +33,7 @@ CHAR_OUT = ASSETS / "characters"
 PORTRAIT_OUT = ASSETS / "portraits"
 RES_UNITS = ROOT / "resources" / "units"
 RES_VISUALS = ROOT / "resources" / "visuals"
+RES_ACTIONS = ROOT / "resources" / "actions"
 
 
 @dataclass
@@ -191,6 +192,110 @@ def godot_color(hex_str: str) -> str:
     return f"Color({r:.3f}, {g:.3f}, {b:.3f}, 1)"
 
 
+def _write_effect_resource(action_id: str, effect: dict) -> str:
+    """Build one ActionEffectDefinition as an embedded subresource."""
+    lines = [
+        f'[sub_resource type="Resource" id="effect"]',
+        'script = ExtResource("2")',
+        f'kind = {effect["kind"]}',
+        f'shape = {effect["shape"]}',
+        f'trigger_frame = {effect["trigger_frame"]}',
+        f'damage_ratio = {effect["damage_ratio"]:.2f}',
+        f'radius = {effect["radius"]:.1f}',
+        f'half_angle = {effect["half_angle"]:.1f}',
+        f'projectile_kind = {effect["projectile_kind"]}',
+    ]
+    if effect.get("scene_id"):
+        lines.append(f'effect_scene = ExtResource("{effect["scene_id"]}")')
+    return "\n".join(lines)
+
+
+def _write_action(
+    path: Path,
+    action_id: str,
+    display_name: str,
+    category: int,
+    target_mode: int,
+    animation: str,
+    action_range: float,
+    cooldown: float,
+    priority: int,
+    effect: dict,
+) -> None:
+    lines = [
+        '[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]',
+        '',
+        '[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]',
+        '[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]',
+    ]
+    if effect.get("scene_path"):
+        lines.append(f'[ext_resource type="PackedScene" path="{effect["scene_path"]}" id="3"]')
+        effect["scene_id"] = "3"
+    lines.append('')
+    lines.append(_write_effect_resource(action_id, effect))
+    lines += [
+        '',
+        '[resource]',
+        'script = ExtResource("1")',
+        f'action_id = &"{action_id}"',
+        f'display_name = "{display_name}"',
+        f'category = {category}',
+        f'target_mode = {target_mode}',
+        f'animation = &"{animation}"',
+        'animation_speed = 1.0',
+        f'action_range = {action_range:.1f}',
+        'min_range = 0.0',
+        f'cooldown = {cooldown:.2f}',
+        f'priority = {priority}',
+        'effects = [SubResource("effect")]',
+    ]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def build_actions(unit: Unit, out_dir: Path) -> list[str]:
+    """Create the per-unit basic action and, for the knight, Flame Slash."""
+    RES_ACTIONS.mkdir(parents=True, exist_ok=True)
+    attack_frames = Image.open(out_dir / unit.animations["attack_01"]).width // 100
+    trigger_frame = max(1, min(attack_frames - 1, round(unit.attack_windup * ANIM_SPEED["attack_01"])))
+    is_ranged = unit.attack_kind == 1
+    basic_effect = {
+        "kind": 1 if is_ranged else 0,
+        "shape": 0,
+        "trigger_frame": trigger_frame,
+        "damage_ratio": 1.0,
+        "radius": 0.0,
+        "half_angle": 0.0,
+        "projectile_kind": unit.projectile_kind if is_ranged else 0,
+    }
+    basic_name = f"{unit.slug}_basic"
+    basic_path = RES_ACTIONS / f"{basic_name}.tres"
+    _write_action(
+        basic_path, basic_name, "普通攻击", 0, 0, "attack_01",
+        unit.attack_range, 1.0 / max(unit.attack_speed, 0.05), 0, basic_effect,
+    )
+    actions = [f"res://resources/actions/{basic_name}.tres"]
+
+    if unit.slug == "knight":
+        skill_effect = {
+            "kind": 0,
+            "shape": 2,
+            "trigger_frame": 7,
+            "damage_ratio": 1.4,
+            "radius": 170.0,
+            "half_angle": 65.0,
+            "projectile_kind": 0,
+            "scene_path": "res://scenes/fx/flame_slash_aoe.tscn",
+        }
+        skill_name = "knight_flame_slash"
+        skill_path = RES_ACTIONS / f"{skill_name}.tres"
+        _write_action(
+            skill_path, skill_name, "火焰斩击", 1, 0, "attack_03",
+            170.0, 8.0, 10, skill_effect,
+        )
+        actions.append(f"res://resources/actions/{skill_name}.tres")
+    return actions
+
+
 def build_character(unit: Unit) -> tuple[float, str]:
     src_dir = CHAR_SRC / unit.source / unit.source
     out_dir = CHAR_OUT / unit.slug
@@ -301,13 +406,22 @@ def build_character(unit: Unit) -> tuple[float, str]:
     visual_path = RES_VISUALS / f"{unit.slug}_frames.tres"
     visual_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    # UnitDefinition resource.
+    # Actions + UnitDefinition resource.
+    action_paths = build_actions(unit, out_dir)
+    action_ext_lines = []
+    action_refs = []
+    for index, action_path in enumerate(action_paths):
+        ext_id = str(4 + index)
+        action_ext_lines.append(f'[ext_resource type="Resource" path="{action_path}" id="{ext_id}"]')
+        action_refs.append(f'ExtResource("{ext_id}")')
     accent = ROLE_COLORS[unit.role]
-    content = f'''[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+    load_steps = 4 + len(action_paths)
+    content = f'''[gd_resource type="Resource" script_class="UnitDefinition" load_steps={load_steps} format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/{unit.slug}_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/{unit.slug}.png" id="3"]
+{chr(10).join(action_ext_lines)}
 
 [resource]
 script = ExtResource("1")
@@ -332,6 +446,7 @@ foot_offset = {unit.foot_offset:.1f}
 character_height = {character_height:.1f}
 body_radius = {unit.body_radius * 1.05:.1f}
 accent_color = {godot_color(accent)}
+actions = [{", ".join(action_refs)}]
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")
 '''
@@ -399,6 +514,9 @@ def build_ui_assets() -> None:
 
 
 def build_fonts() -> None:
+    if REF_FONT is None or not REF_FONT.exists():
+        print("skip font copy (assets/fonts already contains the OFL font)")
+        return
     dest = ASSETS / "fonts"
     dest.mkdir(parents=True, exist_ok=True)
     shutil.copy2(REF_FONT / "fusion-pixel-12px-zh_hans.woff2", dest / "fusion-pixel-12px-zh_hans.woff2")
@@ -411,6 +529,7 @@ def build_fonts() -> None:
 def main() -> None:
     RES_UNITS.mkdir(parents=True, exist_ok=True)
     RES_VISUALS.mkdir(parents=True, exist_ok=True)
+    RES_ACTIONS.mkdir(parents=True, exist_ok=True)
     for unit in UNITS:
         foot, _ = build_character(unit)
         print(f"built {unit.slug:18s} foot={foot:.0f} anims={len(unit.animations)}")

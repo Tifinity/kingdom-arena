@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/fx/flame_slash_aoe.tscn" id="3"]
+
+[sub_resource type="Resource" id="effect"]
+script = ExtResource("2")
+kind = 0
+shape = 2
+trigger_frame = 7
+damage_ratio = 1.40
+radius = 170.0
+half_angle = 65.0
+projectile_kind = 0
+effect_scene = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+action_id = &"knight_flame_slash"
+display_name = "火焰斩击"
+category = 1
+target_mode = 0
+animation = &"attack_03"
+animation_speed = 1.0
+action_range = 170.0
+min_range = 0.0
+cooldown = 8.00
+priority = 10
+effects = [SubResource("effect")]

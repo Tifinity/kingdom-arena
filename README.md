@@ -21,6 +21,13 @@
 | **OODA 观察镜 / 投射物** | **结算** |
 | ![OODA](artifacts/battle_projectile.png) | ![结算](artifacts/result.png) |
 
+### 火焰斩击 · 统一 Action 系统
+
+![火焰斩击](artifacts/flame_slash.png)
+
+骑士使用 `attack_03` 的火焰帧释放扇形 AOE；技能与普攻共用同一个 `ActionState`，
+由决策层在多个 `CombatActionDefinition` 中选出当前动作。
+
 ## 运行
 
 需要 **Godot 4.6+**（本机验证版本 `4.6.2.stable`）。
@@ -98,7 +105,7 @@ Godot 文档：[Game embedding](https://docs.godotengine.org/en/stable/tutorials
 unit.tscn                         每个英雄共享的节点结构
   ├─ Shadow / TeamRing / SelectionRing / Visual / HealthBar
   ├─ Brain                        OODA 决策
-  └─ StateMachine                 Idle / Move / Attack / Hurt / Death
+  └─ StateMachine                 Idle / Move / Action / Hurt / Death
 
 resources/units/<id>.tres         每个英雄的 UnitDefinition（数值、攻击方式、头像、缩放…）
 resources/visuals/<id>_frames.tres每个英雄的 SpriteFrames（idle/move/attack_01…）
@@ -149,17 +156,20 @@ godot --path . res://scenes/debug/hero_lab.tscn
 | 单英雄调试 | 英雄试炼场：全部动作手动预览 + 真实 1v1 调试 |
 | 双方布阵 | 5 槽位、替换、移除、随机、清空、战力统计 |
 | 自动战斗 | 索敌、推进、走位分离、近战/远程普攻、投射物、受击、死亡、胜负 |
-| OODA AI | 观察、评分判断、决策、行动四段式；可暂停/变速观察 |
+| OODA AI | 观察、评分判断、多 Action 选择、行动四段式；可暂停/变速观察 |
+| 统一 Action | `actions` 列表 + `CombatActionDefinition` + `ActionEffectDefinition` + 单一 `ActionState` |
+| 技能 | 骑士·火焰斩击：`attack_03` 火焰帧 + 170px/±65° 扇形 AOE + 8 秒冷却 |
 | 战斗 HUD | 顶部双方名称/剩余人数/时间，无总血量；右下角半透明控制按钮 |
 | 竞技场 | 地面/背墙扩展至接近镜头高度，单位阵型纵向展开 |
-| FSM | 待机、移动、攻击、受击、死亡五个状态节点 |
+| FSM | 待机、移动、行动、受击、死亡五个状态节点 |
 | 表现 | 像素动画、血条、队伍光环、选中圈、飘字、挥砍弧光、箭矢/法术弹、粒子火花、结算面板、OODA 观察镜 |
 | 分辨率自适应 | 窗口自由缩放；`canvas_items` + `expand`；背景/战场/站位按逻辑视口重算，布阵内容居中 |
-| 自动化测试 | 91 项无界面检查 + 8 场随机阵容压力测试 |
+| 自动化测试 | 100 项无界面检查 + 8 场随机阵容压力测试 |
 
-**MVP 明确不包含**：技能/法力、装备、升级、经济与商店、羁绊、存档、音效、寻路避障。
-按需求“MVP 版本先只实现普通攻击”，攻击状态已经参数化，后续技能可复用同一状态（见
-[AI 设计文档](docs/AI_DESIGN.md)）。
+**当前范围**：普攻 + 骑士火焰斩击。法力、装备、升级、经济与商店、羁绊、存档、音效、
+寻路避障暂不包含。后续护盾/格挡/位移/连续攻击继续用同一套 Action + Effect 扩展，
+不需要新增单位场景或状态机（见 [AI 设计文档](docs/AI_DESIGN.md) 与
+[技能与行为扩展方案](docs/SKILLS_BEHAVIOR_PLAN.md)）。
 
 ## 架构
 
@@ -183,9 +193,11 @@ project.godot
 │  ├─ Shadow / TeamRing / SelectionRing / Visual / HealthBar
 │  ├─ Brain                            OODA 节点
 │  └─ StateMachine
-│     ├─ Idle / Move / Attack / Hurt / Death
+│     ├─ Idle / Move / Action / Hurt / Death
 ├─ scenes/debug/hero_lab.tscn          英雄试炼场（单英雄动作预览 + 1v1）
 ├─ resources/units/<id>.tres           UnitDefinition 数据
+├─ resources/actions/<id>_basic.tres   每个英雄自动生成的基础普攻 Action
+├─ resources/actions/knight_flame_slash.tres 骑士·火焰斩击 Action
 ├─ resources/visuals/<id>_frames.tres  SpriteFrames 动画
 └─ assets/                             从素材包整理的贴图、头像、字体
 ```
@@ -257,9 +269,9 @@ score = 距离权重 0.50 × (1 - clamp(距离 / 1000))
 
 | 状态 | 节点脚本 | 行为 |
 | --- | --- | --- |
-| **待机** `idle` | `scripts/ai/states/idle_state.gd` | 播放 idle、面向目标，读取 Brain 意图决定是否移动/攻击 |
+| **待机** `idle` | `scripts/ai/states/idle_state.gd` | 播放 idle、面向目标，读取 Brain 的行动计划 |
 | **移动** `move` | `move_state.gd` | 走向目标周围的个人战斗位（按槽位错开 Y 轴）；远程被贴脸时后撤 |
-| **攻击** `attack` | `attack_state.gd` | 播放普攻动画 → 起手计时 → 命中（近战直接伤害/远程生成投射物）→ 回到待机 |
+| **行动** `action` | `action_state.gd` | 执行选中的 `CombatActionDefinition`：动画、命中帧、伤害/投射物/AOE、冷却；普攻与技能共用 |
 | **受击** `hurt` | `hurt_state.gd` | 被较大伤害打断当前动作，短暂僵直，然后恢复 |
 | **死亡** `death` | `death_state.gd` | 播放死亡动画，尸体停留后淡出并释放，通知 Battle 判定胜负 |
 
@@ -282,29 +294,41 @@ score = 距离权重 0.50 × (1 - clamp(距离 / 1000))
 再加上每帧的软分离（`Battle._resolve_separation()`），混战会形成可读的包围圈，而不是
 一坨叠在一起的精灵。血条、近战弧光和投射物也因此更容易看清。
 
-### 从普攻扩展到技能
+### 统一 Action 系统（已接入）
 
-`UnitAttackState` 没有写死“普攻”，它需要的只是：
+角色不再只有“一个普攻 + 一个技能”，而是持有 `actions: Array[CombatActionDefinition]`：
 
-- 攻击动画名（当前 `attack_01`，素材里还有 `attack_02/03`）
-- 起手时间 `attack_windup`
-- 命中方式（近战 / 投射物类型与速度）
-- 伤害与冷却
+```text
+UnitBrain._decide()
+    观察 → 判断目标 → 遍历 actions
+    → 过滤冷却/距离/资源
+    → 选出 ActionPlan(action, target)
+                    ↓
+UnitActionState（唯一行动状态）
+    → 播放 action.animation
+    → 按 trigger_frame 执行 effects
+    → 单个/扇形/圆形伤害、投射物、视觉
+                    ↓
+回到 Idle，等待下一次决策
+```
 
-推荐的扩展方式是：**技能参数放资源、目标优先级放行为资源、特效放可复用场景**，
-不要为每个英雄复制 `unit.tscn`。
+当前已经落地：
 
-- `CombatActionDefinition`：技能范围、动画名、起手、冷却、伤害、投射物、AOE、目标类型；
-- `BehaviorProfile`：距离/残血/威胁权重、职业偏好、后排优先、后撤阈值；
-- `ActionRule` / `BehaviorStrategy`：技能释放条件与顺序；
-- 新投射物/AOE/召唤特效：独立可复用 `.tscn`；
-- `UnitDefinition.unit_scene`：仅当节点结构不同（坐骑、挂点、额外碰撞盒等）时覆盖；
-  默认继续使用共享的 `unit.tscn`。
+- `CombatActionDefinition`：动作 ID、名称、分类、目标类型、动画、范围、冷却、优先级、效果列表；
+- `ActionEffectDefinition`：伤害、投射物、视觉等效果类型，支持命中帧/形状/半径/半角/倍率；
+- `UnitActionState`：普攻和技能共用的统一行动状态；
+- `UnitBrain._select_action()`：从多个 Action 中按优先级和 AOE 目标数量选动作；
+- 骑士 `knight_flame_slash`：`attack_03` 火焰动画，第 7 帧触发 170px / ±65° 扇形 AOE；
+- 每个单位自动生成 `basic_attack` Action；新增技能只需新增 Action 资源并加入 `actions`。
 
-完整方案、代码草案、例子和迁移步骤见
+后续扩展方向：
+
+- `HEAL / SHIELD / STATUS / DISPLACE / SUMMON` 效果类型；
+- 护盾、格挡、突进、连续攻击继续复用 `ActionState`；
+- 更复杂的目标策略再引入 `BehaviorProfile` / `ActionRule` / 自定义 ActionLogic。
+
+完整架构与扩展计划见
 [技能与行为扩展方案](docs/SKILLS_BEHAVIOR_PLAN.md)。
-
-当前 MVP 只接入普攻，`AttackState` 与 1v1 试炼场保留了这条扩展路径。
 
 ## 测试
 
@@ -321,9 +345,10 @@ godot --headless --path . res://tests/test_runner.tscn
 - 部署/移除/筛选的真实信号链路；
 - 英雄试炼场生成 22 张英雄卡、预览单位、动作按钮，切换英雄与手动播放动画正常；
 - 默认阵容与随机阵容各打一场完整战斗；
-- 败方全员阵亡、FSM 确实进入过攻击/受击/移动/死亡；
+- 败方全员阵亡、FSM 确实进入过行动/受击/移动/死亡；
 - 双方都造成过伤害、远程单位确实发射过投射物；
-- OODA 快照的观察、判断、决策、行动文本已更新。
+- OODA 快照的观察、判断、决策、行动文本已更新；
+- 骑士火焰斩击 Action 数据、决策层选择、扇形内多人掉血、身后敌人不受影响、技能冷却。
 
 随机阵容压力测试（8 场，验证不卡死）：
 
@@ -337,6 +362,8 @@ godot --headless --path . res://tools/soak_test.tscn
 
 ```sh
 godot --path . res://tools/capture.tscn --resolution 1600x900
+# 单独抓取骑士火焰斩击的火焰帧
+godot --path . res://tools/flame_capture.tscn --resolution 1600x900
 ```
 
 ## 素材
@@ -353,7 +380,7 @@ godot --path . res://tools/capture.tscn --resolution 1600x900
 
 ## 已知限制
 
-- 只有普攻；没有技能、法力、装备、等级、羁绊。
+- 目前只有骑士一个主动技能（火焰斩击）；法力、装备、等级、羁绊尚未实现。
 - 没有寻路与障碍物，单位做直线移动 + 软分离；竞技场是一整块平地。
 - 投射物追踪目标，目标死亡后会继续飞行一小段再消失。
 - 数值为 Demo 级粗调，双方可自由混搭英雄，不保证绝对平衡。

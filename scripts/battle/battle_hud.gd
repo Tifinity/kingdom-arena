@@ -160,6 +160,8 @@ func _update_inspector() -> void:
 		snapshot.hp, snapshot.target, snapshot.cooldown,
 	]
 	inspector_state.text = snapshot.state
+	if snapshot.state_key == "action" and snapshot.get("action_name", "—") != "—":
+		inspector_state.text = "%s · %s" % [snapshot.state, snapshot.action_name]
 	inspector_state.add_theme_color_override("font_color", _state_color(snapshot.state_key))
 	observe_text.text = snapshot.observe
 	judge_text.text = snapshot.judge
@@ -169,7 +171,7 @@ func _update_inspector() -> void:
 
 func _state_color(state_key: String) -> Color:
 	match state_key:
-		"attack":
+		"action":
 			return Color("#e7c46b")
 		"hurt":
 			return Color("#ff9a8a")

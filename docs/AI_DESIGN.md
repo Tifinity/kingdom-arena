@@ -1,5 +1,11 @@
 # 单位 AI：OODA 决策 + 有限状态机
 
+> **当前实现状态（2026-11）**：Attack/Skill 已统一为一个 `Action` 状态。
+> 每个单位持有 `actions: Array[CombatActionDefinition]`；`UnitBrain._select_action()`
+> 选择 `ActionPlan`，由 `UnitActionState` 按动画帧执行 effects。
+> 骑士·火焰斩击（`attack_03`，扇形 AOE）已作为第一个技能接入。
+> 本文保留基础 OODA 与状态机的设计说明，其中旧的 Attack 名称对应现在的 Action。
+
 本文记录 `王国竞技场` MVP 的单位行为设计。目标不是“让单位互殴”，而是把
 **感知、判断、执行**拆成可观察、可测试、可扩展的三层：
 
@@ -8,14 +14,14 @@
                       ▼
               ┌───────────────┐
               │  UnitBrain    │  OODA：观察 → 判断 → 决策 → 行动
-              │  （想）        │  只写 target / intent / 文本
+              │  （想）        │  选择 ActionPlan + 目标
               └───────┬───────┘
-                      │ 目标 + 意图
+                      │ ActionPlan
                       ▼
 每物理帧 ────> ┌───────────────┐
               │ UnitStateMachine │  当前状态节点执行
-              │ Idle/Move/      │  动画、移动、起手、伤害
-              │ Attack/Hurt/    │
+              │ Idle/Move/      │  动画、移动、命中帧、效果
+              │ Action/Hurt/    │
               │ Death           │
               └───────────────┘
 ```
@@ -80,52 +86,58 @@ HUD 展示：
 
 ### 3. Decide 决策
 
-决策树（优先级从高到低）：
+决策分两层：
+
+1. `_judge()` 选出优先目标（沿用距离/残血/威胁/职业权重）；
+2. `_select_action()` 从该单位的 `actions` 中选出当前可执行的动作：
 
 ```text
 没有敌人               -> 待机
 目标无效               -> 待机，等待下次观察重新选目标
-目标在攻击距离内
-  ├─ 普攻冷却就绪      -> 攻击
-  ├─ 自身远程且被贴脸  -> 拉开距离（KITE）
-  └─ 其他              -> 待机，等待冷却
-目标在攻击距离外
-  ├─ 自身远程且被贴脸  -> 拉开距离
+遍历 actions
+  ├─ 冷却未就绪        -> 跳过
+  ├─ 目标不在动作范围   -> 跳过
+  ├─ 目标类型不匹配     -> 跳过
+  ├─ 计算 action.priority + AOE 聚集收益
+  └─ 选最高分 ActionPlan(action, target)
+没有可用 Action
+  ├─ 远程被贴脸        -> KITE
+  ├─ 目标在攻击距离内   -> 等待冷却
   └─ 其他              -> 推进
 ```
 
-远程“被贴脸”阈值是 `自身攻击距离 × 0.42`。例如弓箭手射程 340px，
-敌人在 143px 内时会后撤；移动状态在距离达到 72% 射程后停下重新攻击。
-近战没有后撤，只有推进与攻击。
-
-决策结果写入：
+当前内核是一个通用的 `ActionPlan`：
 
 ```gdscript
 unit.target = target
-unit.intent = Intent.ATTACK / ADVANCE / KITE / IDLE
-unit.intent_reason = "目标进入攻击距离，普攻就绪"
+unit.planned_action = plan.action
+unit.intent = Intent.ACTION
+unit.intent_reason = "使用 火焰斩击（技能）"
 ```
 
 HUD 展示：
 
 ```text
-攻击：目标进入攻击距离，普攻就绪
+行动：使用 火焰斩击（技能）
 ```
+
+> 普攻只是 `actions` 中优先级最低、永远可用的一个 Action。技能、护盾、突进、
+> 连续攻击都通过同一套选择逻辑参与竞争，不需要新增 Skill 决策层或 Skill 状态。
 
 ### 4. Act 行动
 
-Brain 不直接移动或播放动画，只写 `Unit` 的目标与意图。真正执行的是状态机当前状态：
+Brain 不直接移动或播放动画，只写 `Unit` 的目标与 `ActionPlan`。真正执行的是状态机当前状态：
 
-- `IdleState`：面向目标、播 idle；根据意图切到 `move` / `attack`。
+- `IdleState`：面向目标、播 idle；根据意图切到 `move` / `action`。
 - `MoveState`：按意图推进或后撤；接近时计算个人战斗位。
-- `AttackState`：播攻击动画，起手计时到点后结算伤害/生成投射物。
+- `ActionState`：读取 `plan.action`，按动画帧触发 effects（伤害/投射物/AOE/视觉），设置动作冷却。
 - `HurtState`：播受击，短暂僵直后回 idle。
 - `DeathState`：播死亡、淡出、释放。
 
 HUD 展示：
 
 ```text
-普通攻击 → 死灵法师（冷却 0.00s）
+火焰斩击 → 重甲兽人（冷却 7.58s）
 移动 → 兽人（距离 182px）
 后撤，重新拉开与 狼人 的距离
 原地待机，持续观察
@@ -143,7 +155,7 @@ Unit
 └─ StateMachine
    ├─ Idle    (Node + idle_state.gd)
    ├─ Move    (Node + move_state.gd)
-   ├─ Attack  (Node + attack_state.gd)
+   ├─ Action  (Node + action_state.gd)
    ├─ Hurt    (Node + hurt_state.gd)
    └─ Death   (Node + death_state.gd)
 ```
@@ -168,17 +180,17 @@ func can_transition(next: StringName) -> bool
 ### 状态转换图
 
 ```text
-                 ┌──────────────── 攻击冷却中就绪 ────────────────┐
+                 ┌──────────────── ActionPlan 可用 ──────────────┐
                  ▼                                                │
-  ┌────────┐  意图推进/后撤   ┌────────┐   进入攻击距离+就绪   ┌────────┐
-  │  Idle  │ ───────────────> │  Move  │ ─────────────────────> │ Attack │
-  │  待机  │ <─────────────── │  移动  │ <───────────────────── │  攻击  │
-  └────────┘   意图待机/到位  └────────┘      动画/冷却结束       └────────┘
+  ┌────────┐  意图推进/后撤   ┌────────┐   进入动作范围+Plan     ┌────────┐
+  │  Idle  │ ───────────────> │  Move  │ ─────────────────────> │ Action │
+  │  待机  │ <─────────────── │  移动  │ <───────────────────── │  行动  │
+  └────────┘   意图待机/到位  └────────┘      动画/效果结束       └────────┘
       ▲   ▲                         │                               │
       │   │                         │                               │
       │   └──────── 僵直结束 ───────┼────────── 大伤害打断 ─────────┤
       │                             ▼                               ▼
-      │                     ┌────────────┐                  （攻击结束回 Idle）
+      │                     ┌────────────┐                  （行动结束回 Idle）
       └───── 僵直结束 ───── │    Hurt    │
                             │    受击    │
                             └────────────┘
@@ -195,9 +207,9 @@ func can_transition(next: StringName) -> bool
 
 | 状态 | 进入时 | 每帧 | 退出条件 |
 | --- | --- | --- | --- |
-| Idle | 重置动画速度，播 `idle` | 面向目标；读 `brain.intent` | 攻击就绪 → Attack；推进/后撤 → Move |
-| Move | 播 `move` | 朝个人战斗位移动/后撤；面向移动方向或目标 | 到位/失去目标/意图待机 → Idle；可攻击 → Attack |
-| Attack | 面向目标，播 `attack_01`；根据起手时间调整动画速度 | 累计时间；到 `attack_windup` 时结算一次伤害 | 动画时长结束 → Idle |
+| Idle | 重置动画速度，播 `idle` | 面向目标；读 `brain.intent` | ActionPlan 可用 → Action；推进/后撤 → Move |
+| Move | 播 `move` | 朝个人战斗位移动/后撤；面向移动方向或目标 | 到位/失去目标/意图待机 → Idle；ActionPlan 可用 → Action |
+| Action | 面向目标，播放 `plan.action.animation` | 累计动画时间；按 `trigger_frame` 执行 effects | 动画时长结束 → Idle |
 | Hurt | 强制打断当前动作，播 `hurt` | 累计 0.26s | 时间到 → Idle |
 | Death | 停用大脑、隐藏血条与队伍环、播 `death` | 无（由 Tween 淡出） | 淡出结束 → `queue_free()` |
 
@@ -212,15 +224,14 @@ func can_transition(next: StringName) -> bool
 
 ### 攻击节奏
 
-`AttackState` 不使用固定延迟，而是把 SpriteFrames 的动画帧率、起手时间统一换算：
+`UnitActionState` 直接使用动作动画的帧率和 `trigger_frame`：
 
 ```text
-base_duration   = 帧数 / 动画速度
-target_duration = clamp(base_duration, 0.36, 0.75)
-target_duration = max(target_duration, attack_windup + 0.16)
-speed_scale     = base_duration / target_duration
-命中时刻         = attack_windup（可被受击/死亡打断）
-冷却             = 1 / attack_speed（命中时开始计时）
+duration        = 帧数 / (SpriteFrames FPS × animation_speed)
+命中时刻         = trigger_frame / (FPS × animation_speed)
+效果             = ActionEffectDefinition（伤害/投射物/视觉）
+冷却             = action.cooldown（动作开始时设置）
+打断             = Hurt / Death 强制切换，已触发的效果不回滚
 ```
 
 因此 6 帧的士兵和 15 帧的剑士都能在相近的感知节奏内完成一次攻击，而不会因为素材帧数
@@ -248,34 +259,33 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
 
 ---
 
-## 四、扩展技能的路径
+## 四、Action 系统的扩展路径
 
-当前 `AttackState` 只接入了 `attack_01` 普攻，但它是“动作参数化”的。加技能可以按以下步骤：
+当前基础已落地：
 
-1. **数据**：为技能增加 `CombatAction` 资源（或扩展 `UnitDefinition`），至少包含
-   `animation`、`windup`、`damage_ratio`、`cooldown`、`range`、`projectile`、`mana_cost`。
-2. **决策**：在 `UnitBrain._decide()` 中，攻击/推进之前插入技能条件，例如
-   “蓝量足够且目标是低血量 → SKILL”；`Intent` 增加 `SKILL`。
-3. **状态**：新增 `SkillState` 节点，或让 `AttackState.enter()` 接收 action 参数：
-   - 播技能动画；
-   - 在起手帧生成 AOE/投射物/治疗；
-   - 设置技能冷却与蓝耗；
-   - 结束后回 Idle。
-4. **UI**：在 `battle_hud.tscn` 增加蓝条/技能冷却条，观察镜的行动行显示技能名。
-5. **素材**：素材包已包含 `attack_02`、`attack_03`、`block`、`summon` 等动画，
-   `SpriteFrames` 生成时已保留这些片段（`resources/visuals/*.tres`），可直接用。
+- `CombatActionDefinition`：动作元数据、目标类型、动画、范围、冷却、优先级、effects；
+- `ActionEffectDefinition`：DAMAGE / PROJECTILE / VISUAL；
+- `UnitActionState`：统一的行动状态；
+- `UnitBrain._select_action()`：从 `unit.actions` 中选 `ActionPlan`；
+- 骑士·火焰斩击：`attack_03` + 扇形 AOE + 地面火焰表现。
 
-MVP 不接入技能，是为了先验证“观察/判断/决策/行动 + 状态机 + 资源驱动”这条主链路。
+继续扩展时：
 
----
+1. **新技能**：新增一个 `CombatActionDefinition` 资源，加入对应英雄的 `actions`；
+2. **护盾/格挡**：增加 `SHIELD` / `STATUS` effect 与 Unit 状态组件；
+3. **突进/位移**：增加 `DISPLACE` effect 或 action motion；
+4. **连续攻击**：同一 Action 配置多个不同 `trigger_frame` 的 DAMAGE；
+5. **特殊逻辑**：只有数据表达不了的技能才增加自定义 ActionLogic，不复制单位场景；
+6. **UI**：OODA 镜已显示状态/动作名/冷却，可继续扩展冷却条和技能列表。
 
+当前已接入骑士火焰斩击，其他英雄仍只有自动生成的 `basic_attack` Action。
 ## 五、调试与测试
 
 - **OODA 观察镜**：战斗中点击任意单位，左下角实时显示：
   状态徽章、生命、目标、冷却、观察文本、判断文本、决策文本、行动文本。
 - **暂停/变速**：`空格`暂停、`F`变速，便于观察 AI 在某一帧的选择。
 - **自动化测试**：
-  - `tests/test_runner.tscn` 91 项检查；
+  - `tests/test_runner.tscn` 100 项检查；
   - `tools/soak_test.tscn` 8 场随机阵容，检查卡死与胜负分布。
 - **可调参数**：
   - `UnitBrain.THINK_INTERVAL`：思考频率；
@@ -293,4 +303,4 @@ MVP 不接入技能，是为了先验证“观察/判断/决策/行动 + 状态�
 - 目标评分是手调权重，不做学习；对局平衡由数值和阵容决定。
 - 投射物锁定目标，不做弹道预判/闪避。
 - 远程后撤只按空间向量，不做绕柱或侧移；贴边时会停下。
-- 技能、控制链、驱散等复杂状态未实现，但状态机与动作参数已经预留了扩展位。
+- 目前只实现骑士火焰斩击；护盾、格挡、位移、召唤等 effect 类型和法力系统尚未实现。

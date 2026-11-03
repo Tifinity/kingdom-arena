@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+
+[sub_resource type="Resource" id="effect"]
+script = ExtResource("2")
+kind = 1
+shape = 0
+trigger_frame = 8
+damage_ratio = 1.00
+radius = 0.0
+half_angle = 0.0
+projectile_kind = 2
+
+[resource]
+script = ExtResource("1")
+action_id = &"necromancer_basic"
+display_name = "普通攻击"
+category = 0
+target_mode = 0
+animation = &"attack_01"
+animation_speed = 1.0
+action_range = 350.0
+min_range = 0.0
+cooldown = 0.62
+priority = 0
+effects = [SubResource("effect")]

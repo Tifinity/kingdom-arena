@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/werewolf_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/werewolf.png" id="3"]
+[ext_resource type="Resource" path="res://resources/actions/werewolf_basic.tres" id="4"]
 
 [resource]
 script = ExtResource("1")
@@ -27,5 +28,6 @@ foot_offset = 7.0
 character_height = 17.0
 body_radius = 31.5
 accent_color = Color(1.000, 0.561, 0.639, 1)
+actions = [ExtResource("4")]
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")

@@ -16,8 +16,8 @@ func update(delta: float) -> void:
 		return
 
 	var intent: int = unit.brain.intent
-	if intent == UnitBrain.Intent.ATTACK and unit.can_attack():
-		machine.transition_to(&"attack")
+	if intent == UnitBrain.Intent.ACTION and unit.can_execute_planned_action():
+		machine.transition_to(&"action")
 		return
 	if intent == UnitBrain.Intent.IDLE:
 		machine.transition_to(&"idle")
@@ -27,24 +27,20 @@ func update(delta: float) -> void:
 		_update_kite(delta)
 		return
 
-	# 默认按“推进”处理：走向自己在目标周围的战斗位，而不是目标原点。
-	if unit.is_target_in_range(-4.0):
-		if unit.can_attack():
-			machine.transition_to(&"attack")
+	# 推进：朝目标移动，直到进入当前基础攻击距离。
+	if unit.is_target_in_range(0.0):
+		if intent == UnitBrain.Intent.ACTION and unit.can_execute_planned_action():
+			machine.transition_to(&"action")
 		else:
 			machine.transition_to(&"idle")
 		return
-	var desired := unit.desired_combat_position()
-	var direction: Vector2 = desired - unit.global_position
-	if direction.length() < 8.0:
-		machine.transition_to(&"idle")
-		return
+	var direction: Vector2 = unit.target.global_position - unit.global_position
 	unit.face_direction(direction.x)
 	unit.play_animation(&"move")
 	unit.move_step(direction, delta)
 	if unit.is_target_in_range(-4.0):
-		if unit.can_attack():
-			machine.transition_to(&"attack")
+		if intent == UnitBrain.Intent.ACTION and unit.can_execute_planned_action():
+			machine.transition_to(&"action")
 		else:
 			machine.transition_to(&"idle")
 
@@ -62,6 +58,5 @@ func _update_kite(delta: float) -> void:
 	var before := unit.global_position
 	var away: Vector2 = unit.global_position - unit.target.global_position
 	unit.move_step(away, delta)
-	# 已经贴到场地边缘、无法继续后撤时停下，避免原地抖动。
 	if before.distance_to(unit.global_position) < 0.08:
 		machine.transition_to(&"idle")

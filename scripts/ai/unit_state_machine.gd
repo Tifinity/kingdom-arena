@@ -11,7 +11,7 @@ signal state_changed(state_name: String)
 const DISPLAY_NAMES := {
 	&"idle": "待机",
 	&"move": "移动",
-	&"attack": "攻击",
+	&"action": "行动",
 	&"hurt": "受击",
 	&"death": "死亡",
 }

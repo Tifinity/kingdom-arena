@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/elite_orc_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/elite_orc.png" id="3"]
+[ext_resource type="Resource" path="res://resources/actions/elite_orc_basic.tres" id="4"]
 
 [resource]
 script = ExtResource("1")
@@ -27,5 +28,6 @@ foot_offset = 7.0
 character_height = 24.0
 body_radius = 33.6
 accent_color = Color(0.941, 0.702, 0.420, 1)
+actions = [ExtResource("4")]
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")

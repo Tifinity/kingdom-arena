@@ -10,7 +10,7 @@ const TEAM_COLORS := [Color("#58a6ff"), Color("#ff6b7a")]
 const TEAM_COLORS_DIM := [Color("#2b5f96"), Color("#8d3541")]
 
 const DEFAULT_LINEUPS := [
-	[&"knight_templar", &"armored_axeman", &"lancer", &"archer", &"wizard"],
+	[&"knight_templar", &"armored_axeman", &"knight", &"archer", &"wizard"],
 	[&"armored_orc", &"orc", &"skeleton_archer", &"necromancer", &"werewolf"],
 ]
 

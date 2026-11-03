@@ -42,6 +42,8 @@ var team_max_hp_total: Array[float] = [0.0, 0.0]
 var selected_unit: Unit
 var unit_damage: Dictionary = {}
 var projectiles_fired := 0
+var action_casts := 0
+var skill_casts := 0
 
 var _mvp_name := "无"
 var _mvp_team := -1
@@ -293,6 +295,53 @@ func spawn_damage_number(at: Vector2, amount: float, color: Color) -> void:
 	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
 	effects_root.add_child(number)
 	number.setup(amount, color, at)
+
+
+func register_action_cast(source: Unit, action: CombatActionDefinition) -> void:
+	if action == null:
+		return
+	action_casts += 1
+	if action.category == CombatActionDefinition.Category.SKILL:
+		skill_casts += 1
+
+
+## 扇形 AOE：以 source 为圆心，direction 为朝向，收集敌方单位。
+func units_in_cone(source: Unit, direction: Vector2, radius: float, half_angle_degrees: float) -> Array[Unit]:
+	var result: Array[Unit] = []
+	if not is_instance_valid(source):
+		return result
+	var dir := direction.normalized()
+	if dir.length_squared() < 0.0001:
+		dir = Vector2(float(source.facing), 0.0)
+	var half_angle := deg_to_rad(absf(half_angle_degrees))
+	for unit in living_units():
+		if unit.team == source.team:
+			continue
+		var offset := unit.global_position - source.global_position
+		if offset.length() > radius + unit.body_radius:
+			continue
+		if offset.length_squared() < 0.0001 or absf(dir.angle_to(offset.normalized())) <= half_angle:
+			result.append(unit)
+	return result
+
+
+func units_in_circle(source: Unit, center: Vector2, radius: float) -> Array[Unit]:
+	var result: Array[Unit] = []
+	for unit in living_units():
+		if unit.team == source.team:
+			continue
+		if unit.global_position.distance_to(center) <= radius + unit.body_radius:
+			result.append(unit)
+	return result
+
+
+func spawn_action_effect(scene: PackedScene, source: Unit, effect: ActionEffectDefinition) -> void:
+	if scene == null or not is_instance_valid(source):
+		return
+	var fx := scene.instantiate()
+	effects_root.add_child(fx)
+	if fx.has_method("setup_from_effect"):
+		fx.setup_from_effect(source, effect)
 
 
 func spawn_projectile(source: Unit, target: Unit, damage: float, kind: int, color: Color) -> void:
