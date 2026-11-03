@@ -16,6 +16,9 @@ var slot := 0
 
 var max_hp := 100.0
 var hp := 100.0
+var max_mana := 100.0
+var mana := 100.0
+var mana_regen := 8.0
 var attack_damage := 10.0
 var attack_interval := 1.0
 var attack_range := 80.0
@@ -65,6 +68,9 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 
 	max_hp = p_definition.max_hp
 	hp = max_hp
+	max_mana = p_definition.max_mana
+	mana = max_mana
+	mana_regen = p_definition.mana_regen
 	attack_damage = p_definition.attack_damage
 	attack_interval = p_definition.attack_interval()
 	attack_range = p_definition.attack_range
@@ -93,6 +99,7 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 
 	team_ring.setup(GameState.team_color(team), p_definition.body_radius * 0.9)
 	selection_ring.setup(p_definition.body_radius * 1.35)
+	selection_ring.set_combat_ranges(attack_range, _max_action_range())
 	selection_ring.visible = false
 
 	health_bar.setup(p_definition.body_radius * 1.65, GameState.team_color(team))
@@ -138,6 +145,7 @@ func _physics_process(delta: float) -> void:
 		return
 	for key in action_cooldowns.keys():
 		action_cooldowns[key] = maxf(0.0, float(action_cooldowns[key]) - delta)
+	mana = minf(max_mana, mana + mana_regen * delta)
 	_flinch_cooldown = maxf(0.0, _flinch_cooldown - delta)
 
 
@@ -229,6 +237,18 @@ func is_action_ready(action: CombatActionDefinition) -> bool:
 	if action == null:
 		return false
 	return float(action_cooldowns.get(action.action_id, 0.0)) <= 0.0001
+
+
+func has_mana(action: CombatActionDefinition) -> bool:
+	if action == null:
+		return true
+	return mana + 0.001 >= action.mana_cost
+
+
+func spend_mana(action: CombatActionDefinition) -> void:
+	if action == null:
+		return
+	mana = maxf(0.0, mana - action.mana_cost)
 
 
 func action_cooldown(action: CombatActionDefinition) -> float:
@@ -378,6 +398,14 @@ func set_selected(value: bool) -> void:
 	selection_ring.visible = value and alive
 
 
+func _max_action_range() -> float:
+	var result := attack_range
+	for action in actions:
+		if action != null:
+			result = maxf(result, action.action_range)
+	return result
+
+
 func ai_snapshot() -> Dictionary:
 	var action_text := brain.last_action_text if brain != null else ""
 	if state_machine != null and state_machine.current_name == &"action" and planned_action != null:
@@ -399,6 +427,9 @@ func ai_snapshot() -> Dictionary:
 		"action_name": planned_action.display_name if planned_action != null else "—",
 		"target": target.definition.display_name if has_live_target() else "无",
 		"hp": "%d / %d" % [roundi(hp), roundi(max_hp)],
+		"mana": "%d / %d" % [roundi(mana), roundi(max_mana)],
+		"attack_range": "%d" % roundi(attack_range),
+		"skill_range": "%d" % roundi(_max_action_range()) if _max_action_range() > attack_range + 0.5 else "—",
 		"cooldown": "%.2f" % current_action_cooldown(),
 		"alive": alive,
 	}

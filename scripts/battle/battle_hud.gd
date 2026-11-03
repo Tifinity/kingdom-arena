@@ -156,8 +156,9 @@ func _update_inspector() -> void:
 		definition.role,
 	]
 	inspector_name.add_theme_color_override("font_color", GameState.team_color(snapshot.team))
-	inspector_hp.text = "生命 %s · 目标 %s · 冷却 %ss" % [
+	inspector_hp.text = "生命 %s · 目标 %s · 冷却 %ss\n蓝量 %s · 攻击范围 %s · 技能范围 %s" % [
 		snapshot.hp, snapshot.target, snapshot.cooldown,
+		snapshot.mana, snapshot.attack_range, snapshot.skill_range,
 	]
 	inspector_state.text = snapshot.state
 	if snapshot.state_key == "action" and snapshot.get("action_name", "—") != "—":

@@ -224,6 +224,8 @@ func _select_action() -> ActionPlan:
 			continue
 		if not unit.has_live_target() or not unit.is_action_ready(action):
 			continue
+		if not unit.has_mana(action):
+			continue
 		if not unit.is_target_in_action_range(action, 4.0):
 			continue
 		var score := float(action.priority)

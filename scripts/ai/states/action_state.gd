@@ -19,7 +19,15 @@ func enter(_previous: StringName) -> void:
 	if _action == null:
 		machine.transition_to(&"idle")
 		return
+	# 防御性保护：同一个动作在冷却中绝不允许重复进入，避免一次技能释放两次。
+	if unit.action_cooldown(_action) > 0.001:
+		machine.transition_to(&"idle")
+		return
+	if not unit.has_mana(_action):
+		machine.transition_to(&"idle")
+		return
 
+	unit.spend_mana(_action)
 	unit.face_target()
 	unit.visual.speed_scale = maxf(_action.animation_speed, 0.05)
 	unit.play_animation(_action.animation, true)

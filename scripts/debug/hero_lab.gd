@@ -106,7 +106,7 @@ func _select_definition(definition: UnitDefinition) -> void:
 func _update_details(definition: UnitDefinition) -> void:
 	detail_name.text = definition.display_name
 	detail_title.text = "「%s」" % definition.title
-	detail_meta.text = "%s · %s" % [definition.faction_label(), definition.role]
+	detail_meta.text = "%s · %s · 蓝量 %d" % [definition.faction_label(), definition.role, roundi(definition.max_mana)]
 	detail_meta.add_theme_color_override("font_color", definition.accent_color)
 	detail_desc.text = definition.description
 	stat_hp.text = "%d" % roundi(definition.max_hp)

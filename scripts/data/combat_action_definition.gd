@@ -17,6 +17,7 @@ enum TargetMode { ENEMY, ALLY, SELF, POINT, DIRECTION }
 @export var action_range := 80.0
 @export var min_range := 0.0
 @export var cooldown := 1.0
+@export var mana_cost := 0.0
 ## 多个动作同时可用时，决策层的偏好权重。
 @export var priority := 0
 

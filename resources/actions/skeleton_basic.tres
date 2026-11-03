@@ -24,5 +24,6 @@ animation_speed = 1.0
 action_range = 74.0
 min_range = 0.0
 cooldown = 1.00
+mana_cost = 0.0
 priority = 0
 effects = [SubResource("effect")]

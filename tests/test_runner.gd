@@ -135,6 +135,8 @@ func _test_flame_slash() -> void:
 	_check(skill.animation == &"attack_03", "火焰斩击使用 attack_03 火焰帧动画")
 	_check(not skill.effects.is_empty() and skill.effects[0].shape == ActionEffectDefinition.Shape.CONE,
 		"火焰斩击配置为扇形 AOE")
+	_check(skill.mana_cost > 0.0 and knight_definition.max_mana > 0.0,
+		"火焰斩击有蓝耗，单位有蓝量属性")
 
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
@@ -173,6 +175,13 @@ func _test_flame_slash() -> void:
 	knight.brain.force_think()
 	_check(knight.planned_action != null and knight.planned_action.action_id == &"knight_flame_slash",
 		"决策层在火焰斩击可用时选择技能 Action")
+	# 蓝量不足时不应继续选技能，应回退到普攻。
+	knight.mana = 0.0
+	knight.brain.force_think()
+	_check(knight.planned_action == null or knight.planned_action.action_id != &"knight_flame_slash",
+		"蓝量不足时决策层不会选择火焰斩击")
+	knight.mana = knight.max_mana
+	knight.brain.force_think()
 	knight.brain.enabled = false
 	knight.target = enemies[0]
 	knight.planned_action = skill
@@ -183,8 +192,12 @@ func _test_flame_slash() -> void:
 	_check(enemies[0].hp < hp_before[0] and enemies[1].hp < hp_before[1],
 		"扇形内两名敌人同时受到火焰斩击伤害")
 	_check(enemies[2].hp == hp_before[2], "身后敌人不受扇形 AOE 影响")
-	_check(battle.skill_casts > 0 and knight.action_cooldown(skill) > 0.0,
-		"技能计数并进入冷却")
+	_check(battle.skill_casts == 1 and knight.action_cooldown(skill) > 0.0,
+		"一次技能只释放一次并进入冷却")
+	_check(knight.mana < knight.max_mana, "释放火焰斩击消耗蓝量")
+	var hud_snapshot := knight.ai_snapshot()
+	_check(hud_snapshot.has("mana") and hud_snapshot.has("attack_range") and hud_snapshot.has("skill_range"),
+		"调试快照包含蓝量与攻击范围")
 
 	Engine.time_scale = 1.0
 	# 等 Battle 的 3 秒倒计时协程结束，避免测试退出时留下 SceneTreeTimer。

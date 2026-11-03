@@ -37,6 +37,10 @@ const FACTION_NAMES := {
 ## 攻击动画起手到伤害结算的时间。
 @export var attack_windup: float = 0.3
 
+@export_group("资源")
+@export var max_mana := 100.0
+@export var mana_regen := 8.0
+
 @export_group("动作")
 ## 该单位可执行的全部 Action（普通攻击、技能、防御、位移……）。
 ## 决策层从这些动作中选择 ActionPlan；ActionState 负责执行。

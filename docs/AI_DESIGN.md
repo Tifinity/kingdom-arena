@@ -3,7 +3,7 @@
 > **当前实现状态（2026-11）**：Attack/Skill 已统一为一个 `Action` 状态。
 > 每个单位持有 `actions: Array[CombatActionDefinition]`；`UnitBrain._select_action()`
 > 选择 `ActionPlan`，由 `UnitActionState` 按动画帧执行 effects。
-> 骑士·火焰斩击（`attack_03`，扇形 AOE）已作为第一个技能接入。
+> 骑士·火焰斩击（`attack_03`，扇形 AOE，30 蓝耗）已作为第一个技能接入。
 > 本文保留基础 OODA 与状态机的设计说明，其中旧的 Attack 名称对应现在的 Action。
 
 本文记录 `王国竞技场` MVP 的单位行为设计。目标不是“让单位互殴”，而是把
@@ -267,7 +267,7 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
 - `ActionEffectDefinition`：DAMAGE / PROJECTILE / VISUAL；
 - `UnitActionState`：统一的行动状态；
 - `UnitBrain._select_action()`：从 `unit.actions` 中选 `ActionPlan`；
-- 骑士·火焰斩击：`attack_03` + 扇形 AOE + 地面火焰表现。
+- 骑士·火焰斩击：`attack_03` 自带的火焰帧 + 扇形 AOE；不再叠加第二套火焰刀光。
 
 继续扩展时：
 
@@ -282,10 +282,11 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
 ## 五、调试与测试
 
 - **OODA 观察镜**：战斗中点击任意单位，左下角实时显示：
-  状态徽章、生命、目标、冷却、观察文本、判断文本、决策文本、行动文本。
+  状态徽章、生命、蓝量、攻击范围、技能范围、目标、冷却和 OODA 文本；
+  选中单位脚下同时显示基础攻击范围（蓝圈）和技能范围（橙色虚线圈）。
 - **暂停/变速**：`空格`暂停、`F`变速，便于观察 AI 在某一帧的选择。
 - **自动化测试**：
-  - `tests/test_runner.tscn` 100 项检查；
+  - `tests/test_runner.tscn` 104 项检查；
   - `tools/soak_test.tscn` 8 场随机阵容，检查卡死与胜负分布。
 - **可调参数**：
   - `UnitBrain.THINK_INTERVAL`：思考频率；
@@ -303,4 +304,4 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
 - 目标评分是手调权重，不做学习；对局平衡由数值和阵容决定。
 - 投射物锁定目标，不做弹道预判/闪避。
 - 远程后撤只按空间向量，不做绕柱或侧移；贴边时会停下。
-- 目前只实现骑士火焰斩击；护盾、格挡、位移、召唤等 effect 类型和法力系统尚未实现。
+- 目前只实现骑士火焰斩击；护盾、格挡、位移、召唤等 effect 类型尚未实现。法力仅有基础蓝池、回复与技能消耗。

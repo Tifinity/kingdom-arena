@@ -1,7 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://scripts/battle/flame_slash_aoe.gd" id="1"]
-
-[node name="FlameSlashAoe" type="Node2D"]
-z_index = 12
-script = ExtResource("1")

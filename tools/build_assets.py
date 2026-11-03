@@ -221,6 +221,7 @@ def _write_action(
     cooldown: float,
     priority: int,
     effect: dict,
+    mana_cost: float = 0.0,
 ) -> None:
     lines = [
         '[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]',
@@ -246,6 +247,7 @@ def _write_action(
         f'action_range = {action_range:.1f}',
         'min_range = 0.0',
         f'cooldown = {cooldown:.2f}',
+        f'mana_cost = {mana_cost:.1f}',
         f'priority = {priority}',
         'effects = [SubResource("effect")]',
     ]
@@ -284,13 +286,12 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
             "radius": 170.0,
             "half_angle": 65.0,
             "projectile_kind": 0,
-            "scene_path": "res://scenes/fx/flame_slash_aoe.tscn",
         }
         skill_name = "knight_flame_slash"
         skill_path = RES_ACTIONS / f"{skill_name}.tres"
         _write_action(
             skill_path, skill_name, "火焰斩击", 1, 0, "attack_03",
-            170.0, 8.0, 10, skill_effect,
+            170.0, 8.0, 10, skill_effect, 30.0,
         )
         actions.append(f"res://resources/actions/{skill_name}.tres")
     return actions
@@ -436,6 +437,8 @@ max_hp = {unit.max_hp:.1f}
 attack_damage = {unit.attack_damage:.1f}
 attack_speed = {unit.attack_speed:.2f}
 attack_range = {unit.attack_range:.1f}
+max_mana = 100.0
+mana_regen = 8.0
 move_speed = {unit.move_speed:.1f}
 armor = {unit.armor:.2f}
 attack_windup = {unit.attack_windup:.2f}
