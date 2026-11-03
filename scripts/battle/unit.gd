@@ -19,6 +19,7 @@ var hp := 100.0
 var max_mana := 100.0
 var mana := 100.0
 var mana_regen := 8.0
+var guard_time := 0.0
 var attack_damage := 10.0
 var attack_interval := 1.0
 var attack_range := 80.0
@@ -132,12 +133,20 @@ func play_preview_animation(animation: StringName) -> bool:
 
 
 func _process(delta: float) -> void:
-	if _flash_left > 0.0 and alive:
+	if not alive:
+		return
+	if _flash_left > 0.0:
 		_flash_left = maxf(0.0, _flash_left - delta)
 		if _flash_left > 0.0:
 			visual.modulate = Color(1.0, 0.58, 0.58, 1.0)
+		elif guard_time > 0.0:
+			visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
 		else:
 			visual.modulate = Color.WHITE
+	elif guard_time > 0.0:
+		visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
+	else:
+		visual.modulate = Color.WHITE
 
 
 func _physics_process(delta: float) -> void:
@@ -146,6 +155,7 @@ func _physics_process(delta: float) -> void:
 	for key in action_cooldowns.keys():
 		action_cooldowns[key] = maxf(0.0, float(action_cooldowns[key]) - delta)
 	mana = minf(max_mana, mana + mana_regen * delta)
+	guard_time = maxf(0.0, guard_time - delta)
 	_flinch_cooldown = maxf(0.0, _flinch_cooldown - delta)
 
 
@@ -272,7 +282,11 @@ func current_action_cooldown() -> float:
 
 
 func can_execute_planned_action() -> bool:
-	if planned_action == null or not alive or not has_live_target():
+	if planned_action == null or not alive:
+		return false
+	if planned_action.target_mode == CombatActionDefinition.TargetMode.SELF:
+		return true
+	if not has_live_target():
 		return false
 	return is_target_in_action_range(planned_action, 6.0)
 
@@ -301,6 +315,8 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 				battle.spawn_projectile(self, target, damage, effect.projectile_kind, accent_color)
 		ActionEffectDefinition.Kind.VISUAL:
 			_spawn_action_visual(effect)
+		ActionEffectDefinition.Kind.GUARD:
+			apply_guard(effect.duration)
 		_:
 			push_warning("ActionEffect kind %d 尚未实现" % effect.kind)
 
@@ -339,8 +355,26 @@ func _spawn_action_visual(effect: ActionEffectDefinition) -> void:
 	battle.spawn_action_effect(effect.effect_scene, self, effect)
 
 
+func apply_guard(duration: float) -> void:
+	if not alive:
+		return
+	guard_time = maxf(guard_time, duration)
+
+
+func is_guarding() -> bool:
+	return guard_time > 0.0
+
+
 func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null) -> void:
 	if not alive or raw_amount <= 0.0:
+		return
+	if guard_time > 0.0:
+		# 格挡期间完全免伤，也不进入受击硬直。
+		var block_at := get_hit_point() if hit_position == null else Vector2(hit_position)
+		_flash_left = 0.09
+		visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
+		battle.spawn_hit_spark(block_at, Color("#e7c46b"), 1.8)
+		battle.spawn_block_text(block_at)
 		return
 	var amount := raw_amount * (1.0 - clampf(armor, 0.0, 0.8))
 	hp = maxf(0.0, hp - amount)
@@ -364,6 +398,7 @@ func die(killer: Unit) -> void:
 		return
 	alive = false
 	hp = 0.0
+	guard_time = 0.0
 	target = null
 	brain.enabled = false
 	brain.last_observe_text = "生命归零，已失去感知"
@@ -416,11 +451,16 @@ func _max_action_range() -> float:
 func ai_snapshot() -> Dictionary:
 	var action_text := brain.last_action_text if brain != null else ""
 	if state_machine != null and state_machine.current_name == &"action" and planned_action != null:
-		action_text = "%s → %s（冷却 %.2fs）" % [
-			planned_action.display_name,
-			target.definition.display_name if has_live_target() else "无",
-			current_action_cooldown(),
-		]
+		if planned_action.target_mode == CombatActionDefinition.TargetMode.SELF:
+			action_text = "%s → 自身（持续 %.1fs）" % [
+				planned_action.display_name, planned_action.action_duration,
+			]
+		else:
+			action_text = "%s → %s（冷却 %.2fs）" % [
+				planned_action.display_name,
+				target.definition.display_name if has_live_target() else "无",
+				current_action_cooldown(),
+			]
 	return {
 		"name": definition.display_name if definition != null else "单位",
 		"team": team,
@@ -438,5 +478,6 @@ func ai_snapshot() -> Dictionary:
 		"attack_range": "%d" % roundi(attack_range),
 		"skill_range": "%d" % roundi(_max_action_range()) if _max_action_range() > attack_range + 0.5 else "—",
 		"cooldown": "%.2f" % current_action_cooldown(),
+		"guard": "%.1f" % guard_time,
 		"alive": alive,
 	}

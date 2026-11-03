@@ -125,14 +125,21 @@ func _test_flame_slash() -> void:
 	print("\n[4] 火焰斩击 AOE")
 	var knight_definition := UnitCatalog.get_definition(&"knight")
 	var skill: CombatActionDefinition = null
+	var block: CombatActionDefinition = null
 	for action in knight_definition.actions:
 		if action.action_id == &"knight_flame_slash":
 			skill = action
-			break
+		elif action.action_id == &"knight_block":
+			block = action
 	_check(skill != null, "骑士拥有火焰斩击 Action")
-	if skill == null:
+	_check(block != null, "骑士拥有格挡 Action")
+	if skill == null or block == null:
 		return
 	_check(skill.animation == &"attack_03", "火焰斩击使用 attack_03 火焰帧动画")
+	_check(block.animation == &"block" and block.action_duration >= 1.0,
+		"格挡使用 block 动画并持续 1 秒")
+	_check(not block.effects.is_empty() and block.effects[0].kind == ActionEffectDefinition.Kind.GUARD
+		and block.effects[0].duration >= 1.0, "格挡效果持续 1 秒")
 	_check(not skill.effects.is_empty() and skill.effects[0].shape == ActionEffectDefinition.Shape.CONE,
 		"火焰斩击配置为扇形 AOE")
 	_check(skill.mana_cost > 0.0 and knight_definition.max_mana > 0.0,
@@ -198,6 +205,30 @@ func _test_flame_slash() -> void:
 	var hud_snapshot := knight.ai_snapshot()
 	_check(hud_snapshot.has("mana") and hud_snapshot.has("attack_range") and hud_snapshot.has("skill_range"),
 		"调试快照包含蓝量与攻击范围")
+
+	# 低血量、火焰斩击与格挡都就绪时，防御紧迫度应让格挡胜出。
+	knight.hp = knight.max_hp * 0.4
+	knight.mana = knight.max_mana
+	for key in knight.action_cooldowns.keys():
+		knight.action_cooldowns[key] = 0.0
+	knight.brain.enabled = true
+	knight.brain.force_think()
+	_check(knight.planned_action != null and knight.planned_action.action_id == &"knight_block",
+		"低血量且多个动作可用时优先选择格挡")
+	knight.brain.enabled = false
+	knight.target = enemies[0]
+	knight.planned_action = block
+	knight.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.12).timeout
+	_check(knight.guard_time > 0.5, "格挡 Action 进入无敌状态")
+	var hp_guarded := knight.hp
+	knight.take_damage(100.0, enemies[0])
+	_check(is_equal_approx(knight.hp, hp_guarded), "格挡期间完全免伤")
+	await get_tree().create_timer(1.1).timeout
+	_check(knight.guard_time <= 0.0, "格挡 1 秒后结束")
+	var hp_after_guard := knight.hp
+	knight.take_damage(100.0, enemies[0])
+	_check(knight.hp < hp_after_guard, "格挡结束后恢复正常受伤")
 
 	Engine.time_scale = 1.0
 	# 等 Battle 的 3 秒倒计时协程结束，避免测试退出时留下 SceneTreeTimer。

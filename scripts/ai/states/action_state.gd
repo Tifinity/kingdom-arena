@@ -37,7 +37,10 @@ func enter(_previous: StringName) -> void:
 	if unit.definition.sprite_frames != null and unit.definition.sprite_frames.has_animation(_action.animation):
 		frames = unit.definition.sprite_frames.get_frame_count(_action.animation)
 		fps = unit.definition.sprite_frames.get_animation_speed(_action.animation)
-	_duration = float(frames) / maxf(fps * unit.visual.speed_scale, 0.01)
+	_duration = maxf(
+		float(frames) / maxf(fps * unit.visual.speed_scale, 0.01),
+		_action.action_duration
+	)
 	_effects = _action.effects.duplicate()
 	_effects.sort_custom(func(a: ActionEffectDefinition, b: ActionEffectDefinition) -> bool:
 		return a.trigger_frame < b.trigger_frame

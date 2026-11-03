@@ -106,6 +106,18 @@ HUD 展示：
   └─ 其他              -> 推进
 ```
 
+决策层还会对候选动作做价值评分：
+
+```text
+score = action.priority
+      + 伤害 AOE 内敌人数 × 1.5
+      + 防御动作缺失生命比例 × 25
+```
+
+硬条件（冷却、蓝量、距离、目标类型、动作血量阈值）先过滤；分数相同再比较
+`priority`，再按 `actions` 数组顺序稳定决胜。一次只提交一个 ActionPlan，
+Action 执行期间 Brain 不再改写计划。
+
 当前内核是一个通用的 `ActionPlan`：
 
 ```gdscript
@@ -268,11 +280,12 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
 - `UnitActionState`：统一的行动状态；
 - `UnitBrain._select_action()`：从 `unit.actions` 中选 `ActionPlan`；
 - 骑士·火焰斩击：`attack_03` 自带的火焰帧 + 扇形 AOE；不再叠加第二套火焰刀光。
+- 骑士·格挡：`block` 动画、1 秒 `GUARD` 状态、期间免疫全部伤害；12 秒冷却、20 蓝耗。
 
 继续扩展时：
 
 1. **新技能**：新增一个 `CombatActionDefinition` 资源，加入对应英雄的 `actions`；
-2. **护盾/格挡**：增加 `SHIELD` / `STATUS` effect 与 Unit 状态组件；
+2. **护盾/状态**：增加 `SHIELD` / `STATUS` effect 与 Unit 状态组件；
 3. **突进/位移**：增加 `DISPLACE` effect 或 action motion；
 4. **连续攻击**：同一 Action 配置多个不同 `trigger_frame` 的 DAMAGE；
 5. **特殊逻辑**：只有数据表达不了的技能才增加自定义 ActionLogic，不复制单位场景；
@@ -287,7 +300,7 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
   打开后显示基础攻击范围（蓝圈）和技能范围（橙色虚线圈）。
 - **暂停/变速**：`空格`暂停、`F`变速，便于观察 AI 在某一帧的选择。
 - **自动化测试**：
-  - `tests/test_runner.tscn` 108 项检查；
+  - `tests/test_runner.tscn` 116 项检查；
   - `tools/soak_test.tscn` 8 场随机阵容，检查卡死与胜负分布。
 - **可调参数**：
   - `UnitBrain.THINK_INTERVAL`：思考频率；
@@ -305,4 +318,4 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
 - 目标评分是手调权重，不做学习；对局平衡由数值和阵容决定。
 - 投射物锁定目标，不做弹道预判/闪避。
 - 远程后撤只按空间向量，不做绕柱或侧移；贴边时会停下。
-- 目前只实现骑士火焰斩击；护盾、格挡、位移、召唤等 effect 类型尚未实现。法力仅有基础蓝池、回复与技能消耗。
+- 目前只实现火焰斩击与格挡；护盾、位移、召唤等 effect 类型尚未实现。法力仅有基础蓝池、回复与技能消耗。

@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+
+[sub_resource type="Resource" id="effect"]
+script = ExtResource("2")
+kind = 8
+shape = 3
+trigger_frame = 0
+damage_ratio = 0.00
+radius = 0.0
+half_angle = 0.0
+projectile_kind = 0
+duration = 1.00
+
+[resource]
+script = ExtResource("1")
+action_id = &"knight_block"
+display_name = "格挡"
+category = 2
+target_mode = 2
+animation = &"block"
+animation_speed = 1.0
+action_range = 0.0
+min_range = 0.0
+cooldown = 12.00
+mana_cost = 20.0
+action_duration = 1.00
+min_self_hp_ratio = 0.00
+max_self_hp_ratio = 0.55
+priority = 6
+effects = [SubResource("effect")]

@@ -18,6 +18,11 @@ enum TargetMode { ENEMY, ALLY, SELF, POINT, DIRECTION }
 @export var min_range := 0.0
 @export var cooldown := 1.0
 @export var mana_cost := 0.0
+## 动作固定持续时间；大于动画时长时会保持动作状态。
+@export var action_duration := 0.0
+## 可选的自施法血量条件（比例 0~1），用于防御动作。
+@export var min_self_hp_ratio := 0.0
+@export var max_self_hp_ratio := 1.0
 ## 多个动作同时可用时，决策层的偏好权重。
 @export var priority := 0
 

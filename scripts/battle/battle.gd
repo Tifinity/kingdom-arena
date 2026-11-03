@@ -299,6 +299,12 @@ func spawn_damage_number(at: Vector2, amount: float, color: Color) -> void:
 	number.setup(amount, color, at)
 
 
+func spawn_block_text(at: Vector2) -> void:
+	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
+	effects_root.add_child(number)
+	number.setup_text("格挡", Color("#e7c46b"), at)
+
+
 func register_action_cast(source: Unit, action: CombatActionDefinition) -> void:
 	if action == null:
 		return

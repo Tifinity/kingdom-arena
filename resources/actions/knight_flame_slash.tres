@@ -12,6 +12,7 @@ damage_ratio = 1.40
 radius = 170.0
 half_angle = 65.0
 projectile_kind = 0
+duration = 0.00
 
 [resource]
 script = ExtResource("1")
@@ -25,5 +26,8 @@ action_range = 170.0
 min_range = 0.0
 cooldown = 8.00
 mana_cost = 30.0
+action_duration = 0.00
+min_self_hp_ratio = 0.00
+max_self_hp_ratio = 1.00
 priority = 10
 effects = [SubResource("effect")]

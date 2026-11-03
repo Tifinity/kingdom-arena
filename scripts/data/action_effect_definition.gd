@@ -4,7 +4,7 @@ extends Resource
 ## 通用动作效果。当前实现 DAMAGE / PROJECTILE / VISUAL 三类，
 ## 其余枚举为位移、护盾、状态、召唤等后续扩展预留。
 
-enum Kind { DAMAGE, PROJECTILE, VISUAL, HEAL, SHIELD, STATUS, DISPLACE, SUMMON }
+enum Kind { DAMAGE, PROJECTILE, VISUAL, HEAL, SHIELD, STATUS, DISPLACE, SUMMON, GUARD }
 enum Shape { SINGLE, CIRCLE, CONE, SELF }
 
 @export var kind: int = Kind.DAMAGE
@@ -21,6 +21,9 @@ enum Shape { SINGLE, CIRCLE, CONE, SELF }
 
 ## 扇形半角，单位为度。
 @export var half_angle: float = 0.0
+
+## 状态/格挡类效果的持续时间。
+@export var duration: float = 0.0
 
 ## 投射物类型：0 无，1 箭矢，2 法术。
 @export var projectile_kind: int = 0

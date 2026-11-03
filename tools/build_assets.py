@@ -204,6 +204,7 @@ def _write_effect_resource(action_id: str, effect: dict) -> str:
         f'radius = {effect["radius"]:.1f}',
         f'half_angle = {effect["half_angle"]:.1f}',
         f'projectile_kind = {effect["projectile_kind"]}',
+        f'duration = {effect.get("duration", 0.0):.2f}',
     ]
     if effect.get("scene_id"):
         lines.append(f'effect_scene = ExtResource("{effect["scene_id"]}")')
@@ -222,6 +223,9 @@ def _write_action(
     priority: int,
     effect: dict,
     mana_cost: float = 0.0,
+    action_duration: float = 0.0,
+    min_self_hp_ratio: float = 0.0,
+    max_self_hp_ratio: float = 1.0,
 ) -> None:
     lines = [
         '[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]',
@@ -248,6 +252,9 @@ def _write_action(
         'min_range = 0.0',
         f'cooldown = {cooldown:.2f}',
         f'mana_cost = {mana_cost:.1f}',
+        f'action_duration = {action_duration:.2f}',
+        f'min_self_hp_ratio = {min_self_hp_ratio:.2f}',
+        f'max_self_hp_ratio = {max_self_hp_ratio:.2f}',
         f'priority = {priority}',
         'effects = [SubResource("effect")]',
     ]
@@ -294,6 +301,25 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
             170.0, 8.0, 10, skill_effect, 30.0,
         )
         actions.append(f"res://resources/actions/{skill_name}.tres")
+
+        block_effect = {
+            "kind": 8,  # GUARD
+            "shape": 3,  # SELF
+            "trigger_frame": 0,
+            "damage_ratio": 0.0,
+            "radius": 0.0,
+            "half_angle": 0.0,
+            "projectile_kind": 0,
+            "duration": 1.0,
+        }
+        block_name = "knight_block"
+        block_path = RES_ACTIONS / f"{block_name}.tres"
+        _write_action(
+            block_path, block_name, "格挡", 2, 2, "block",
+            0.0, 12.0, 6, block_effect,
+            mana_cost=20.0, action_duration=1.0, max_self_hp_ratio=0.55,
+        )
+        actions.append(f"res://resources/actions/{block_name}.tres")
     return actions
 
 

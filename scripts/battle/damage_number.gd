@@ -11,11 +11,15 @@ func _ready() -> void:
 
 
 func setup(value: float, color: Color, at: Vector2) -> void:
+	setup_text("-%d" % maxi(1, roundi(value)), color, at)
+
+
+func setup_text(text: String, color: Color, at: Vector2) -> void:
 	position = at
 	z_index = 30
 	if _label == null:
 		_label = $Label
-	_label.text = "-%d" % maxi(1, roundi(value))
+	_label.text = text
 	_label.add_theme_color_override("font_color", color.lightened(0.25))
 	_label.add_theme_color_override("font_outline_color", Color(0.02, 0.03, 0.05, 0.95))
 	scale = Vector2(1.3, 1.3)

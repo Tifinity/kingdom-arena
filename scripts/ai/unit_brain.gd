@@ -214,30 +214,46 @@ func _decide() -> void:
 func _select_action() -> ActionPlan:
 	var best_plan: ActionPlan = null
 	var best_score := -INF
+	var best_priority := -999
 	# 决策阶段先让 Unit 指向候选目标，动作范围和 AOE 数量都基于这个目标计算。
 	unit.target = target
 	for action in unit.actions:
 		if action == null:
 			continue
-		# 当前 MVP 的 Action 都指向敌人；友军/自身目标留给后续扩展。
-		if action.target_mode != CombatActionDefinition.TargetMode.ENEMY:
+		if not unit.is_action_ready(action) or not unit.has_mana(action):
 			continue
-		if not unit.has_live_target() or not unit.is_action_ready(action):
-			continue
-		if not unit.has_mana(action):
-			continue
-		if not unit.is_target_in_action_range(action, 4.0):
-			continue
+
+		# 目标类型与硬性条件
+		var action_target: Unit = target
+		match action.target_mode:
+			CombatActionDefinition.TargetMode.ENEMY:
+				if not unit.has_live_target() or not unit.is_target_in_action_range(action, 4.0):
+					continue
+			CombatActionDefinition.TargetMode.SELF:
+				if unit.hp_ratio() < action.min_self_hp_ratio or unit.hp_ratio() > action.max_self_hp_ratio:
+					continue
+				action_target = unit
+			_:
+				continue
+
+		# 行动价值：基础优先级 +  situational utility
 		var score := float(action.priority)
-		# 扇形/圆形伤害动作在敌人聚集时提高权重。
 		for effect in action.effects:
 			if effect.kind != ActionEffectDefinition.Kind.DAMAGE:
 				continue
 			if effect.shape == ActionEffectDefinition.Shape.CONE or effect.shape == ActionEffectDefinition.Shape.CIRCLE:
 				score += _count_targets_in_effect(action, effect) * 1.5
-		if score > best_score:
+		# 防御动作在生命越低时越紧急。
+		if action.category == CombatActionDefinition.Category.DEFENSE:
+			score += (1.0 - unit.hp_ratio()) * 25.0
+
+		# 分数相同则用 action.priority 决胜；仍相同则保留 actions 数组中的先后顺序。
+		if score > best_score + 0.001 or (
+			absf(score - best_score) <= 0.001 and action.priority > best_priority
+		):
 			best_score = score
-			best_plan = ActionPlan.create(action, target)
+			best_priority = action.priority
+			best_plan = ActionPlan.create(action, action_target)
 	return best_plan
 
 
@@ -267,7 +283,11 @@ func _act() -> void:
 	var target_name: String = target.definition.display_name if valid_target else "无"
 	match intent:
 		Intent.ACTION:
-			if planned_action != null:
+			if planned_action != null and planned_action.target_mode == CombatActionDefinition.TargetMode.SELF:
+				last_action_text = "%s → 自身（持续 %.1fs）" % [
+					planned_action.display_name, planned_action.action_duration,
+				]
+			elif planned_action != null:
 				last_action_text = "%s → %s（冷却 %.2fs）" % [
 					planned_action.display_name, target_name, unit.action_cooldown(planned_action),
 				]
