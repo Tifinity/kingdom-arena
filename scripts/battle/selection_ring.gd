@@ -6,6 +6,7 @@ extends Node2D
 var radius := 40.0
 var attack_range := 0.0
 var skill_range := 0.0
+var show_combat_ranges := false
 var _time := 0.0
 const GOLD := Color("#e7c46b")
 
@@ -30,7 +31,7 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	# 调试范围：选中单位时显示基础攻击距离与技能距离。
-	if attack_range > 0.0:
+	if show_combat_ranges and attack_range > 0.0:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.55))
 		draw_arc(Vector2.ZERO, attack_range, 0.0, TAU, 64, Color(0.45, 0.72, 1.0, 0.26), 1.6, true)
 		if skill_range > attack_range + 0.5:

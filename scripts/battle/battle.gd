@@ -40,6 +40,7 @@ var team_kills: Array[int] = [0, 0]
 var team_sizes: Array[int] = [0, 0]
 var team_max_hp_total: Array[float] = [0.0, 0.0]
 var selected_unit: Unit
+var show_combat_ranges := false
 var unit_damage: Dictionary = {}
 var projectiles_fired := 0
 var action_casts := 0
@@ -121,6 +122,7 @@ func _spawn_lineups() -> void:
 			unit.position = _formation_position(team, slot)
 			unit.setup(self, team, slot, definition)
 			unit.face_direction(1.0 if team == 0 else -1.0)
+			unit.set_range_overlay_visible(show_combat_ranges)
 			unit.died.connect(_on_unit_died)
 			units.append(unit)
 			team_sizes[team] += 1
@@ -379,6 +381,17 @@ func toggle_speed() -> void:
 func toggle_pause() -> void:
 	get_tree().paused = not get_tree().paused
 	hud.set_paused(get_tree().paused)
+
+
+func set_range_overlay(value: bool) -> void:
+	show_combat_ranges = value
+	for unit in units:
+		if is_instance_valid(unit):
+			unit.set_range_overlay_visible(value)
+
+
+func toggle_range_overlay() -> void:
+	set_range_overlay(not show_combat_ranges)
 
 
 func restart_battle() -> void:

@@ -38,6 +38,17 @@ func _ready() -> void:
 	var path := ProjectSettings.globalize_path("res://artifacts/flame_slash.png")
 	image.save_png(path)
 	print("[flame] captured %s at %.2fs" % [path, waited])
+
+	# 实际战斗默认不画范围环；再抓一张打开调试范围的对照图。
+	battle.set_range_overlay(true)
+	if battle.hud != null:
+		battle.hud.range_button.set_pressed_no_signal(true)
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var range_image := get_viewport().get_texture().get_image()
+	var range_path := ProjectSettings.globalize_path("res://artifacts/flame_slash_ranges.png")
+	range_image.save_png(range_path)
+	print("[flame] captured %s" % range_path)
 	get_tree().quit()
 
 

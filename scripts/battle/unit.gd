@@ -398,6 +398,13 @@ func set_selected(value: bool) -> void:
 	selection_ring.visible = value and alive
 
 
+func set_range_overlay_visible(value: bool) -> void:
+	if selection_ring == null:
+		return
+	selection_ring.show_combat_ranges = value
+	selection_ring.queue_redraw()
+
+
 func _max_action_range() -> float:
 	var result := attack_range
 	for action in actions:

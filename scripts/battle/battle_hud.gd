@@ -15,6 +15,7 @@ var _refresh_accum := 0.0
 @onready var phase_label: Label = $Root/TopBar/Margin/Row/Center/PhaseLabel
 @onready var speed_button: Button = $Root/Controls/SpeedButton
 @onready var pause_button: Button = $Root/Controls/PauseButton
+@onready var range_button: Button = $Root/Controls/RangeButton
 @onready var exit_button: Button = $Root/Controls/ExitButton
 @onready var countdown_label: Label = $Root/Countdown
 @onready var hint_label: Label = $Root/Hint
@@ -50,6 +51,7 @@ func _ready() -> void:
 	red_name.add_theme_color_override("font_color", GameState.team_color(1))
 	speed_button.pressed.connect(_on_speed_pressed)
 	pause_button.pressed.connect(_on_pause_pressed)
+	range_button.toggled.connect(_on_range_toggled)
 	exit_button.pressed.connect(_on_exit_pressed)
 	rematch_button.pressed.connect(_on_rematch_pressed)
 	back_button.pressed.connect(_on_back_pressed)
@@ -70,6 +72,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("speed_toggle"):
 		battle.toggle_speed()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("range_toggle"):
+		battle.toggle_range_overlay()
+		range_button.set_pressed_no_signal(battle.show_combat_ranges)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("restart"):
 		battle.restart_battle()
@@ -113,10 +119,16 @@ func refresh_controls() -> void:
 		return
 	speed_button.text = "×%d" % int(battle.speed_multiplier)
 	pause_button.text = "继续" if get_tree().paused else "暂停"
+	range_button.set_pressed_no_signal(battle.show_combat_ranges)
 
 
 func set_paused(paused: bool) -> void:
 	pause_button.text = "继续" if paused else "暂停"
+
+
+func _on_range_toggled(pressed: bool) -> void:
+	if battle != null:
+		battle.set_range_overlay(pressed)
 
 
 func show_countdown(text: String) -> void:

@@ -209,6 +209,7 @@ func _test_flame_slash() -> void:
 
 func _test_battle() -> void:
 	print("\n[5] 默认阵容自动战斗")
+	_check(InputMap.has_action("range_toggle"), "范围开关已注册输入动作")
 	await _run_battle("默认阵容")
 
 
@@ -232,6 +233,13 @@ func _run_battle(label: String) -> void:
 	var battle: Battle = scene.instantiate()
 	add_child(battle)
 	await get_tree().process_frame
+
+	if label == "默认阵容":
+		_check(not battle.show_combat_ranges, "范围环默认关闭")
+		_check(battle.hud.range_button.toggle_mode, "范围按钮是可切换开关")
+		battle.set_range_overlay(true)
+		_check(battle.show_combat_ranges, "范围环可以动态打开")
+		battle.set_range_overlay(false)
 
 	var states_seen := {}
 	var attack_units := {}

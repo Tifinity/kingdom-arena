@@ -152,7 +152,7 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -296.0
+offset_left = -390.0
 offset_top = -52.0
 offset_right = -20.0
 offset_bottom = -20.0
@@ -167,6 +167,11 @@ text = "×1"
 [node name="PauseButton" parent="Root/Controls" instance=ExtResource("2")]
 layout_mode = 2
 text = "暂停"
+
+[node name="RangeButton" parent="Root/Controls" instance=ExtResource("2")]
+layout_mode = 2
+toggle_mode = true
+text = "范围"
 
 [node name="ExitButton" parent="Root/Controls" instance=ExtResource("2")]
 layout_mode = 2
@@ -342,7 +347,7 @@ theme_override_colors/font_color = Color(0.663, 0.741, 0.831, 0.9)
 theme_override_colors/font_outline_color = Color(0.016, 0.027, 0.043, 0.9)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 14
-text = "点击单位查看 OODA · 空格暂停 · F 变速"
+text = "点击单位查看 OODA · 空格暂停 · F 变速 · Tab 范围"
 horizontal_alignment = 1
 
 [node name="Result" type="Control" parent="Root"]
