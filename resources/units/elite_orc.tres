@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="SpriteFrames" path="res://resources/visuals/elite_orc_frames.tres" id="2"]
+[ext_resource type="Texture2D" path="res://assets/portraits/elite_orc.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"elite_orc"
+display_name = "精锐兽人"
+title = "血牙精锐"
+faction = 1
+role = "战士"
+roster_order = 10
+description = "血牙氏族的精锐，攻守都强于普通兽人。"
+max_hp = 880.0
+attack_damage = 86.0
+attack_speed = 1.30
+attack_range = 86.0
+move_speed = 112.0
+armor = 0.12
+attack_windup = 0.36
+attack_kind = 0
+projectile_kind = 0
+visual_scale = 4.59
+foot_offset = 7.0
+character_height = 24.0
+body_radius = 33.6
+accent_color = Color(0.941, 0.702, 0.420, 1)
+sprite_frames = ExtResource("2")
+portrait = ExtResource("3")

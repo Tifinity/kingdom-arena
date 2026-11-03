@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="SpriteFrames" path="res://resources/visuals/bat_frames.tres" id="2"]
+[ext_resource type="Texture2D" path="res://assets/portraits/bat.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"bat"
+display_name = "蝙蝠"
+title = "夜翼蝠"
+faction = 1
+role = "突袭"
+roster_order = 18
+description = "飞行的夜翼蝠，移速极快，能绕开前排。"
+max_hp = 300.0
+attack_damage = 36.0
+attack_speed = 0.70
+attack_range = 60.0
+move_speed = 195.0
+armor = 0.00
+attack_windup = 0.20
+attack_kind = 0
+projectile_kind = 0
+visual_scale = 3.58
+foot_offset = 4.0
+character_height = 18.0
+body_radius = 23.1
+accent_color = Color(1.000, 0.561, 0.639, 1)
+sprite_frames = ExtResource("2")
+portrait = ExtResource("3")

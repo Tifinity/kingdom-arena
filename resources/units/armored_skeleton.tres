@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="SpriteFrames" path="res://resources/visuals/armored_skeleton_frames.tres" id="2"]
+[ext_resource type="Texture2D" path="res://assets/portraits/armored_skeleton.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"armored_skeleton"
+display_name = "重甲骷髅"
+title = "墓卫骷髅"
+faction = 1
+role = "坦克"
+roster_order = 14
+description = "墓园守卫，旧甲提供了可观的防护。"
+max_hp = 680.0
+attack_damage = 60.0
+attack_speed = 1.30
+attack_range = 80.0
+move_speed = 108.0
+armor = 0.18
+attack_windup = 0.34
+attack_kind = 0
+projectile_kind = 0
+visual_scale = 4.48
+foot_offset = 8.0
+character_height = 24.0
+body_radius = 31.5
+accent_color = Color(0.490, 0.698, 1.000, 1)
+sprite_frames = ExtResource("2")
+portrait = ExtResource("3")

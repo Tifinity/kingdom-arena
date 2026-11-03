@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="SpriteFrames" path="res://resources/visuals/orc_rider_frames.tres" id="2"]
+[ext_resource type="Texture2D" path="res://assets/portraits/orc_rider.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"orc_rider"
+display_name = "兽人骑兵"
+title = "裂地骑兵"
+faction = 1
+role = "突袭"
+roster_order = 12
+description = "高速冲锋的兽人骑兵，善于切入后排。"
+max_hp = 780.0
+attack_damage = 84.0
+attack_speed = 1.20
+attack_range = 104.0
+move_speed = 158.0
+armor = 0.08
+attack_windup = 0.30
+attack_kind = 0
+projectile_kind = 0
+visual_scale = 4.93
+foot_offset = 7.0
+character_height = 29.0
+body_radius = 37.8
+accent_color = Color(1.000, 0.561, 0.639, 1)
+sprite_frames = ExtResource("2")
+portrait = ExtResource("3")

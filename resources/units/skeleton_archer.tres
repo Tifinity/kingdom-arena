@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="SpriteFrames" path="res://resources/visuals/skeleton_archer_frames.tres" id="2"]
+[ext_resource type="Texture2D" path="res://assets/portraits/skeleton_archer.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"skeleton_archer"
+display_name = "骷髅弓手"
+title = "骸骨射手"
+faction = 1
+role = "射手"
+roster_order = 16
+description = "从墓穴中爬出的弓手，远程压制力不俗。"
+max_hp = 350.0
+attack_damage = 48.0
+attack_speed = 1.10
+attack_range = 330.0
+move_speed = 118.0
+armor = 0.02
+attack_windup = 0.36
+attack_kind = 1
+projectile_kind = 1
+visual_scale = 4.37
+foot_offset = 9.0
+character_height = 22.0
+body_radius = 29.4
+accent_color = Color(0.561, 0.890, 0.659, 1)
+sprite_frames = ExtResource("2")
+portrait = ExtResource("3")

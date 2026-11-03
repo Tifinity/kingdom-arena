@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="SpriteFrames" path="res://resources/visuals/soldier_frames.tres" id="2"]
+[ext_resource type="Texture2D" path="res://assets/portraits/soldier.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"soldier"
+display_name = "士兵"
+title = "王庭新兵"
+faction = 0
+role = "战士"
+roster_order = 0
+description = "攻守均衡的近战新兵，适合放在前排吸收第一波冲锋。"
+max_hp = 640.0
+attack_damage = 56.0
+attack_speed = 1.00
+attack_range = 76.0
+move_speed = 125.0
+armor = 0.05
+attack_windup = 0.30
+attack_kind = 0
+projectile_kind = 0
+visual_scale = 4.48
+foot_offset = 10.0
+character_height = 22.0
+body_radius = 31.5
+accent_color = Color(0.941, 0.702, 0.420, 1)
+sprite_frames = ExtResource("2")
+portrait = ExtResource("3")

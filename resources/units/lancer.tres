@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="SpriteFrames" path="res://resources/visuals/lancer_frames.tres" id="2"]
+[ext_resource type="Texture2D" path="res://assets/portraits/lancer.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"lancer"
+display_name = "枪兵"
+title = "长枪卫兵"
+faction = 0
+role = "战士"
+roster_order = 5
+description = "长枪的攻击距离更远，能在敌人近身前先手命中。"
+max_hp = 660.0
+attack_damage = 68.0
+attack_speed = 1.20
+attack_range = 112.0
+move_speed = 118.0
+armor = 0.08
+attack_windup = 0.30
+attack_kind = 0
+projectile_kind = 0
+visual_scale = 4.59
+foot_offset = 7.0
+character_height = 38.0
+body_radius = 31.5
+accent_color = Color(0.941, 0.702, 0.420, 1)
+sprite_frames = ExtResource("2")
+portrait = ExtResource("3")

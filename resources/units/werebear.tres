@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="SpriteFrames" path="res://resources/visuals/werebear_frames.tres" id="2"]
+[ext_resource type="Texture2D" path="res://assets/portraits/werebear.png" id="3"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"werebear"
+display_name = "熊人"
+title = "裂林熊人"
+faction = 1
+role = "坦克"
+roster_order = 20
+description = "巨熊般的体魄，全场最高生命与重击。"
+max_hp = 1150.0
+attack_damage = 98.0
+attack_speed = 1.60
+attack_range = 94.0
+move_speed = 102.0
+armor = 0.18
+attack_windup = 0.46
+attack_kind = 0
+projectile_kind = 0
+visual_scale = 5.15
+foot_offset = 7.0
+character_height = 18.0
+body_radius = 42.0
+accent_color = Color(0.490, 0.698, 1.000, 1)
+sprite_frames = ExtResource("2")
+portrait = ExtResource("3")
