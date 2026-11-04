@@ -35,6 +35,7 @@ func _run_all() -> void:
 	await _test_flame_slash()
 	await _test_axeman_skills()
 	await _test_skill_effects()
+	await _test_basic_no_interrupt()
 	await _test_battle()
 	await _test_extra_lineup()
 
@@ -627,14 +628,50 @@ func _test_skill_effects() -> void:
 	await get_tree().process_frame
 
 
+func _test_basic_no_interrupt() -> void:
+	print("\n[7] 普攻不打断/不击退")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"soldier")
+	GameState.set_slot(1, 0, &"knight")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var attacker: Unit = null
+	var target: Unit = null
+	for unit in battle.units:
+		if unit.team == 0:
+			attacker = unit
+		else:
+			target = unit
+	if attacker != null and target != null:
+		attacker.brain.enabled = false
+		target.brain.enabled = false
+		target._flinch_cooldown = 0.0
+		target.state_machine.transition_to(&"idle", true)
+		var start_position := target.global_position
+		target.take_damage(target.max_hp * 0.2, attacker, null, false)
+		_check(target.state_machine.current_name != &"hurt", "普通攻击不进入受击硬直")
+		_check(target.global_position.distance_to(start_position) < 0.01, "普通攻击不产生击退")
+		target.hp = target.max_hp
+		target._flinch_cooldown = 0.0
+		target.state_machine.transition_to(&"idle", true)
+		target.take_damage(target.max_hp * 0.2, attacker, null, true)
+		_check(target.state_machine.current_name == &"hurt", "技能伤害仍然可以造成受击硬直")
+	await get_tree().create_timer(3.2).timeout
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
 func _test_battle() -> void:
-	print("\n[7] 默认阵容自动战斗")
+	print("\n[8] 默认阵容自动战斗")
 	_check(InputMap.has_action("range_toggle"), "范围开关已注册输入动作")
 	await _run_battle("默认阵容")
 
 
 func _test_extra_lineup() -> void:
-	print("\n[8] 随机阵容自动战斗")
+	print("\n[9] 随机阵容自动战斗")
 	var pool: Array = UnitCatalog.all().duplicate()
 	pool.shuffle()
 	GameState.clear_lineup(0)

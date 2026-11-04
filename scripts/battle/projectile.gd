@@ -12,6 +12,7 @@ var battle: Node
 var damage := 0.0
 var kind := 0
 var tint := Color.WHITE
+var can_interrupt := true
 var speed := 900.0
 var life := 2.6
 
@@ -22,13 +23,14 @@ var _fizzle := 0.0
 @onready var sprite: Sprite2D = $Sprite
 
 
-func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color: Color) -> void:
+func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color: Color, p_can_interrupt := true) -> void:
 	source = p_source
 	target = p_target
 	battle = p_source.battle if p_source != null else null
 	damage = p_damage
 	kind = p_kind
 	tint = p_color
+	can_interrupt = p_can_interrupt
 	global_position = p_source.get_muzzle_point()
 
 	if kind == UnitDefinition.ProjectileKind.MAGIC:
@@ -83,7 +85,7 @@ func _physics_process(delta: float) -> void:
 func _hit() -> void:
 	if target != null and is_instance_valid(target) and target.alive:
 		var shooter: Unit = source if is_instance_valid(source) else null
-		target.take_damage(damage, shooter, global_position)
+		target.take_damage(damage, shooter, global_position, can_interrupt)
 	if battle != null and is_instance_valid(battle):
 		battle.spawn_hit_spark(global_position, tint, 1.0 if kind != UnitDefinition.ProjectileKind.MAGIC else 1.35)
 	queue_free()
