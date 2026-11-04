@@ -527,21 +527,35 @@ func _test_skill_effects() -> void:
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"armored_orc")
 	GameState.set_slot(1, 0, &"werebear")
+	GameState.set_slot(1, 1, &"soldier")
 	var cc_battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
 	add_child(cc_battle)
 	await get_tree().process_frame
 	var orc: Unit = null
 	var bear: Unit = null
+	var far_enemy: Unit = null
 	for unit in cc_battle.units:
 		if unit.team == 0:
 			orc = unit
-		else:
+		elif unit.definition.unit_id == &"werebear":
 			bear = unit
-	if orc != null and bear != null:
+		else:
+			far_enemy = unit
+	if orc != null and bear != null and far_enemy != null:
 		for unit in cc_battle.units:
 			unit.brain.enabled = false
+		# 目标太远时，盾牌震击不应参与决策（它是自身圆形 AOE）。
+		orc.position = Vector2(700, 650)
+		bear.position = Vector2(700, 300)
+		far_enemy.position = Vector2(1200, 300)
+		orc.brain.enabled = true
+		orc.brain.force_think()
+		_check(orc.planned_action == null or orc.planned_action.action_id != &"armored_orc_bash",
+			"盾牌震击不会无视距离释放")
+		orc.brain.enabled = false
 		orc.position = Vector2(700, 650)
 		bear.position = Vector2(790, 650)
+		far_enemy.position = Vector2(300, 300)
 		var bash: CombatActionDefinition = null
 		for action in orc.actions:
 			if action.action_id == &"armored_orc_bash":
@@ -554,8 +568,22 @@ func _test_skill_effects() -> void:
 			orc.planned_action = bash
 			orc.state_machine.transition_to(&"action", true)
 			await get_tree().create_timer(0.7).timeout
-			_check(bear.stun_time > 0.0, "铁颚重击造成眩晕")
-			_check(bear.global_position.x > bear_x, "铁颚重击造成击退")
+			_check(bear.stun_time > 0.0, "盾牌震击造成眩晕")
+			_check(bear.global_position.x > bear_x, "盾牌震击造成击退")
+			_check(far_enemy.stun_time <= 0.0, "盾牌震击不命中圆形范围外敌人")
+
+		# 暂停时 HUD 应继续处理点击选人。
+		get_tree().paused = true
+		if cc_battle.hud != null and bear != null:
+			var world_point := bear.global_position + Vector2(0, -30)
+			var screen_point: Vector2 = cc_battle.get_global_transform_with_canvas() * world_point
+			var click := InputEventMouseButton.new()
+			click.button_index = MOUSE_BUTTON_LEFT
+			click.pressed = true
+			click.position = screen_point
+			cc_battle.hud._unhandled_input(click)
+			_check(cc_battle.selected_unit == bear, "暂停时仍可通过 HUD 点击切换观察镜")
+		get_tree().paused = false
 	await get_tree().create_timer(2.6).timeout
 	GameState.reset_lineups()
 	cc_battle.queue_free()

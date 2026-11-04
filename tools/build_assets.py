@@ -413,12 +413,13 @@ def _skills_for(unit: Unit) -> list[dict]:
                              [_fx(shape=2, ratio=2.2, frame=6, radius=185.0, half=60.0)],
                              14.0, 10, 195.0, rng, mana=100.0))
     elif slug == "armored_orc":
-        skills.append(_skill("armored_orc_bash", "铁颚重击", "attack_02",
-                             [_fx(shape=0, ratio=1.2, frame=5),
-                              _fx(kind=5, shape=0, frame=5, status_kind=0,
-                                  status_duration=0.9),
-                              _fx(kind=6, shape=0, frame=5, knockback=35.0)],
-                             7.0, 7, rng, rng))
+        skills.append(_skill("armored_orc_bash", "盾牌震击", "attack_02",
+                             [_fx(shape=1, ratio=1.2, frame=5, radius=110.0, center_self=True),
+                              _fx(kind=5, shape=1, frame=5, radius=110.0, center_self=True,
+                                  status_kind=0, status_duration=0.9),
+                              _fx(kind=6, shape=1, frame=5, radius=110.0, center_self=True,
+                                  knockback=35.0)],
+                             7.0, 7, 0.0, rng, target_mode=2))
         skills.append(_skill("armored_orc_quakeslam", "裂地", "attack_03",
                              [_fx(shape=1, ratio=1.8, frame=6, radius=150.0, center_self=True),
                               _fx(kind=5, shape=0, frame=6, status_kind=0,

@@ -419,11 +419,11 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 		ActionEffectDefinition.Kind.HEAL:
 			_resolve_heal_effect(effect)
 		ActionEffectDefinition.Kind.STATUS:
-			if has_live_target():
-				target.apply_status(effect, self)
+			for victim in _effect_victims(effect):
+				victim.apply_status(effect, self)
 		ActionEffectDefinition.Kind.DISPLACE:
-			if has_live_target():
-				target.apply_knockback(global_position, effect.knockback)
+			for victim in _effect_victims(effect):
+				victim.apply_knockback(global_position, effect.knockback)
 		ActionEffectDefinition.Kind.SUMMON:
 			if battle != null:
 				battle.spawn_summons(self, effect.summon_unit_id, effect.summon_count)
@@ -466,6 +466,16 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 				battle.action_hits += 1
 		_:
 			pass
+
+
+func _effect_victims(effect: ActionEffectDefinition) -> Array[Unit]:
+	var victims: Array[Unit] = []
+	if effect.shape == ActionEffectDefinition.Shape.CIRCLE:
+		var center := global_position if effect.center_on_self else (target.global_position if has_live_target() else global_position)
+		victims = battle.units_in_circle(self, center, effect.radius)
+	elif has_live_target():
+		victims.append(target)
+	return victims
 
 
 func _resolve_heal_effect(effect: ActionEffectDefinition) -> void:

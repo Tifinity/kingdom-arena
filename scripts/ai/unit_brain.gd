@@ -252,6 +252,8 @@ func _select_action() -> ActionPlan:
 					continue
 				if action.requires_wounded_ally and not _has_wounded_ally():
 					continue
+				if not _self_area_has_enemy(action):
+					continue
 				action_target = unit
 			CombatActionDefinition.TargetMode.DIRECTION:
 				if not unit.has_live_target():
@@ -324,6 +326,19 @@ func _best_direction_for(action: CombatActionDefinition) -> Dictionary:
 			best_count = count
 			best_direction = direction
 	return {"direction": best_direction, "count": best_count}
+
+
+func _self_area_has_enemy(action: CombatActionDefinition) -> bool:
+	if unit.battle == null:
+		return false
+	for effect in action.effects:
+		if effect.shape != ActionEffectDefinition.Shape.CIRCLE or not effect.center_on_self:
+			continue
+		if (effect.kind == ActionEffectDefinition.Kind.DAMAGE
+				or effect.kind == ActionEffectDefinition.Kind.STATUS
+				or effect.kind == ActionEffectDefinition.Kind.DISPLACE):
+			return not unit.battle.units_in_circle(unit, unit.global_position, effect.radius).is_empty()
+	return true
 
 
 func _has_wounded_ally() -> bool:

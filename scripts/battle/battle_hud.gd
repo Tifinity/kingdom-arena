@@ -67,6 +67,14 @@ func bind(p_battle: Battle) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if battle == null:
 		return
+	# Battle 节点在暂停时会停止输入处理；由 HUD 转发暂停期间的点击选人。
+	if get_tree().paused and event is InputEventMouseButton:
+		var mouse := event as InputEventMouseButton
+		if mouse.button_index == MOUSE_BUTTON_LEFT and mouse.pressed:
+			var world_point := battle.get_global_transform_with_canvas().affine_inverse() * mouse.position
+			battle._select_at(world_point)
+			get_viewport().set_input_as_handled()
+			return
 	if event.is_action_pressed("pause"):
 		battle.toggle_pause()
 		get_viewport().set_input_as_handled()
