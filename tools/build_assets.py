@@ -357,9 +357,9 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
         spin_name = "armored_axeman_spin"
         spin_path = RES_ACTIONS / f"{spin_name}.tres"
         _write_action(
-            spin_path, spin_name, "旋风斧", 1, 4, "attack_02",
+            spin_path, spin_name, "旋风斩", 1, 4, "attack_02",
             190.0, 9.0, 9, spin_effects,
-            mana_cost=30.0, advance_speed=240.0, min_targets=1,
+            mana_cost=100.0, advance_speed=240.0, min_targets=1,
         )
         actions.append(f"res://resources/actions/{spin_name}.tres")
 
@@ -377,9 +377,9 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
         heavy_name = "armored_axeman_heavy"
         heavy_path = RES_ACTIONS / f"{heavy_name}.tres"
         _write_action(
-            heavy_path, heavy_name, "重劈", 1, 0, "attack_03",
+            heavy_path, heavy_name, "重击", 1, 0, "attack_03",
             unit.attack_range, 6.0, 8, heavy_effect,
-            mana_cost=20.0,
+            mana_cost=0.0,
         )
         actions.append(f"res://resources/actions/{heavy_name}.tres")
     return actions

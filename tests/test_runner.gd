@@ -269,16 +269,18 @@ func _test_axeman_skills() -> void:
 			spin = action
 		elif action.action_id == &"armored_axeman_heavy":
 			heavy = action
-	_check(spin != null, "重甲斧兵拥有旋风斧 Action")
-	_check(heavy != null, "重甲斧兵拥有重劈 Action")
+	_check(spin != null, "重甲斧兵拥有旋风斩 Action")
+	_check(heavy != null, "重甲斧兵拥有重击 Action")
 	if spin == null or heavy == null:
 		return
 	_check(spin.animation == &"attack_02" and spin.target_mode == CombatActionDefinition.TargetMode.DIRECTION,
-		"旋风斧使用 attack_02 并选择方向")
+		"旋风斩使用 attack_02 并选择方向")
 	_check(spin.effects.size() == 5 and spin.advance_speed > 0.0 and spin.min_targets <= 1,
-		"旋风斧包含 5 个伤害帧并边转边移动")
+		"旋风斩包含 5 个伤害帧并边转边移动")
 	_check(heavy.animation == &"attack_03" and not heavy.effects.is_empty()
-		and is_equal_approx(heavy.effects[0].damage_ratio, 2.0), "重劈使用 attack_03 且为 2 倍单体伤害")
+		and is_equal_approx(heavy.effects[0].damage_ratio, 2.0), "重击使用 attack_03 且为 2 倍单体伤害")
+	_check(spin.mana_cost >= axeman_definition.max_mana, "旋风斩需要满蓝释放")
+	_check(is_equal_approx(heavy.mana_cost, 0.0), "重击不消耗蓝量")
 
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
@@ -312,20 +314,29 @@ func _test_axeman_skills() -> void:
 	axeman.brain.enabled = true
 	axeman.brain.force_think()
 	_check(axeman.planned_action != null and axeman.planned_action.action_id == &"armored_axeman_spin",
-		"只有单个目标时旋风斧仍然满足释放条件")
-	# 旋风斧冷却时才轮到重劈；重劈不是靠“至少 2 人”这个条件才出现的。
+		"只有单个目标时旋风斩仍然满足释放条件")
+	axeman.mana = 0.0
+	axeman.action_cooldowns[spin.action_id] = 0.0
+	axeman.brain.force_think()
+	_check(axeman.planned_action != null and axeman.planned_action.action_id == &"armored_axeman_heavy",
+		"空蓝时旋风斩不可用，重击无蓝耗仍可选择")
+	axeman.mana = axeman.max_mana
+	axeman.brain.force_think()
+	_check(axeman.planned_action != null and axeman.planned_action.action_id == &"armored_axeman_spin",
+		"满蓝后旋风斩重新可用")
+	# 旋风斩冷却时才轮到重击；重击不是靠“至少 2 人”这个条件才出现的。
 	axeman.action_cooldowns[spin.action_id] = spin.cooldown
 	axeman.brain.force_think()
 	_check(axeman.planned_action != null and axeman.planned_action.action_id == &"armored_axeman_heavy",
-		"旋风斧冷却后单目标选择重劈")
+		"旋风斩冷却后单目标选择重击")
 	axeman.action_cooldowns[spin.action_id] = 0.0
 	enemies[0].position = Vector2(820, 650)
 	enemies[1].position = Vector2(820, 700)
 	enemies[2].position = Vector2(600, 650)
 	axeman.brain.force_think()
 	_check(axeman.planned_action != null and axeman.planned_action.action_id == &"armored_axeman_spin",
-		"两名敌人成排时决策层选择旋风斧")
-	_check(axeman.planned_direction.x > 0.5, "旋风斧选择右侧人数最多的方向")
+		"两名敌人成排时决策层选择旋风斩")
+	_check(axeman.planned_direction.x > 0.5, "旋风斩选择右侧人数最多的方向")
 
 	axeman.brain.enabled = false
 	axeman.target = enemies[0]
@@ -336,12 +347,12 @@ func _test_axeman_skills() -> void:
 	var start_x: float = axeman.global_position.x
 	axeman.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(1.0).timeout
-	_check(enemies[0].hp < spin_hp[0] and enemies[1].hp < spin_hp[1], "旋风斧沿直线命中多名敌人")
-	_check(enemies[2].hp == behind_hp, "旋风斧不命中身后敌人")
-	_check(battle.action_hits >= 5, "旋风斧产生五次碰撞伤害")
-	_check(axeman.global_position.x > start_x + 20.0, "旋风斧边旋转边向攻击方向移动")
+	_check(enemies[0].hp < spin_hp[0] and enemies[1].hp < spin_hp[1], "旋风斩沿直线命中多名敌人")
+	_check(enemies[2].hp == behind_hp, "旋风斩不命中身后敌人")
+	_check(battle.action_hits >= 5, "旋风斩产生五次碰撞伤害")
+	_check(axeman.global_position.x > start_x + 20.0, "旋风斩边旋转边向攻击方向移动")
 
-	# 重劈：单目标 2 倍伤害。
+	# 重击：单目标 2 倍伤害。
 	if enemies[0].alive:
 		enemies[0].position = axeman.global_position + Vector2(70, 0)
 		axeman.target = enemies[0]
@@ -351,8 +362,8 @@ func _test_axeman_skills() -> void:
 		axeman.planned_direction = Vector2.RIGHT
 		axeman.state_machine.transition_to(&"action", true)
 		await get_tree().create_timer(0.8).timeout
-		_check(enemies[0].hp < heavy_before, "重劈对单体造成伤害")
-		_check(battle.action_hits == hits_before + 1, "重劈只结算一次伤害")
+		_check(enemies[0].hp < heavy_before, "重击对单体造成伤害")
+		_check(battle.action_hits == hits_before + 1, "重击只结算一次伤害")
 
 	await get_tree().create_timer(2.1).timeout
 	GameState.reset_lineups()

@@ -19,7 +19,7 @@ duration = 0.00
 [resource]
 script = ExtResource("1")
 action_id = &"armored_axeman_heavy"
-display_name = "重劈"
+display_name = "重击"
 category = 1
 target_mode = 0
 animation = &"attack_03"
@@ -27,7 +27,7 @@ animation_speed = 1.0
 action_range = 86.0
 min_range = 0.0
 cooldown = 6.00
-mana_cost = 20.0
+mana_cost = 0.0
 action_duration = 0.00
 min_self_hp_ratio = 0.00
 max_self_hp_ratio = 1.00

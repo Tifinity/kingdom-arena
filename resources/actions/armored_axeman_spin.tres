@@ -71,7 +71,7 @@ duration = 0.00
 [resource]
 script = ExtResource("1")
 action_id = &"armored_axeman_spin"
-display_name = "旋风斧"
+display_name = "旋风斩"
 category = 1
 target_mode = 4
 animation = &"attack_02"
@@ -79,7 +79,7 @@ animation_speed = 1.0
 action_range = 190.0
 min_range = 0.0
 cooldown = 9.00
-mana_cost = 30.0
+mana_cost = 100.0
 action_duration = 0.00
 min_self_hp_ratio = 0.00
 max_self_hp_ratio = 1.00
