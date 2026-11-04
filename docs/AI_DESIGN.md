@@ -111,6 +111,7 @@ HUD 展示：
 ```text
 score = action.priority
       + 伤害 AOE 内敌人数 × 1.5
+      + 定向矩形内敌人数 × 2
       + 防御动作缺失生命比例 × 25
 ```
 
@@ -281,6 +282,8 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
 - `UnitBrain._select_action()`：从 `unit.actions` 中选 `ActionPlan`；
 - 骑士·火焰斩击：`attack_03` 自带的火焰帧 + 扇形 AOE；不再叠加第二套火焰刀光。
 - 骑士·格挡：`block` 动画、1 秒 `GUARD` 状态、期间免疫全部伤害；12 秒冷却、20 蓝耗。
+- 重甲斧兵·旋风斧：`attack_02`，方向矩形搜索，5 个伤害帧，动作期间前进。
+- 重甲斧兵·重劈：`attack_03`，单目标 2 倍伤害。
 
 继续扩展时：
 
@@ -300,7 +303,7 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
   打开后显示基础攻击范围（蓝圈）和技能范围（橙色虚线圈）。
 - **暂停/变速**：`空格`暂停、`F`变速，便于观察 AI 在某一帧的选择。
 - **自动化测试**：
-  - `tests/test_runner.tscn` 118 项检查；
+  - `tests/test_runner.tscn` 133 项检查；
   - `tools/soak_test.tscn` 8 场随机阵容，检查卡死与胜负分布。
 - **可调参数**：
   - `UnitBrain.THINK_INTERVAL`：思考频率；

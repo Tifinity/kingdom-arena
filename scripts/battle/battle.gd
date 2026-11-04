@@ -45,6 +45,7 @@ var unit_damage: Dictionary = {}
 var projectiles_fired := 0
 var action_casts := 0
 var skill_casts := 0
+var action_hits := 0
 
 var _mvp_name := "无"
 var _mvp_team := -1
@@ -339,6 +340,29 @@ func units_in_circle(source: Unit, center: Vector2, radius: float) -> Array[Unit
 		if unit.team == source.team:
 			continue
 		if unit.global_position.distance_to(center) <= radius + unit.body_radius:
+			result.append(unit)
+	return result
+
+
+## 直线矩形：从 source 沿 direction 延伸 length，全宽 width。
+func units_in_rect(source: Unit, direction: Vector2, length: float, width: float) -> Array[Unit]:
+	var result: Array[Unit] = []
+	if not is_instance_valid(source):
+		return result
+	var dir := direction.normalized()
+	if dir.length_squared() < 0.0001:
+		dir = Vector2(float(source.facing), 0.0)
+	var side := Vector2(-dir.y, dir.x)
+	var half_width := maxf(width, 1.0) * 0.5
+	for unit in living_units():
+		if unit.team == source.team:
+			continue
+		var offset := unit.global_position - source.global_position
+		var forward := offset.dot(dir)
+		var lateral := absf(offset.dot(side))
+		if forward < -unit.body_radius or forward > length + unit.body_radius:
+			continue
+		if lateral <= half_width + unit.body_radius:
 			result.append(unit)
 	return result
 

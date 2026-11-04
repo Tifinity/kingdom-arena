@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 
-[sub_resource type="Resource" id="effect"]
+[sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
 kind = 0
 shape = 2
@@ -11,6 +11,8 @@ trigger_frame = 7
 damage_ratio = 1.40
 radius = 170.0
 half_angle = 65.0
+length = 0.0
+width = 0.0
 projectile_kind = 0
 duration = 0.00
 
@@ -29,5 +31,7 @@ mana_cost = 30.0
 action_duration = 0.00
 min_self_hp_ratio = 0.00
 max_self_hp_ratio = 1.00
+advance_speed = 0.0
+min_targets = 1
 priority = 10
-effects = [SubResource("effect")]
+effects = [SubResource("effect_0")]

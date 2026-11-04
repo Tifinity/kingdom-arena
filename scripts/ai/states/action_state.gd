@@ -9,6 +9,7 @@ var _effects: Array[ActionEffectDefinition] = []
 var _elapsed := 0.0
 var _duration := 0.4
 var _next_effect := 0
+var _direction := Vector2.RIGHT
 
 
 func enter(_previous: StringName) -> void:
@@ -28,7 +29,14 @@ func enter(_previous: StringName) -> void:
 		return
 
 	unit.spend_mana(_action)
-	unit.face_target()
+	_direction = unit.planned_direction
+	if _direction.length_squared() < 0.0001:
+		if unit.has_live_target():
+			_direction = (unit.target.global_position - unit.global_position).normalized()
+		else:
+			_direction = Vector2(float(unit.facing), 0.0)
+	_direction = _direction.normalized()
+	unit.face_direction(_direction.x)
 	unit.visual.speed_scale = maxf(_action.animation_speed, 0.05)
 	unit.play_animation(_action.animation, true)
 
@@ -54,6 +62,8 @@ func update(delta: float) -> void:
 	if not unit.alive or _action == null:
 		return
 	_elapsed += delta
+	if _action.advance_speed > 0.0:
+		unit.advance_step(_direction, _action.advance_speed, delta)
 
 	var fps := 10.0
 	if unit.definition.sprite_frames != null and unit.definition.sprite_frames.has_animation(_action.animation):

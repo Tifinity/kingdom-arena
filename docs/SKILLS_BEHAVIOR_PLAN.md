@@ -1,7 +1,7 @@
 # 技能、范围与行为差异：什么时候该拆场景？
 
 > **实现状态（2026-11）**：`CombatActionDefinition`、`ActionEffectDefinition`、
-> 统一 `ActionState`、`UnitBrain._select_action()`、骑士·火焰斩击与骑士·格挡已落地。
+> 统一 `ActionState`、`UnitBrain._select_action()`、骑士技能与重甲斧兵技能已落地。
 > 下文把 `AttackState` 称为通用 Action 执行器；文中部分迁移步骤是后续扩展方向。
 
 结论先说：

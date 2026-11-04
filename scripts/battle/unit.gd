@@ -38,6 +38,7 @@ var alive := true
 var facing := 1
 var actions: Array[CombatActionDefinition] = []
 var planned_action: CombatActionDefinition
+var planned_direction := Vector2.ZERO
 var action_cooldowns: Dictionary = {}
 var is_selected := false
 var initialized := false
@@ -290,6 +291,8 @@ func can_execute_planned_action() -> bool:
 		return false
 	if planned_action.target_mode == CombatActionDefinition.TargetMode.SELF:
 		return true
+	if planned_action.target_mode == CombatActionDefinition.TargetMode.DIRECTION:
+		return planned_direction.length_squared() > 0.0001
 	if not has_live_target():
 		return false
 	return is_target_in_action_range(planned_action, 6.0)
@@ -304,6 +307,14 @@ func move_step(direction: Vector2, delta: float) -> void:
 		return
 	position += direction.normalized() * move_speed * delta
 	position = battle.clamp_unit_position(position)
+
+
+func advance_step(direction: Vector2, speed: float, delta: float) -> void:
+	if direction.length_squared() < 0.0001 or speed <= 0.0:
+		return
+	position += direction.normalized() * speed * delta
+	if battle != null:
+		position = battle.clamp_unit_position(position)
 
 
 ## 执行一个 ActionEffect。ActionState 在动作时间轴的对应帧调用。
@@ -336,6 +347,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 			var impact := target.get_hit_point()
 			battle.spawn_slash(impact, accent_color, signf(target.global_position.x - global_position.x))
 			target.take_damage(damage, self, impact)
+			battle.action_hits += 1
 		ActionEffectDefinition.Shape.CONE:
 			var victims: Array = battle.units_in_cone(
 				self, Vector2(float(facing), 0.0), effect.radius, effect.half_angle
@@ -343,12 +355,22 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 			for victim in victims:
 				victim.take_damage(damage, self, victim.get_hit_point())
 				battle.spawn_hit_spark(victim.get_hit_point(), Color(1.0, 0.55, 0.18), 1.4)
+				battle.action_hits += 1
 		ActionEffectDefinition.Shape.CIRCLE:
 			if not has_live_target():
 				return
 			var center := target.global_position
 			for victim in battle.units_in_circle(self, center, effect.radius):
 				victim.take_damage(damage, self, victim.get_hit_point())
+				battle.action_hits += 1
+		ActionEffectDefinition.Shape.RECT:
+			var direction := planned_direction
+			if direction.length_squared() < 0.0001:
+				direction = Vector2(float(facing), 0.0)
+			for victim in battle.units_in_rect(self, direction, effect.length, effect.width):
+				victim.take_damage(damage, self, victim.get_hit_point())
+				battle.spawn_hit_spark(victim.get_hit_point(), accent_color, 1.2)
+				battle.action_hits += 1
 		_:
 			pass
 
@@ -459,6 +481,8 @@ func ai_snapshot() -> Dictionary:
 			action_text = "%s → 自身（持续 %.1fs）" % [
 				planned_action.display_name, planned_action.action_duration,
 			]
+		elif planned_action.target_mode == CombatActionDefinition.TargetMode.DIRECTION:
+			action_text = "%s → 选定方向" % planned_action.display_name
 		else:
 			action_text = "%s → %s（冷却 %.2fs）" % [
 				planned_action.display_name,

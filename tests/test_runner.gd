@@ -33,6 +33,7 @@ func _run_all() -> void:
 	await _test_setup_scene()
 	await _test_hero_lab()
 	await _test_flame_slash()
+	await _test_axeman_skills()
 	await _test_battle()
 	await _test_extra_lineup()
 
@@ -172,7 +173,7 @@ func _test_flame_slash() -> void:
 	# 把敌人放到骑士前方扇形内/外，关闭敌人 AI，手动触发技能。
 	knight.position = Vector2(700, 650)
 	enemies[0].position = Vector2(820, 650)   # 扇形内
-	enemies[1].position = Vector2(820, 720)   # 扇形内
+	enemies[1].position = Vector2(820, 700)   # 扇形内
 	enemies[2].position = Vector2(600, 650)   # 身后，不应命中
 	for enemy in enemies:
 		enemy.brain.enabled = false
@@ -229,12 +230,18 @@ func _test_flame_slash() -> void:
 	_check(not knight.can_execute_planned_action(), "冷却中的旧动作不会被 Idle 重复进入")
 
 	# 格挡和火焰斩击都在冷却时，应回到普通攻击，而不是卡在格挡循环。
+	var settle := 0.0
+	while knight.state_machine.current_name != &"idle" and settle < 1.5:
+		await get_tree().process_frame
+		settle += get_process_delta_time()
 	for key in knight.action_cooldowns.keys():
 		knight.action_cooldowns[key] = 0.0
 	for action in knight.actions:
 		if action.action_id != &"knight_basic":
 			knight.action_cooldowns[action.action_id] = action.cooldown
 	knight.mana = knight.max_mana
+	enemies[0].position = knight.position + Vector2(70, 0)
+	knight.target = enemies[0]
 	knight.brain.enabled = true
 	knight.brain.force_think()
 	_check(knight.planned_action != null and knight.planned_action.action_id == &"knight_basic",
@@ -252,14 +259,109 @@ func _test_flame_slash() -> void:
 	await get_tree().process_frame
 
 
+func _test_axeman_skills() -> void:
+	print("\n[5] 重甲斧兵技能")
+	var axeman_definition := UnitCatalog.get_definition(&"armored_axeman")
+	var spin: CombatActionDefinition = null
+	var heavy: CombatActionDefinition = null
+	for action in axeman_definition.actions:
+		if action.action_id == &"armored_axeman_spin":
+			spin = action
+		elif action.action_id == &"armored_axeman_heavy":
+			heavy = action
+	_check(spin != null, "重甲斧兵拥有旋风斧 Action")
+	_check(heavy != null, "重甲斧兵拥有重劈 Action")
+	if spin == null or heavy == null:
+		return
+	_check(spin.animation == &"attack_02" and spin.target_mode == CombatActionDefinition.TargetMode.DIRECTION,
+		"旋风斧使用 attack_02 并选择方向")
+	_check(spin.effects.size() == 5 and spin.advance_speed > 0.0 and spin.min_targets >= 2,
+		"旋风斧包含 5 个伤害帧并边转边移动")
+	_check(heavy.animation == &"attack_03" and not heavy.effects.is_empty()
+		and is_equal_approx(heavy.effects[0].damage_ratio, 2.0), "重劈使用 attack_03 且为 2 倍单体伤害")
+
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"armored_axeman")
+	GameState.set_slot(1, 0, &"werebear")
+	GameState.set_slot(1, 1, &"soldier")
+	GameState.set_slot(1, 2, &"skeleton")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+
+	var axeman: Unit = null
+	var enemies: Array[Unit] = []
+	for unit in battle.units:
+		if unit.team == 0:
+			axeman = unit
+		else:
+			enemies.append(unit)
+	_check(axeman != null and enemies.size() == 3, "技能测试生成斧兵与 3 名敌人")
+	if axeman == null or enemies.size() < 3:
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+
+	axeman.position = Vector2(700, 650)
+	enemies[0].position = Vector2(780, 650)
+	enemies[1].position = Vector2(400, 800)
+	enemies[2].position = Vector2(1000, 800)
+	for enemy in enemies:
+		enemy.brain.enabled = false
+	axeman.brain.enabled = true
+	axeman.brain.force_think()
+	_check(axeman.planned_action != null and axeman.planned_action.action_id == &"armored_axeman_heavy",
+		"只有单个目标时决策层选择重劈")
+	enemies[0].position = Vector2(820, 650)
+	enemies[1].position = Vector2(820, 700)
+	enemies[2].position = Vector2(600, 650)
+	axeman.brain.force_think()
+	_check(axeman.planned_action != null and axeman.planned_action.action_id == &"armored_axeman_spin",
+		"两名敌人成排时决策层选择旋风斧")
+	_check(axeman.planned_direction.x > 0.5, "旋风斧选择右侧人数最多的方向")
+
+	axeman.brain.enabled = false
+	axeman.target = enemies[0]
+	axeman.planned_action = spin
+	axeman.planned_direction = Vector2.RIGHT
+	var spin_hp: Array[float] = [enemies[0].hp, enemies[1].hp]
+	var behind_hp: float = enemies[2].hp
+	var start_x: float = axeman.global_position.x
+	axeman.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(1.0).timeout
+	_check(enemies[0].hp < spin_hp[0] and enemies[1].hp < spin_hp[1], "旋风斧沿直线命中多名敌人")
+	_check(enemies[2].hp == behind_hp, "旋风斧不命中身后敌人")
+	_check(battle.action_hits >= 5, "旋风斧产生五次碰撞伤害")
+	_check(axeman.global_position.x > start_x + 20.0, "旋风斧边旋转边向攻击方向移动")
+
+	# 重劈：单目标 2 倍伤害。
+	if enemies[0].alive:
+		enemies[0].position = axeman.global_position + Vector2(70, 0)
+		axeman.target = enemies[0]
+		var heavy_before: float = enemies[0].hp
+		var hits_before: int = battle.action_hits
+		axeman.planned_action = heavy
+		axeman.planned_direction = Vector2.RIGHT
+		axeman.state_machine.transition_to(&"action", true)
+		await get_tree().create_timer(0.8).timeout
+		_check(enemies[0].hp < heavy_before, "重劈对单体造成伤害")
+		_check(battle.action_hits == hits_before + 1, "重劈只结算一次伤害")
+
+	await get_tree().create_timer(2.1).timeout
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
 func _test_battle() -> void:
-	print("\n[5] 默认阵容自动战斗")
+	print("\n[6] 默认阵容自动战斗")
 	_check(InputMap.has_action("range_toggle"), "范围开关已注册输入动作")
 	await _run_battle("默认阵容")
 
 
 func _test_extra_lineup() -> void:
-	print("\n[6] 随机阵容自动战斗")
+	print("\n[7] 随机阵容自动战斗")
 	var pool: Array = UnitCatalog.all().duplicate()
 	pool.shuffle()
 	GameState.clear_lineup(0)

@@ -24,6 +24,8 @@ var intent: int = Intent.IDLE
 var intent_reason := ""
 var target: Unit
 var planned_action: CombatActionDefinition
+var planned_direction := Vector2.ZERO
+var planned_target_count := 0
 var observation: Dictionary = {}
 var judgment: Dictionary = {}
 
@@ -186,6 +188,8 @@ func _decide() -> void:
 	intent = Intent.IDLE
 	intent_reason = "等待战机"
 	planned_action = null
+	planned_direction = Vector2.ZERO
+	planned_target_count = 0
 
 	if target == null or not is_instance_valid(target) or not target.alive:
 		target = null
@@ -225,6 +229,8 @@ func _select_action() -> ActionPlan:
 
 		# 目标类型与硬性条件
 		var action_target: Unit = target
+		var action_direction := Vector2.ZERO
+		var target_count := 0
 		match action.target_mode:
 			CombatActionDefinition.TargetMode.ENEMY:
 				if not unit.has_live_target() or not unit.is_target_in_action_range(action, 4.0):
@@ -233,16 +239,26 @@ func _select_action() -> ActionPlan:
 				if unit.hp_ratio() < action.min_self_hp_ratio or unit.hp_ratio() > action.max_self_hp_ratio:
 					continue
 				action_target = unit
+			CombatActionDefinition.TargetMode.DIRECTION:
+				if not unit.has_live_target():
+					continue
+				var best_dir := _best_direction_for(action)
+				target_count = int(best_dir.get("count", 0))
+				if target_count < maxi(action.min_targets, 1):
+					continue
+				action_direction = best_dir.get("direction", Vector2.ZERO)
 			_:
 				continue
 
-		# 行动价值：基础优先级 +  situational utility
+		# 行动价值：基础优先级 + situational utility
 		var score := float(action.priority)
 		for effect in action.effects:
 			if effect.kind != ActionEffectDefinition.Kind.DAMAGE:
 				continue
 			if effect.shape == ActionEffectDefinition.Shape.CONE or effect.shape == ActionEffectDefinition.Shape.CIRCLE:
 				score += _count_targets_in_effect(action, effect) * 1.5
+			elif effect.shape == ActionEffectDefinition.Shape.RECT and action.target_mode == CombatActionDefinition.TargetMode.DIRECTION:
+				score += target_count * 2.0
 		# 防御动作在生命越低时越紧急。
 		if action.category == CombatActionDefinition.Category.DEFENSE:
 			score += (1.0 - unit.hp_ratio()) * 25.0
@@ -253,8 +269,40 @@ func _select_action() -> ActionPlan:
 		):
 			best_score = score
 			best_priority = action.priority
-			best_plan = ActionPlan.create(action, action_target)
+			planned_direction = action_direction
+			planned_target_count = target_count
+			best_plan = ActionPlan.create(action, action_target, action_direction)
 	return best_plan
+
+
+## 在 360° 方向上搜索直线矩形内敌人数最多的方向。
+func _best_direction_for(action: CombatActionDefinition) -> Dictionary:
+	var rect_effect: ActionEffectDefinition = null
+	for effect in action.effects:
+		if effect.kind == ActionEffectDefinition.Kind.DAMAGE and effect.shape == ActionEffectDefinition.Shape.RECT:
+			rect_effect = effect
+			break
+	if rect_effect == null or unit.battle == null:
+		return {}
+
+	var directions: Array[Vector2] = []
+	if unit.has_live_target():
+		directions.append((target.global_position - unit.global_position).normalized())
+	for index in 36:
+		directions.append(Vector2.from_angle(TAU * float(index) / 36.0))
+
+	var best_direction := Vector2.ZERO
+	var best_count := -1
+	for direction in directions:
+		if direction.length_squared() < 0.0001:
+			continue
+		var count: int = unit.battle.units_in_rect(
+			unit, direction, rect_effect.length, rect_effect.width
+		).size()
+		if count > best_count:
+			best_count = count
+			best_direction = direction
+	return {"direction": best_direction, "count": best_count}
 
 
 func _count_targets_in_effect(_action: CombatActionDefinition, effect: ActionEffectDefinition) -> int:
@@ -278,6 +326,7 @@ func _act() -> void:
 	unit.intent = intent
 	unit.intent_reason = intent_reason
 	unit.planned_action = planned_action
+	unit.planned_direction = planned_direction
 
 	var valid_target := target != null and is_instance_valid(target) and target.alive
 	var target_name: String = target.definition.display_name if valid_target else "无"
@@ -286,6 +335,10 @@ func _act() -> void:
 			if planned_action != null and planned_action.target_mode == CombatActionDefinition.TargetMode.SELF:
 				last_action_text = "%s → 自身（持续 %.1fs）" % [
 					planned_action.display_name, planned_action.action_duration,
+				]
+			elif planned_action != null and planned_action.target_mode == CombatActionDefinition.TargetMode.DIRECTION:
+				last_action_text = "%s → 选定方向（%d 名敌人）" % [
+					planned_action.display_name, planned_target_count,
 				]
 			elif planned_action != null:
 				last_action_text = "%s → %s（冷却 %.2fs）" % [

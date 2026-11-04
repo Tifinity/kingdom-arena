@@ -5,10 +5,10 @@ extends Resource
 ## 其余枚举为位移、护盾、状态、召唤等后续扩展预留。
 
 enum Kind { DAMAGE, PROJECTILE, VISUAL, HEAL, SHIELD, STATUS, DISPLACE, SUMMON, GUARD }
-enum Shape { SINGLE, CIRCLE, CONE, SELF }
+enum Shape { SINGLE, CIRCLE, CONE, SELF, RECT }
 
 @export var kind: int = Kind.DAMAGE
-@export_enum("单体:0", "圆形:1", "扇形:2", "自身:3") var shape: int = Shape.SINGLE
+@export_enum("单体:0", "圆形:1", "扇形:2", "自身:3", "矩形:4") var shape: int = Shape.SINGLE
 
 ## 在动作动画的第几帧触发（0 为第一帧）。
 @export var trigger_frame: int = 0
@@ -21,6 +21,10 @@ enum Shape { SINGLE, CIRCLE, CONE, SELF }
 
 ## 扇形半角，单位为度。
 @export var half_angle: float = 0.0
+
+## 矩形/直线范围：长度与宽度（宽度为全宽）。
+@export var length: float = 0.0
+@export var width: float = 0.0
 
 ## 状态/格挡类效果的持续时间。
 @export var duration: float = 0.0

@@ -23,6 +23,10 @@ enum TargetMode { ENEMY, ALLY, SELF, POINT, DIRECTION }
 ## 可选的自施法血量条件（比例 0~1），用于防御动作。
 @export var min_self_hp_ratio := 0.0
 @export var max_self_hp_ratio := 1.0
+## 动作期间沿选定方向前进的速度；0 表示原地。
+@export var advance_speed := 0.0
+## DIRECTION/AOE 动作至少需要命中的敌人数，0/1 表示无额外限制。
+@export var min_targets := 1
 ## 多个动作同时可用时，决策层的偏好权重。
 @export var priority := 0
 

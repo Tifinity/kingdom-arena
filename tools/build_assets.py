@@ -192,10 +192,10 @@ def godot_color(hex_str: str) -> str:
     return f"Color({r:.3f}, {g:.3f}, {b:.3f}, 1)"
 
 
-def _write_effect_resource(action_id: str, effect: dict) -> str:
+def _write_effect_resource(effect_id: str, effect: dict) -> str:
     """Build one ActionEffectDefinition as an embedded subresource."""
     lines = [
-        f'[sub_resource type="Resource" id="effect"]',
+        f'[sub_resource type="Resource" id="{effect_id}"]',
         'script = ExtResource("2")',
         f'kind = {effect["kind"]}',
         f'shape = {effect["shape"]}',
@@ -203,6 +203,8 @@ def _write_effect_resource(action_id: str, effect: dict) -> str:
         f'damage_ratio = {effect["damage_ratio"]:.2f}',
         f'radius = {effect["radius"]:.1f}',
         f'half_angle = {effect["half_angle"]:.1f}',
+        f'length = {effect.get("length", 0.0):.1f}',
+        f'width = {effect.get("width", 0.0):.1f}',
         f'projectile_kind = {effect["projectile_kind"]}',
         f'duration = {effect.get("duration", 0.0):.2f}',
     ]
@@ -221,25 +223,40 @@ def _write_action(
     action_range: float,
     cooldown: float,
     priority: int,
-    effect: dict,
+    effect: dict | list[dict],
     mana_cost: float = 0.0,
     action_duration: float = 0.0,
     min_self_hp_ratio: float = 0.0,
     max_self_hp_ratio: float = 1.0,
+    advance_speed: float = 0.0,
+    min_targets: int = 1,
 ) -> None:
+    effects = effect if isinstance(effect, list) else [effect]
     lines = [
         '[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]',
         '',
         '[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]',
         '[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]',
     ]
-    if effect.get("scene_path"):
-        lines.append(f'[ext_resource type="PackedScene" path="{effect["scene_path"]}" id="3"]')
-        effect["scene_id"] = "3"
+    scene_paths: list[str] = []
+    for effect_data in effects:
+        scene_path = effect_data.get("scene_path")
+        if scene_path and scene_path not in scene_paths:
+            scene_paths.append(scene_path)
+    for index, scene_path in enumerate(scene_paths):
+        scene_id = str(3 + index)
+        lines.append(f'[ext_resource type="PackedScene" path="{scene_path}" id="{scene_id}"]')
+        for effect_data in effects:
+            if effect_data.get("scene_path") == scene_path:
+                effect_data["scene_id"] = scene_id
     lines.append('')
-    lines.append(_write_effect_resource(action_id, effect))
+    effect_refs = []
+    for index, effect_data in enumerate(effects):
+        effect_id = f"effect_{index}"
+        effect_refs.append(f'SubResource("{effect_id}")')
+        lines.append(_write_effect_resource(effect_id, effect_data))
+        lines.append('')
     lines += [
-        '',
         '[resource]',
         'script = ExtResource("1")',
         f'action_id = &"{action_id}"',
@@ -255,8 +272,10 @@ def _write_action(
         f'action_duration = {action_duration:.2f}',
         f'min_self_hp_ratio = {min_self_hp_ratio:.2f}',
         f'max_self_hp_ratio = {max_self_hp_ratio:.2f}',
+        f'advance_speed = {advance_speed:.1f}',
+        f'min_targets = {min_targets}',
         f'priority = {priority}',
-        'effects = [SubResource("effect")]',
+        f'effects = [{", ".join(effect_refs)}]',
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -320,6 +339,49 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
             mana_cost=20.0, action_duration=1.0, max_self_hp_ratio=0.55,
         )
         actions.append(f"res://resources/actions/{block_name}.tres")
+
+    if unit.slug == "armored_axeman":
+        spin_effects = []
+        for frame in [4, 5, 6, 7, 8]:
+            spin_effects.append({
+                "kind": 0,
+                "shape": 4,  # RECT
+                "trigger_frame": frame,
+                "damage_ratio": 0.50,
+                "radius": 0.0,
+                "half_angle": 0.0,
+                "length": 190.0,
+                "width": 120.0,
+                "projectile_kind": 0,
+            })
+        spin_name = "armored_axeman_spin"
+        spin_path = RES_ACTIONS / f"{spin_name}.tres"
+        _write_action(
+            spin_path, spin_name, "旋风斧", 1, 4, "attack_02",
+            190.0, 9.0, 9, spin_effects,
+            mana_cost=30.0, advance_speed=240.0, min_targets=2,
+        )
+        actions.append(f"res://resources/actions/{spin_name}.tres")
+
+        heavy_effect = {
+            "kind": 0,
+            "shape": 0,
+            "trigger_frame": 8,
+            "damage_ratio": 2.0,
+            "radius": 0.0,
+            "half_angle": 0.0,
+            "length": 0.0,
+            "width": 0.0,
+            "projectile_kind": 0,
+        }
+        heavy_name = "armored_axeman_heavy"
+        heavy_path = RES_ACTIONS / f"{heavy_name}.tres"
+        _write_action(
+            heavy_path, heavy_name, "重劈", 1, 0, "attack_03",
+            unit.attack_range, 6.0, 8, heavy_effect,
+            mana_cost=20.0,
+        )
+        actions.append(f"res://resources/actions/{heavy_name}.tres")
     return actions
 
 

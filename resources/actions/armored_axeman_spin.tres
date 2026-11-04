@@ -1,0 +1,89 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+
+[sub_resource type="Resource" id="effect_0"]
+script = ExtResource("2")
+kind = 0
+shape = 4
+trigger_frame = 4
+damage_ratio = 0.50
+radius = 0.0
+half_angle = 0.0
+length = 190.0
+width = 120.0
+projectile_kind = 0
+duration = 0.00
+
+[sub_resource type="Resource" id="effect_1"]
+script = ExtResource("2")
+kind = 0
+shape = 4
+trigger_frame = 5
+damage_ratio = 0.50
+radius = 0.0
+half_angle = 0.0
+length = 190.0
+width = 120.0
+projectile_kind = 0
+duration = 0.00
+
+[sub_resource type="Resource" id="effect_2"]
+script = ExtResource("2")
+kind = 0
+shape = 4
+trigger_frame = 6
+damage_ratio = 0.50
+radius = 0.0
+half_angle = 0.0
+length = 190.0
+width = 120.0
+projectile_kind = 0
+duration = 0.00
+
+[sub_resource type="Resource" id="effect_3"]
+script = ExtResource("2")
+kind = 0
+shape = 4
+trigger_frame = 7
+damage_ratio = 0.50
+radius = 0.0
+half_angle = 0.0
+length = 190.0
+width = 120.0
+projectile_kind = 0
+duration = 0.00
+
+[sub_resource type="Resource" id="effect_4"]
+script = ExtResource("2")
+kind = 0
+shape = 4
+trigger_frame = 8
+damage_ratio = 0.50
+radius = 0.0
+half_angle = 0.0
+length = 190.0
+width = 120.0
+projectile_kind = 0
+duration = 0.00
+
+[resource]
+script = ExtResource("1")
+action_id = &"armored_axeman_spin"
+display_name = "旋风斧"
+category = 1
+target_mode = 4
+animation = &"attack_02"
+animation_speed = 1.0
+action_range = 190.0
+min_range = 0.0
+cooldown = 9.00
+mana_cost = 30.0
+action_duration = 0.00
+min_self_hp_ratio = 0.00
+max_self_hp_ratio = 1.00
+advance_speed = 240.0
+min_targets = 2
+priority = 9
+effects = [SubResource("effect_0"), SubResource("effect_1"), SubResource("effect_2"), SubResource("effect_3"), SubResource("effect_4")]
