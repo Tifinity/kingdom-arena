@@ -82,6 +82,21 @@ func _test_catalog() -> void:
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.STATUS), "技能数据包含状态效果")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.DISPLACE), "技能数据包含击退效果")
 
+	var bad_aoe_range: Array[String] = []
+	for definition in UnitCatalog.all():
+		for action in definition.actions:
+			var shape_reach := 0.0
+			for effect in action.effects:
+				if effect.kind != ActionEffectDefinition.Kind.DAMAGE:
+					continue
+				if effect.shape == ActionEffectDefinition.Shape.CONE:
+					shape_reach = maxf(shape_reach, effect.radius)
+				elif effect.shape == ActionEffectDefinition.Shape.RECT:
+					shape_reach = maxf(shape_reach, effect.length)
+			if shape_reach > 0.0 and not is_equal_approx(action.action_range, shape_reach):
+				bad_aoe_range.append("%s/%s" % [definition.unit_id, action.action_id])
+	_check(bad_aoe_range.is_empty(), "所有扇形/矩形技能的释放距离与实际伤害范围一致")
+
 	var knight_definition := UnitCatalog.get_definition(&"knight")
 	var archer_definition := UnitCatalog.get_definition(&"archer")
 	var assassin_definition := UnitCatalog.get_definition(&"werewolf")
