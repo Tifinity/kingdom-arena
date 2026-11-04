@@ -404,11 +404,11 @@ func spawn_action_effect(scene: PackedScene, source: Unit, effect: ActionEffectD
 		fx.setup_from_effect(source, effect)
 
 
-func spawn_projectile(source: Unit, target: Unit, damage: float, kind: int, color: Color) -> void:
+func spawn_projectile(source: Unit, target: Unit, damage: float, kind: int, color: Color, can_interrupt := true) -> void:
 	projectiles_fired += 1
 	var projectile: Projectile = PROJECTILE_SCENE.instantiate()
 	projectiles_root.add_child(projectile)
-	projectile.setup(source, target, damage, kind, color)
+	projectile.setup(source, target, damage, kind, color, can_interrupt)
 
 
 func spawn_slash(at: Vector2, color: Color, direction: float) -> void:

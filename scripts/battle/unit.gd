@@ -434,7 +434,8 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 			_resolve_damage_effect(action, effect, damage)
 		ActionEffectDefinition.Kind.PROJECTILE:
 			if has_live_target() and is_target_in_action_range(action, 24.0):
-				battle.spawn_projectile(self, target, damage, effect.projectile_kind, accent_color)
+				battle.spawn_projectile(self, target, damage, effect.projectile_kind, accent_color,
+					action.category != CombatActionDefinition.Category.BASIC)
 		ActionEffectDefinition.Kind.VISUAL:
 			_spawn_action_visual(effect)
 		ActionEffectDefinition.Kind.GUARD:
@@ -464,7 +465,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 				return
 			var impact := target.get_hit_point()
 			battle.spawn_slash(impact, accent_color, signf(target.global_position.x - global_position.x))
-			target.take_damage(damage, self, impact)
+			target.take_damage(damage, self, impact, action.category != CombatActionDefinition.Category.BASIC)
 			battle.action_hits += 1
 		ActionEffectDefinition.Shape.CONE:
 			var cone_direction := planned_direction
@@ -474,20 +475,20 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 				self, cone_direction, effect.radius, effect.half_angle
 			)
 			for victim in victims:
-				victim.take_damage(damage, self, victim.get_hit_point())
+				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
 				battle.spawn_hit_spark(victim.get_hit_point(), Color(1.0, 0.55, 0.18), 1.4)
 				battle.action_hits += 1
 		ActionEffectDefinition.Shape.CIRCLE:
 			var center := global_position if effect.center_on_self else (target.global_position if has_live_target() else global_position)
 			for victim in battle.units_in_circle(self, center, effect.radius):
-				victim.take_damage(damage, self, victim.get_hit_point())
+				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
 				battle.action_hits += 1
 		ActionEffectDefinition.Shape.RECT:
 			var direction := planned_direction
 			if direction.length_squared() < 0.0001:
 				direction = Vector2(float(facing), 0.0)
 			for victim in battle.units_in_rect(self, direction, effect.length, effect.width):
-				victim.take_damage(damage, self, victim.get_hit_point())
+				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
 				battle.spawn_hit_spark(victim.get_hit_point(), accent_color, 1.2)
 				battle.action_hits += 1
 		_:
@@ -531,7 +532,7 @@ func is_guarding() -> bool:
 	return guard_time > 0.0
 
 
-func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null) -> void:
+func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, can_interrupt := true) -> void:
 	if not alive or raw_amount <= 0.0:
 		return
 	if guard_time > 0.0:
@@ -554,7 +555,7 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null) 
 		die(source)
 		return
 
-	if _flinch_cooldown <= 0.0 and amount >= max_hp * 0.065:
+	if can_interrupt and _flinch_cooldown <= 0.0 and amount >= max_hp * 0.065:
 		_flinch_cooldown = 1.05
 		state_machine.transition_to(&"hurt", true)
 
