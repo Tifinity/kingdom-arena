@@ -492,6 +492,19 @@ def _skills_for(unit: Unit) -> list[dict]:
                               _fx(kind=5, shape=0, frame=9, status_kind=2,
                                   status_duration=3.0, status_power=10.0)],
                              12.0, 10, rng, rng, mana=100.0))
+
+    # 所有以自身为原点的扇形/矩形技能，action_range 与实际伤害形状完全一致。
+    for spec in skills:
+        reach = 0.0
+        for effect in spec["effects"]:
+            if effect["kind"] != 0:
+                continue
+            if effect["shape"] == 2:
+                reach = max(reach, effect["radius"])
+            elif effect["shape"] == 4:
+                reach = max(reach, effect["length"])
+        if reach > 0.0:
+            spec["range"] = reach
     return skills
 
 
