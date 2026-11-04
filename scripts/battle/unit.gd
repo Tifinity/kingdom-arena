@@ -284,6 +284,10 @@ func current_action_cooldown() -> float:
 func can_execute_planned_action() -> bool:
 	if planned_action == null or not alive:
 		return false
+	# 动作结束后 planned_action 仍保留；必须重新检查冷却/蓝量，
+	# 否则 Idle 会拿冷却中的旧动作反复进入 Action，导致角色不普攻。
+	if not is_action_ready(planned_action) or not has_mana(planned_action):
+		return false
 	if planned_action.target_mode == CombatActionDefinition.TargetMode.SELF:
 		return true
 	if not has_live_target():

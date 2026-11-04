@@ -226,6 +226,20 @@ func _test_flame_slash() -> void:
 	_check(is_equal_approx(knight.hp, hp_guarded), "格挡期间完全免伤")
 	await get_tree().create_timer(1.1).timeout
 	_check(knight.guard_time <= 0.0, "格挡 1 秒后结束")
+	_check(not knight.can_execute_planned_action(), "冷却中的旧动作不会被 Idle 重复进入")
+
+	# 格挡和火焰斩击都在冷却时，应回到普通攻击，而不是卡在格挡循环。
+	for key in knight.action_cooldowns.keys():
+		knight.action_cooldowns[key] = 0.0
+	for action in knight.actions:
+		if action.action_id != &"knight_basic":
+			knight.action_cooldowns[action.action_id] = action.cooldown
+	knight.mana = knight.max_mana
+	knight.brain.enabled = true
+	knight.brain.force_think()
+	_check(knight.planned_action != null and knight.planned_action.action_id == &"knight_basic",
+		"技能冷却后骑士恢复普通攻击")
+
 	var hp_after_guard := knight.hp
 	knight.take_damage(100.0, enemies[0])
 	_check(knight.hp < hp_after_guard, "格挡结束后恢复正常受伤")
