@@ -11,6 +11,9 @@ func enter(_previous: StringName) -> void:
 func update(delta: float) -> void:
 	if not unit.alive:
 		return
+	if unit.is_stunned():
+		machine.transition_to(&"idle")
+		return
 	if not unit.battle_active() or not unit.has_live_target():
 		machine.transition_to(&"idle")
 		return

@@ -20,6 +20,15 @@ var max_mana := 100.0
 var mana := 100.0
 var mana_regen := 8.0
 var guard_time := 0.0
+var summoned := false
+var last_heal_amount := 0.0
+var stun_time := 0.0
+var slow_time := 0.0
+var slow_factor := 1.0
+var bleed_time := 0.0
+var bleed_dps := 0.0
+var bleed_source: Unit
+var _bleed_tick := 0.0
 var attack_damage := 10.0
 var attack_interval := 1.0
 var attack_range := 80.0
@@ -163,6 +172,16 @@ func _physics_process(delta: float) -> void:
 		action_cooldowns[key] = maxf(0.0, float(action_cooldowns[key]) - delta)
 	mana = minf(max_mana, mana + mana_regen * delta)
 	guard_time = maxf(0.0, guard_time - delta)
+	stun_time = maxf(0.0, stun_time - delta)
+	slow_time = maxf(0.0, slow_time - delta)
+	if slow_time <= 0.0:
+		slow_factor = 1.0
+	bleed_time = maxf(0.0, bleed_time - delta)
+	if bleed_time > 0.0 and bleed_dps > 0.0:
+		_bleed_tick += delta
+		while _bleed_tick >= 0.5 and alive:
+			_bleed_tick -= 0.5
+			take_damage(bleed_dps * 0.5, bleed_source, global_position)
 	_flinch_cooldown = maxf(0.0, _flinch_cooldown - delta)
 
 
@@ -322,16 +341,62 @@ func battle_active() -> bool:
 
 
 func move_step(direction: Vector2, delta: float) -> void:
-	if direction.length_squared() < 0.0001:
+	if direction.length_squared() < 0.0001 or is_stunned():
 		return
-	position += direction.normalized() * move_speed * delta
+	var speed := move_speed * (slow_factor if slow_time > 0.0 else 1.0)
+	position += direction.normalized() * speed * delta
 	position = battle.clamp_unit_position(position)
 
 
 func advance_step(direction: Vector2, speed: float, delta: float) -> void:
-	if direction.length_squared() < 0.0001 or speed <= 0.0:
+	if direction.length_squared() < 0.0001 or speed <= 0.0 or is_stunned():
 		return
-	position += direction.normalized() * speed * delta
+	var factor := slow_factor if slow_time > 0.0 else 1.0
+	position += direction.normalized() * speed * factor * delta
+	if battle != null:
+		position = battle.clamp_unit_position(position)
+
+
+func is_stunned() -> bool:
+	return stun_time > 0.0
+
+
+func heal(amount: float, healer: Unit = null) -> void:
+	if not alive or amount <= 0.0:
+		return
+	var before := hp
+	hp = minf(max_hp, hp + amount)
+	health_bar.set_ratio(hp / max_hp)
+	if hp > before:
+		battle.spawn_heal_text(get_hit_point(), hp - before)
+		if healer != null:
+			healer.last_heal_amount += hp - before
+
+
+func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
+	if not alive or effect == null:
+		return
+	match effect.status_kind:
+		ActionEffectDefinition.StatusKind.STUN:
+			stun_time = maxf(stun_time, effect.status_duration)
+			if state_machine != null:
+				state_machine.transition_to(&"idle", true)
+		ActionEffectDefinition.StatusKind.SLOW:
+			slow_time = maxf(slow_time, effect.status_duration)
+			slow_factor = clampf(effect.status_power, 0.1, 1.0)
+		ActionEffectDefinition.StatusKind.BLEED:
+			bleed_time = maxf(bleed_time, effect.status_duration)
+			bleed_dps = maxf(bleed_dps, effect.status_power)
+			bleed_source = source
+
+
+func apply_knockback(origin: Vector2, distance: float) -> void:
+	if distance <= 0.0:
+		return
+	var dir := global_position - origin
+	if dir.length_squared() < 0.0001:
+		dir = Vector2(float(-facing), 0.0)
+	position += dir.normalized() * distance
 	if battle != null:
 		position = battle.clamp_unit_position(position)
 
@@ -351,6 +416,17 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 			_spawn_action_visual(effect)
 		ActionEffectDefinition.Kind.GUARD:
 			apply_guard(effect.duration)
+		ActionEffectDefinition.Kind.HEAL:
+			_resolve_heal_effect(effect)
+		ActionEffectDefinition.Kind.STATUS:
+			if has_live_target():
+				target.apply_status(effect, self)
+		ActionEffectDefinition.Kind.DISPLACE:
+			if has_live_target():
+				target.apply_knockback(global_position, effect.knockback)
+		ActionEffectDefinition.Kind.SUMMON:
+			if battle != null:
+				battle.spawn_summons(self, effect.summon_unit_id, effect.summon_count)
 		_:
 			push_warning("ActionEffect kind %d 尚未实现" % effect.kind)
 
@@ -376,9 +452,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 				battle.spawn_hit_spark(victim.get_hit_point(), Color(1.0, 0.55, 0.18), 1.4)
 				battle.action_hits += 1
 		ActionEffectDefinition.Shape.CIRCLE:
-			if not has_live_target():
-				return
-			var center := target.global_position
+			var center := global_position if effect.center_on_self else (target.global_position if has_live_target() else global_position)
 			for victim in battle.units_in_circle(self, center, effect.radius):
 				victim.take_damage(damage, self, victim.get_hit_point())
 				battle.action_hits += 1
@@ -392,6 +466,17 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 				battle.action_hits += 1
 		_:
 			pass
+
+
+func _resolve_heal_effect(effect: ActionEffectDefinition) -> void:
+	if battle == null:
+		return
+	var amount := effect.heal_amount + attack_damage * effect.heal_ratio
+	for ally in battle.living_units():
+		if ally.team != team:
+			continue
+		if effect.radius <= 0.0 or ally.global_position.distance_to(global_position) <= effect.radius + ally.body_radius:
+			ally.heal(amount, self)
 
 
 func _spawn_action_visual(effect: ActionEffectDefinition) -> void:
@@ -528,5 +613,8 @@ func ai_snapshot() -> Dictionary:
 		"skill_range": "%d" % roundi(_max_action_range()) if _max_action_range() > attack_range + 0.5 else "—",
 		"cooldown": "%.2f" % current_action_cooldown(),
 		"guard": "%.1f" % guard_time,
+		"stun": "%.1f" % stun_time,
+		"slow": "%.1f" % slow_time,
+		"bleed": "%.1f" % bleed_time,
 		"alive": alive,
 	}

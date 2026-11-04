@@ -12,6 +12,9 @@ func enter(_previous: StringName) -> void:
 func update(_delta: float) -> void:
 	if not unit.alive:
 		return
+	if unit.is_stunned():
+		unit.play_animation(&"hurt")
+		return
 	unit.face_target()
 	unit.play_animation(&"idle")
 	if not unit.battle_active() or unit.brain == null:

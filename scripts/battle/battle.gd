@@ -306,6 +306,34 @@ func spawn_block_text(at: Vector2) -> void:
 	number.setup_text("格挡", Color("#e7c46b"), at)
 
 
+func spawn_heal_text(at: Vector2, amount: float) -> void:
+	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
+	effects_root.add_child(number)
+	number.setup_text("+%d" % roundi(amount), Color("#8fe3a8"), at)
+
+
+func spawn_summons(source: Unit, unit_id: StringName, count: int) -> void:
+	if not is_instance_valid(source) or unit_id == &"":
+		return
+	var definition := UnitCatalog.get_definition(unit_id)
+	if definition == null:
+		return
+	for index in maxi(count, 1):
+		var scene: PackedScene = definition.unit_scene if definition.unit_scene != null else UNIT_SCENE
+		var unit: Unit = scene.instantiate()
+		units_root.add_child(unit)
+		var angle := TAU * float(index) / float(maxi(count, 1))
+		unit.position = source.global_position + Vector2.from_angle(angle) * 58.0
+		unit.setup(self, source.team, source.slot, definition)
+		unit.summoned = true
+		unit.face_direction(-1.0 if source.team == 0 else 1.0)
+		unit.set_range_overlay_visible(show_combat_ranges)
+		unit.died.connect(_on_unit_died)
+		units.append(unit)
+		team_sizes[source.team] += 1
+		team_max_hp_total[source.team] += unit.max_hp
+
+
 func register_action_cast(source: Unit, action: CombatActionDefinition) -> void:
 	if action == null:
 		return

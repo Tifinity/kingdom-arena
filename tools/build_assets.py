@@ -207,6 +207,15 @@ def _write_effect_resource(effect_id: str, effect: dict) -> str:
         f'half_angle = {effect["half_angle"]:.1f}',
         f'length = {effect.get("length", 0.0):.1f}',
         f'width = {effect.get("width", 0.0):.1f}',
+        f'center_on_self = {"true" if effect.get("center_on_self", False) else "false"}',
+        f'status_kind = {effect.get("status_kind", 0)}',
+        f'status_duration = {effect.get("status_duration", 0.0):.2f}',
+        f'status_power = {effect.get("status_power", 0.0):.2f}',
+        f'heal_amount = {effect.get("heal_amount", 0.0):.1f}',
+        f'heal_ratio = {effect.get("heal_ratio", 0.0):.2f}',
+        f'summon_unit_id = &"{effect.get("summon_unit_id", "")}"',
+        f'summon_count = {effect.get("summon_count", 1)}',
+        f'knockback = {effect.get("knockback", 0.0):.1f}',
         f'projectile_kind = {effect["projectile_kind"]}',
         f'duration = {effect.get("duration", 0.0):.2f}',
     ]
@@ -232,6 +241,7 @@ def _write_action(
     max_self_hp_ratio: float = 1.0,
     advance_speed: float = 0.0,
     min_targets: int = 1,
+    requires_wounded_ally: bool = False,
 ) -> None:
     effects = effect if isinstance(effect, list) else [effect]
     lines = [
@@ -276,117 +286,240 @@ def _write_action(
         f'max_self_hp_ratio = {max_self_hp_ratio:.2f}',
         f'advance_speed = {advance_speed:.1f}',
         f'min_targets = {min_targets}',
+        f'requires_wounded_ally = {"true" if requires_wounded_ally else "false"}',
         f'priority = {priority}',
         f'effects = [{", ".join(effect_refs)}]',
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
+        length=0.0, width=0.0, projectile=0, duration=0.0, center_self=False,
+        status_kind=0, status_duration=0.0, status_power=0.0,
+        heal_amount=0.0, heal_ratio=0.0, summon_id="", summon_count=1, knockback=0.0) -> dict:
+    return {
+        "kind": kind, "shape": shape, "trigger_frame": frame,
+        "damage_ratio": ratio, "radius": radius, "half_angle": half,
+        "length": length, "width": width, "projectile_kind": projectile,
+        "duration": duration, "center_on_self": center_self,
+        "status_kind": status_kind, "status_duration": status_duration,
+        "status_power": status_power, "heal_amount": heal_amount,
+        "heal_ratio": heal_ratio, "summon_unit_id": summon_id,
+        "summon_count": summon_count, "knockback": knockback,
+    }
+
+
+def _skill(action_id: str, name: str, animation: str, effects: list[dict],
+           cooldown: float, priority: int, action_range: float,
+           attack_range: float, mana: float = 0.0, target_mode: int = 0,
+           category: int = 1, action_duration: float = 0.0,
+           advance: float = 0.0, min_targets: int = 1,
+           requires_wounded_ally: bool = False, max_hp: float = 1.0) -> dict:
+    return {
+        "id": action_id, "name": name, "animation": animation,
+        "effects": effects, "cooldown": cooldown, "priority": priority,
+        "range": action_range, "attack_range": attack_range, "mana": mana,
+        "target_mode": target_mode, "category": category,
+        "action_duration": action_duration, "advance": advance,
+        "min_targets": min_targets, "requires_wounded_ally": requires_wounded_ally,
+        "max_hp": max_hp,
+    }
+
+
+def _guard_action(prefix: str, name: str, cooldown: float = 12.0) -> dict:
+    return _skill(prefix, name, "block", [_fx(kind=8, shape=3, frame=0, duration=1.0)],
+                  cooldown, 6, 0.0, 0.0, category=2, target_mode=2,
+                  action_duration=1.0, max_hp=0.55)
+
+
+def _skills_for(unit: Unit) -> list[dict]:
+    """The complete action kit for one hero, authored against the actual animation."""
+    slug = unit.slug
+    rng = unit.attack_range
+    skills: list[dict] = []
+
+    if slug == "soldier":
+        skills.append(_skill("soldier_cleave", "横斩", "attack_02",
+                             [_fx(shape=2, ratio=1.25, frame=4, radius=rng + 10.0, half=60.0)],
+                             6.0, 7, rng, rng))
+        skills.append(_skill("soldier_thrust", "破阵突刺", "attack_03",
+                             [_fx(shape=4, ratio=2.0, frame=6, length=170.0, width=44.0)],
+                             14.0, 10, 180.0, rng, mana=100.0))
+    elif slug == "archer":
+        skills.append(_skill("archer_piercing_shot", "贯云箭", "attack_02",
+                             [_fx(shape=4, ratio=2.1, frame=9, length=360.0, width=40.0)],
+                             14.0, 10, 380.0, rng, mana=100.0))
+    elif slug == "knight":
+        skills.append(_skill("knight_cleave", "回旋斩", "attack_02",
+                             [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 10.0, half=62.0)],
+                             7.0, 7, rng, rng))
+        skills.append(_skill("knight_flame_slash", "火焰斩击", "attack_03",
+                             [_fx(shape=2, ratio=1.4, frame=7, radius=170.0, half=65.0)],
+                             14.0, 10, 170.0, rng, mana=100.0))
+        skills.append(_guard_action("knight_block", "格挡"))
+    elif slug == "knight_templar":
+        skills.append(_skill("knight_templar_cleave", "圣光斩", "attack_02",
+                             [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 10.0, half=62.0)],
+                             7.0, 7, rng, rng))
+        skills.append(_skill("knight_templar_judgement", "圣光裁决", "attack_03",
+                             [_fx(shape=2, ratio=2.0, frame=6, radius=190.0, half=55.0)],
+                             15.0, 10, 200.0, rng, mana=100.0))
+        skills.append(_guard_action("knight_templar_block", "格挡"))
+    elif slug == "armored_axeman":
+        skills.append(_skill("armored_axeman_heavy", "重击", "attack_03",
+                             [_fx(shape=0, ratio=2.0, frame=8)],
+                             6.0, 8, rng, rng))
+        spin = [_fx(shape=4, ratio=0.50, frame=frame, length=190.0, width=120.0)
+                for frame in [4, 5, 6, 7, 8]]
+        skills.append(_skill("armored_axeman_spin", "旋风斩", "attack_02", spin,
+                             12.0, 10, 190.0, rng, mana=100.0,
+                             target_mode=4, advance=240.0, min_targets=1))
+    elif slug == "lancer":
+        skills.append(_skill("lancer_pierce", "贯穿突刺", "attack_02",
+                             [_fx(shape=4, ratio=1.3, frame=4, length=170.0, width=42.0)],
+                             6.0, 7, 180.0, rng))
+        skills.append(_skill("lancer_flame_pierce", "烈焰贯穿", "attack_03",
+                             [_fx(shape=4, ratio=2.2, frame=6, length=210.0, width=48.0)],
+                             14.0, 10, 220.0, rng, mana=100.0))
+    elif slug == "swordsman":
+        skills.append(_skill("swordsman_triple", "疾风三连", "attack_02",
+                             [_fx(shape=0, ratio=0.45, frame=frame) for frame in [4, 6, 8]],
+                             7.0, 7, rng, rng))
+        skills.append(_skill("swordsman_flurry", "追魂连刺", "attack_03",
+                             [_fx(shape=0, ratio=0.40, frame=frame) for frame in [3, 5, 7, 9, 11]],
+                             13.0, 10, rng, rng, mana=100.0))
+    elif slug == "priest":
+        skills.append(_skill("priest_sanctuary", "圣光普照", "heal",
+                             [_fx(kind=3, shape=1, frame=2, radius=520.0,
+                                  heal_amount=140.0, heal_ratio=1.0)],
+                             15.0, 10, 0.0, 0.0, mana=100.0,
+
+                             target_mode=2, requires_wounded_ally=True))
+    elif slug == "wizard":
+        skills.append(_skill("wizard_blast", "奥术冲击", "attack_02",
+                             [_fx(shape=1, ratio=2.2, frame=6, radius=100.0)],
+                             14.0, 10, 380.0, rng, mana=100.0))
+    elif slug == "orc":
+        skills.append(_skill("orc_rage_cleave", "狂暴斩", "attack_02",
+                             [_fx(shape=2, ratio=1.9, frame=4, radius=rng + 10.0, half=65.0)],
+                             12.0, 10, rng, rng, mana=100.0))
+    elif slug == "elite_orc":
+        skills.append(_skill("elite_orc_rend", "血牙斩", "attack_02",
+                             [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 10.0, half=60.0),
+                              _fx(kind=5, shape=0, frame=4, status_kind=2,
+                                  status_duration=3.0, status_power=8.0)],
+                             6.0, 7, rng, rng))
+        skills.append(_skill("elite_orc_bloodmoon", "血月狂斩", "attack_03",
+                             [_fx(shape=2, ratio=2.2, frame=6, radius=185.0, half=60.0)],
+                             14.0, 10, 195.0, rng, mana=100.0))
+    elif slug == "armored_orc":
+        skills.append(_skill("armored_orc_bash", "铁颚重击", "attack_02",
+                             [_fx(shape=0, ratio=1.2, frame=5),
+                              _fx(kind=5, shape=0, frame=5, status_kind=0,
+                                  status_duration=0.9),
+                              _fx(kind=6, shape=0, frame=5, knockback=35.0)],
+                             7.0, 7, rng, rng))
+        skills.append(_skill("armored_orc_quakeslam", "裂地", "attack_03",
+                             [_fx(shape=1, ratio=1.8, frame=6, radius=150.0, center_self=True),
+                              _fx(kind=5, shape=0, frame=6, status_kind=0,
+                                  status_duration=1.0)],
+                             16.0, 10, 0.0, rng, mana=100.0, target_mode=2))
+        skills.append(_guard_action("armored_orc_block", "格挡"))
+    elif slug == "orc_rider":
+        skills.append(_skill("orc_rider_whirl", "回旋斩", "attack_02",
+                             [_fx(shape=1, ratio=1.2, frame=4, radius=105.0, center_self=True)],
+                             6.0, 7, 0.0, rng, target_mode=2))
+        skills.append(_skill("orc_rider_cyclone", "裂阵回旋", "attack_03",
+                             [_fx(shape=1, ratio=2.0, frame=6, radius=155.0, center_self=True)],
+                             14.0, 10, 0.0, rng, mana=100.0, target_mode=2))
+    elif slug == "skeleton":
+        skills.append(_skill("skeleton_cleave", "骨刃斩", "attack_02",
+                             [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 8.0, half=60.0)],
+                             5.0, 7, rng, rng))
+        skills.append(_skill("skeleton_summon", "亡者召唤", "summon",
+                             [_fx(kind=7, frame=2, summon_id="skeleton", summon_count=2)],
+                             16.0, 9, 0.0, 0.0, mana=100.0, target_mode=2))
+    elif slug == "armored_skeleton":
+        skills.append(_skill("armored_skeleton_whirl", "墓甲回旋", "attack_02",
+                             [_fx(shape=1, ratio=1.3, frame=4, radius=95.0, center_self=True)],
+                             7.0, 7, 0.0, rng, target_mode=2))
+        skills.append(_skill("armored_skeleton_summon", "墓卫召唤", "summon",
+                             [_fx(kind=7, frame=2, summon_id="armored_skeleton", summon_count=1)],
+                             18.0, 9, 0.0, 0.0, mana=100.0, target_mode=2))
+    elif slug == "greatsword_skeleton":
+        skills.append(_skill("greatsword_skeleton_cleave", "断魂斩", "attack_02",
+                             [_fx(shape=2, ratio=1.4, frame=7, radius=rng + 14.0, half=62.0)],
+                             8.0, 7, rng, rng))
+        skills.append(_skill("greatsword_skeleton_pierce", "穿魂刺", "attack_03",
+                             [_fx(shape=4, ratio=2.4, frame=6, length=210.0, width=46.0)],
+                             15.0, 10, 220.0, rng, mana=100.0))
+    elif slug == "skeleton_archer":
+        skills.append(_skill("skeleton_archer_summon", "骸骨箭阵", "summon",
+                             [_fx(kind=7, frame=2, summon_id="skeleton", summon_count=2)],
+                             16.0, 9, 0.0, 0.0, mana=100.0, target_mode=2))
+    elif slug == "necromancer":
+        skills.append(_skill("necromancer_bolt", "暗影弹", "attack_02",
+                             [_fx(shape=1, ratio=1.3, frame=6, radius=80.0),
+                              _fx(kind=5, shape=0, frame=6, status_kind=1,
+                                  status_duration=2.0, status_power=0.5)],
+                             6.0, 7, 360.0, rng))
+        skills.append(_skill("necromancer_summon", "亡者大军", "summon",
+                             [_fx(kind=7, frame=2, summon_id="skeleton", summon_count=2)],
+                             18.0, 9, 0.0, 0.0, mana=100.0, target_mode=2))
+    elif slug == "bat":
+        skills.append(_skill("bat_sonic", "音波冲击", "attack_02",
+                             [_fx(shape=2, ratio=1.8, frame=4, radius=rng + 10.0, half=70.0)],
+                             12.0, 10, rng, rng, mana=100.0))
+    elif slug == "slime":
+        skills.append(_skill("slime_acid", "酸液喷吐", "attack_02",
+                             [_fx(shape=1, ratio=1.8, frame=8, radius=120.0),
+                              _fx(kind=5, shape=0, frame=8, status_kind=1,
+                                  status_duration=2.5, status_power=0.55)],
+                             14.0, 10, 180.0, rng, mana=100.0))
+    elif slug == "werebear":
+        skills.append(_skill("werebear_claw", "裂林爪击", "attack_02",
+                             [_fx(shape=2, ratio=1.4, frame=6, radius=rng + 12.0, half=62.0)],
+                             7.0, 7, rng, rng))
+        skills.append(_skill("werebear_quake", "裂地", "attack_03",
+                             [_fx(shape=1, ratio=1.8, frame=6, radius=160.0, center_self=True),
+                              _fx(kind=5, shape=0, frame=6, status_kind=0,
+                                  status_duration=1.0)],
+                             16.0, 10, 0.0, rng, mana=100.0, target_mode=2))
+    elif slug == "werewolf":
+        skills.append(_skill("werewolf_rend", "血月爪击", "attack_02",
+                             [_fx(shape=2, ratio=1.8, frame=9, radius=rng + 12.0, half=65.0),
+                              _fx(kind=5, shape=0, frame=9, status_kind=2,
+                                  status_duration=3.0, status_power=10.0)],
+                             12.0, 10, rng, rng, mana=100.0))
+    return skills
+
+
 def build_actions(unit: Unit, out_dir: Path) -> list[str]:
-    """Create the per-unit basic action and, for the knight, Flame Slash."""
     RES_ACTIONS.mkdir(parents=True, exist_ok=True)
     attack_frames = Image.open(out_dir / unit.animations["attack_01"]).width // 100
     trigger_frame = max(1, min(attack_frames - 1, round(unit.attack_windup * ANIM_SPEED["attack_01"])))
     is_ranged = unit.attack_kind == 1
-    basic_effect = {
-        "kind": 1 if is_ranged else 0,
-        "shape": 0,
-        "trigger_frame": trigger_frame,
-        "damage_ratio": 1.0,
-        "radius": 0.0,
-        "half_angle": 0.0,
-        "projectile_kind": unit.projectile_kind if is_ranged else 0,
-    }
+    basic_effect = _fx(kind=1 if is_ranged else 0, shape=0, frame=trigger_frame,
+                       ratio=1.0, projectile=unit.projectile_kind if is_ranged else 0)
     basic_name = f"{unit.slug}_basic"
-    basic_path = RES_ACTIONS / f"{basic_name}.tres"
     _write_action(
-        basic_path, basic_name, "普通攻击", 0, 0, "attack_01",
-        unit.attack_range, 1.0 / max(unit.attack_speed, 0.05), 0, basic_effect,
+        RES_ACTIONS / f"{basic_name}.tres", basic_name, "普通攻击", 0, 0,
+        "attack_01", unit.attack_range, 1.0 / max(unit.attack_speed, 0.05),
+        0, basic_effect,
     )
     actions = [f"res://resources/actions/{basic_name}.tres"]
-
-    if unit.slug == "knight":
-        skill_effect = {
-            "kind": 0,
-            "shape": 2,
-            "trigger_frame": 7,
-            "damage_ratio": 1.4,
-            "radius": 170.0,
-            "half_angle": 65.0,
-            "projectile_kind": 0,
-        }
-        skill_name = "knight_flame_slash"
-        skill_path = RES_ACTIONS / f"{skill_name}.tres"
+    for spec in _skills_for(unit):
+        path = RES_ACTIONS / f"{spec['id']}.tres"
         _write_action(
-            skill_path, skill_name, "火焰斩击", 1, 0, "attack_03",
-            170.0, 8.0, 10, skill_effect, 30.0,
+            path, spec["id"], spec["name"], spec["category"], spec["target_mode"],
+            spec["animation"], spec["range"], spec["cooldown"], spec["priority"],
+            spec["effects"], mana_cost=spec["mana"],
+            action_duration=spec["action_duration"], max_self_hp_ratio=spec["max_hp"],
+            advance_speed=spec["advance"], min_targets=spec["min_targets"],
+            requires_wounded_ally=spec["requires_wounded_ally"],
         )
-        actions.append(f"res://resources/actions/{skill_name}.tres")
-
-        block_effect = {
-            "kind": 8,  # GUARD
-            "shape": 3,  # SELF
-            "trigger_frame": 0,
-            "damage_ratio": 0.0,
-            "radius": 0.0,
-            "half_angle": 0.0,
-            "projectile_kind": 0,
-            "duration": 1.0,
-        }
-        block_name = "knight_block"
-        block_path = RES_ACTIONS / f"{block_name}.tres"
-        _write_action(
-            block_path, block_name, "格挡", 2, 2, "block",
-            0.0, 12.0, 6, block_effect,
-            mana_cost=20.0, action_duration=1.0, max_self_hp_ratio=0.55,
-        )
-        actions.append(f"res://resources/actions/{block_name}.tres")
-
-    if unit.slug == "armored_axeman":
-        spin_effects = []
-        for frame in [4, 5, 6, 7, 8]:
-            spin_effects.append({
-                "kind": 0,
-                "shape": 4,  # RECT
-                "trigger_frame": frame,
-                "damage_ratio": 0.50,
-                "radius": 0.0,
-                "half_angle": 0.0,
-                "length": 190.0,
-                "width": 120.0,
-                "projectile_kind": 0,
-            })
-        spin_name = "armored_axeman_spin"
-        spin_path = RES_ACTIONS / f"{spin_name}.tres"
-        _write_action(
-            spin_path, spin_name, "旋风斩", 1, 4, "attack_02",
-            190.0, 9.0, 9, spin_effects,
-            mana_cost=100.0, advance_speed=240.0, min_targets=1,
-        )
-        actions.append(f"res://resources/actions/{spin_name}.tres")
-
-        heavy_effect = {
-            "kind": 0,
-            "shape": 0,
-            "trigger_frame": 8,
-            "damage_ratio": 2.0,
-            "radius": 0.0,
-            "half_angle": 0.0,
-            "length": 0.0,
-            "width": 0.0,
-            "projectile_kind": 0,
-        }
-        heavy_name = "armored_axeman_heavy"
-        heavy_path = RES_ACTIONS / f"{heavy_name}.tres"
-        _write_action(
-            heavy_path, heavy_name, "重击", 1, 0, "attack_03",
-            unit.attack_range, 6.0, 8, heavy_effect,
-            mana_cost=0.0,
-        )
-        actions.append(f"res://resources/actions/{heavy_name}.tres")
+        actions.append(f"res://resources/actions/{spec['id']}.tres")
     return actions
-
-
 def build_visual_scene(unit: Unit, foot_offset: float, character_height: float) -> str:
     """Create a standalone visual scene once; do not overwrite manual edits."""
     VISUAL_SCENES.mkdir(parents=True, exist_ok=True)

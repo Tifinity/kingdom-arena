@@ -68,6 +68,8 @@ func think() -> void:
 	# 动作/受击/死亡期间不再改写计划，避免 OODA 文本和实际执行的动作不一致。
 	if unit.state_machine != null and unit.state_machine.current_name in [&"action", &"hurt", &"death"]:
 		return
+	if unit.is_stunned():
+		return
 	_observe()
 	_judge()
 	_decide()
@@ -234,6 +236,8 @@ func _select_action() -> ActionPlan:
 			continue
 		if not unit.is_action_ready(action) or not unit.has_mana(action):
 			continue
+		if unit.summoned and _contains_summon(action):
+			continue
 
 		# 目标类型与硬性条件
 		var action_target: Unit = target
@@ -245,6 +249,8 @@ func _select_action() -> ActionPlan:
 					continue
 			CombatActionDefinition.TargetMode.SELF:
 				if unit.hp_ratio() < action.min_self_hp_ratio or unit.hp_ratio() > action.max_self_hp_ratio:
+					continue
+				if action.requires_wounded_ally and not _has_wounded_ally():
 					continue
 				action_target = unit
 			CombatActionDefinition.TargetMode.DIRECTION:
@@ -284,6 +290,13 @@ func _select_action() -> ActionPlan:
 
 
 ## 在 360° 方向上搜索直线矩形内敌人数最多的方向。
+func _contains_summon(action: CombatActionDefinition) -> bool:
+	for effect in action.effects:
+		if effect.kind == ActionEffectDefinition.Kind.SUMMON:
+			return true
+	return false
+
+
 func _best_direction_for(action: CombatActionDefinition) -> Dictionary:
 	var rect_effect: ActionEffectDefinition = null
 	for effect in action.effects:
@@ -311,6 +324,15 @@ func _best_direction_for(action: CombatActionDefinition) -> Dictionary:
 			best_count = count
 			best_direction = direction
 	return {"direction": best_direction, "count": best_count}
+
+
+func _has_wounded_ally() -> bool:
+	if unit.battle == null:
+		return false
+	for ally in unit.battle.living_units():
+		if ally.team == unit.team and ally.hp < ally.max_hp - 0.5:
+			return true
+	return false
 
 
 func _count_targets_in_effect(_action: CombatActionDefinition, effect: ActionEffectDefinition) -> int:

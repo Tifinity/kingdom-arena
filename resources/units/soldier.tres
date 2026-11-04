@@ -1,11 +1,13 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/soldier_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/soldier.png" id="3"]
 [ext_resource type="Resource" path="res://resources/actions/soldier_basic.tres" id="4"]
-[ext_resource type="PackedScene" path="res://scenes/units/soldier_visual.tscn" id="5"]
-[ext_resource type="Resource" path="res://resources/behaviors/soldier.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/actions/soldier_cleave.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/actions/soldier_thrust.tres" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/units/soldier_visual.tscn" id="7"]
+[ext_resource type="Resource" path="res://resources/behaviors/soldier.tres" id="8"]
 
 [resource]
 script = ExtResource("1")
@@ -32,8 +34,8 @@ foot_offset = 10.0
 character_height = 22.0
 body_radius = 31.5
 accent_color = Color(0.941, 0.702, 0.420, 1)
-actions = [ExtResource("4")]
-behavior_profile = ExtResource("6")
-visual_scene = ExtResource("5")
+actions = [ExtResource("4"), ExtResource("5"), ExtResource("6")]
+behavior_profile = ExtResource("8")
+visual_scene = ExtResource("7")
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")

@@ -27,6 +27,8 @@ enum TargetMode { ENEMY, ALLY, SELF, POINT, DIRECTION }
 @export var advance_speed := 0.0
 ## DIRECTION/AOE 动作至少需要命中的敌人数，0/1 表示无额外限制。
 @export var min_targets := 1
+## 治疗/辅助动作只在存在受伤队友时参与决策。
+@export var requires_wounded_ally := false
 ## 多个动作同时可用时，决策层的偏好权重。
 @export var priority := 0
 

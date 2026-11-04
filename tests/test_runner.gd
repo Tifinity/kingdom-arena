@@ -34,6 +34,7 @@ func _run_all() -> void:
 	await _test_hero_lab()
 	await _test_flame_slash()
 	await _test_axeman_skills()
+	await _test_skill_effects()
 	await _test_battle()
 	await _test_extra_lineup()
 
@@ -52,6 +53,34 @@ func _test_catalog() -> void:
 			missing_behavior.append(definition.unit_id)
 	_check(missing_visual.is_empty(), "22 名英雄都有视觉子场景")
 	_check(missing_behavior.is_empty(), "22 名英雄都有索敌/移动行为配置")
+
+	var missing_ultimate: Array[String] = []
+	var bad_mana: Array[String] = []
+	var missing_attack_use: Array[String] = []
+	var effect_kinds := {}
+	for definition in UnitCatalog.all():
+		var has_ultimate := false
+		var used_animations := {}
+		for action in definition.actions:
+			if action.mana_cost >= definition.max_mana - 0.001:
+				has_ultimate = true
+			elif action.mana_cost > 0.001:
+				bad_mana.append("%s/%s" % [definition.unit_id, action.action_id])
+			used_animations[action.animation] = true
+			for effect in action.effects:
+				effect_kinds[effect.kind] = true
+		if not has_ultimate:
+			missing_ultimate.append(definition.unit_id)
+		for animation in [&"attack_02", &"attack_03"]:
+			if definition.sprite_frames != null and definition.sprite_frames.has_animation(animation) and not used_animations.has(animation):
+				missing_attack_use.append("%s/%s" % [definition.unit_id, animation])
+	_check(missing_ultimate.is_empty(), "每名英雄都有一个满蓝大招")
+	_check(bad_mana.is_empty(), "普通技能只受 CD，不再消耗蓝量")
+	_check(missing_attack_use.is_empty(), "所有现有 attack02/attack03 动画都被技能使用")
+	_check(effect_kinds.has(ActionEffectDefinition.Kind.HEAL), "技能数据包含治疗效果")
+	_check(effect_kinds.has(ActionEffectDefinition.Kind.SUMMON), "技能数据包含召唤效果")
+	_check(effect_kinds.has(ActionEffectDefinition.Kind.STATUS), "技能数据包含状态效果")
+	_check(effect_kinds.has(ActionEffectDefinition.Kind.DISPLACE), "技能数据包含击退效果")
 
 	var knight_definition := UnitCatalog.get_definition(&"knight")
 	var archer_definition := UnitCatalog.get_definition(&"archer")
@@ -409,14 +438,138 @@ func _test_axeman_skills() -> void:
 	await get_tree().process_frame
 
 
+func _test_skill_effects() -> void:
+	print("\n[6] 治疗/召唤/状态技能")
+
+	# 治疗
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"priest")
+	GameState.set_slot(0, 1, &"soldier")
+	GameState.set_slot(1, 0, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var priest: Unit = null
+	var patient: Unit = null
+	var enemy: Unit = null
+	for unit in battle.units:
+		if unit.team == 1:
+			enemy = unit
+		elif unit.definition.unit_id == &"priest":
+			priest = unit
+		else:
+			patient = unit
+	_check(priest != null and patient != null and enemy != null, "治疗测试生成牧师与队友")
+	if priest != null and patient != null and enemy != null:
+		for unit in battle.units:
+			unit.brain.enabled = false
+		patient.hp = patient.max_hp * 0.4
+		priest.mana = priest.max_mana
+		var heal_action: CombatActionDefinition = null
+		for action in priest.actions:
+			if action.action_id == &"priest_sanctuary":
+				heal_action = action
+				break
+		_check(heal_action != null, "牧师拥有圣光普照 Action")
+		if heal_action != null:
+			var before_hp: float = patient.hp
+			priest.target = enemy
+			priest.planned_action = heal_action
+			priest.state_machine.transition_to(&"action", true)
+			await get_tree().create_timer(1.0).timeout
+			_check(patient.hp > before_hp, "圣光普照治疗队友")
+			_check(priest.mana < priest.max_mana, "治疗大招消耗满蓝")
+	await get_tree().create_timer(2.1).timeout
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+	# 召唤
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"skeleton")
+	GameState.set_slot(1, 0, &"soldier")
+	var summon_battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(summon_battle)
+	await get_tree().process_frame
+	var summoner: Unit = null
+	var target: Unit = null
+	for unit in summon_battle.units:
+		if unit.team == 0:
+			summoner = unit
+		else:
+			target = unit
+	if summoner != null and target != null:
+		for unit in summon_battle.units:
+			unit.brain.enabled = false
+		summoner.mana = summoner.max_mana
+		var summon_action: CombatActionDefinition = null
+		for action in summoner.actions:
+			if action.action_id == &"skeleton_summon":
+				summon_action = action
+				break
+		_check(summon_action != null, "骷髅拥有亡者召唤 Action")
+		if summon_action != null:
+			var before_units := summon_battle.units.size()
+			summoner.target = target
+			summoner.planned_action = summon_action
+			summoner.state_machine.transition_to(&"action", true)
+			await get_tree().create_timer(1.0).timeout
+			_check(summon_battle.units.size() > before_units, "亡者召唤生成新的骷髅单位")
+	await get_tree().create_timer(2.1).timeout
+	GameState.reset_lineups()
+	summon_battle.queue_free()
+	await get_tree().process_frame
+
+	# 眩晕 + 击退
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"armored_orc")
+	GameState.set_slot(1, 0, &"werebear")
+	var cc_battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(cc_battle)
+	await get_tree().process_frame
+	var orc: Unit = null
+	var bear: Unit = null
+	for unit in cc_battle.units:
+		if unit.team == 0:
+			orc = unit
+		else:
+			bear = unit
+	if orc != null and bear != null:
+		for unit in cc_battle.units:
+			unit.brain.enabled = false
+		orc.position = Vector2(700, 650)
+		bear.position = Vector2(790, 650)
+		var bash: CombatActionDefinition = null
+		for action in orc.actions:
+			if action.action_id == &"armored_orc_bash":
+				bash = action
+				break
+		_check(bash != null, "重甲兽人拥有铁颚重击 Action")
+		if bash != null:
+			var bear_x := bear.global_position.x
+			orc.target = bear
+			orc.planned_action = bash
+			orc.state_machine.transition_to(&"action", true)
+			await get_tree().create_timer(0.7).timeout
+			_check(bear.stun_time > 0.0, "铁颚重击造成眩晕")
+			_check(bear.global_position.x > bear_x, "铁颚重击造成击退")
+	await get_tree().create_timer(2.6).timeout
+	GameState.reset_lineups()
+	cc_battle.queue_free()
+	await get_tree().process_frame
+
+
 func _test_battle() -> void:
-	print("\n[6] 默认阵容自动战斗")
+	print("\n[7] 默认阵容自动战斗")
 	_check(InputMap.has_action("range_toggle"), "范围开关已注册输入动作")
 	await _run_battle("默认阵容")
 
 
 func _test_extra_lineup() -> void:
-	print("\n[7] 随机阵容自动战斗")
+	print("\n[8] 随机阵容自动战斗")
 	var pool: Array = UnitCatalog.all().duplicate()
 	pool.shuffle()
 	GameState.clear_lineup(0)
