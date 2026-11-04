@@ -41,6 +41,10 @@ const FACTION_NAMES := {
 @export var max_mana := 100.0
 @export var mana_regen := 8.0
 
+@export_group("行为")
+## 索敌/移动策略；为空时使用默认加权索敌与通用阵型移动。
+@export var behavior_profile: UnitBehaviorProfile
+
 @export_group("动作")
 ## 该单位可执行的全部 Action（普通攻击、技能、防御、位移……）。
 ## 决策层从这些动作中选择 ActionPlan；ActionState 负责执行。
@@ -55,6 +59,9 @@ const FACTION_NAMES := {
 ## 可选：该英雄的专用场景。为空时使用共享的 scenes/battle/unit.tscn。
 ## 只有节点结构确实不同的英雄才需要覆盖；技能/数值/动画差异不要用它。
 @export var unit_scene: PackedScene
+## 每个英雄的视觉子场景：精灵位置、缩放、血条、脚底/命中点等。
+## 为空时回退到基础视觉场景；手工调整后 build_assets 不会覆盖已存在文件。
+@export var visual_scene: PackedScene
 @export var sprite_frames: SpriteFrames
 @export var portrait: Texture2D
 @export var visual_scale: float = 4.0

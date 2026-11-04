@@ -34,6 +34,8 @@ PORTRAIT_OUT = ASSETS / "portraits"
 RES_UNITS = ROOT / "resources" / "units"
 RES_VISUALS = ROOT / "resources" / "visuals"
 RES_ACTIONS = ROOT / "resources" / "actions"
+VISUAL_SCENES = ROOT / "scenes" / "units"
+RES_BEHAVIORS = ROOT / "resources" / "behaviors"
 
 
 @dataclass
@@ -385,6 +387,134 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
     return actions
 
 
+def build_visual_scene(unit: Unit, foot_offset: float, character_height: float) -> str:
+    """Create a standalone visual scene once; do not overwrite manual edits."""
+    VISUAL_SCENES.mkdir(parents=True, exist_ok=True)
+    path = VISUAL_SCENES / f"{unit.slug}_visual.tscn"
+    res_path = f"res://scenes/units/{unit.slug}_visual.tscn"
+    if path.exists():
+        return res_path
+    scale = unit.visual_scale * 1.12
+    body_y = -foot_offset * scale
+    bar_y = -character_height * scale - 15.0
+    shadow_scale = unit.body_radius * 1.05 / 80.0
+    content = f'''[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/battle/team_ring.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/battle/selection_ring.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/battle/health_bar.gd" id="3"]
+[ext_resource type="Texture2D" path="res://assets/ui/soft_shadow.png" id="4"]
+[ext_resource type="SpriteFrames" path="res://resources/visuals/{unit.slug}_frames.tres" id="5"]
+
+[node name="UnitVisual" type="Node2D"]
+
+[node name="Shadow" type="Sprite2D" parent="."]
+texture_filter = 1
+z_index = -1
+texture = ExtResource("4")
+position = Vector2(0, -1)
+scale = Vector2({shadow_scale:.3f}, {shadow_scale:.3f})
+
+[node name="TeamRing" type="Node2D" parent="."]
+script = ExtResource("1")
+
+[node name="SelectionRing" type="Node2D" parent="."]
+visible = false
+script = ExtResource("2")
+
+[node name="Body" type="AnimatedSprite2D" parent="."]
+texture_filter = 1
+centered = true
+position = Vector2(0, {body_y:.1f})
+scale = Vector2({scale:.3f}, {scale:.3f})
+sprite_frames = ExtResource("5")
+
+[node name="HealthBar" type="Node2D" parent="."]
+z_index = 20
+position = Vector2(0, {bar_y:.1f})
+script = ExtResource("3")
+
+[node name="FootMarker" type="Marker2D" parent="."]
+
+[node name="HitPoint" type="Marker2D" parent="."]
+position = Vector2(0, {bar_y + 15.0:.1f})
+'''
+    path.write_text(content, encoding="utf-8")
+    return res_path
+
+
+def build_behavior(unit: Unit) -> str:
+    """Create a per-hero behavior profile once; manual edits are preserved."""
+    RES_BEHAVIORS.mkdir(parents=True, exist_ok=True)
+    path = RES_BEHAVIORS / f"{unit.slug}.tres"
+    res_path = f"res://resources/behaviors/{unit.slug}.tres"
+    if path.exists():
+        return res_path
+
+    role = unit.role
+    ranged = unit.attack_kind == 1
+    if role == "坦克":
+        target = dict(distance_weight=0.42, low_hp_weight=0.12, threat_weight=0.30,
+                      backline_bonus=0.0, assassin_ranged_bonus=0.05, ranged_tank_penalty=0.0,
+                      sticky_bonus=0.14, random_jitter=0.02)
+        move = dict(preferred_range_ratio=1.0, lateral_span=60.0, forward_ratio=0.90,
+                    flank_y_bias=0.0, kite_ratio=0.42, kite_stop_ratio=0.72)
+    elif role == "突袭":
+        target = dict(distance_weight=0.34, low_hp_weight=0.26, threat_weight=0.08,
+                      backline_bonus=0.30, assassin_ranged_bonus=0.18, ranged_tank_penalty=0.0,
+                      sticky_bonus=0.04, random_jitter=0.02)
+        move = dict(preferred_range_ratio=0.94, lateral_span=70.0, forward_ratio=0.94,
+                    flank_y_bias=18.0, kite_ratio=0.42, kite_stop_ratio=0.72)
+    elif ranged:
+        target = dict(distance_weight=0.40, low_hp_weight=0.30, threat_weight=0.15,
+                      backline_bonus=0.10, assassin_ranged_bonus=0.18, ranged_tank_penalty=0.12,
+                      sticky_bonus=0.08, random_jitter=0.02)
+        move = dict(preferred_range_ratio=0.85, lateral_span=55.0, forward_ratio=0.92,
+                    flank_y_bias=0.0, kite_ratio=0.42, kite_stop_ratio=0.72)
+    else:
+        target = dict(distance_weight=0.50, low_hp_weight=0.20, threat_weight=0.12,
+                      backline_bonus=0.04, assassin_ranged_bonus=0.18, ranged_tank_penalty=0.08,
+                      sticky_bonus=0.08, random_jitter=0.02)
+        move = dict(preferred_range_ratio=0.97, lateral_span=50.0, forward_ratio=0.92,
+                    flank_y_bias=0.0, kite_ratio=0.42, kite_stop_ratio=0.72)
+
+    content = f'''[gd_resource type="Resource" script_class="UnitBehaviorProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/behavior/unit_behavior_profile.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ai/behavior/weighted_targeting.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ai/behavior/standard_movement.gd" id="3"]
+
+[sub_resource type="Resource" id="targeting"]
+script = ExtResource("2")
+distance_weight = {target["distance_weight"]:.2f}
+low_hp_weight = {target["low_hp_weight"]:.2f}
+threat_weight = {target["threat_weight"]:.2f}
+backline_bonus = {target["backline_bonus"]:.2f}
+assassin_ranged_bonus = {target["assassin_ranged_bonus"]:.2f}
+ranged_tank_penalty = {target["ranged_tank_penalty"]:.2f}
+sticky_bonus = {target["sticky_bonus"]:.2f}
+random_jitter = {target["random_jitter"]:.2f}
+
+[sub_resource type="Resource" id="movement"]
+script = ExtResource("3")
+preferred_range_ratio = {move["preferred_range_ratio"]:.2f}
+lateral_span = {move["lateral_span"]:.1f}
+forward_ratio = {move["forward_ratio"]:.2f}
+flank_y_bias = {move["flank_y_bias"]:.1f}
+kite_ratio = {move["kite_ratio"]:.2f}
+kite_stop_ratio = {move["kite_stop_ratio"]:.2f}
+
+[resource]
+script = ExtResource("1")
+behavior_id = &"{unit.slug}_behavior"
+display_name = "{unit.name}行为"
+targeting = SubResource("targeting")
+movement = SubResource("movement")
+'''
+    path.write_text(content, encoding="utf-8")
+    return res_path
+
+
 def build_character(unit: Unit) -> tuple[float, str]:
     src_dir = CHAR_SRC / unit.source / unit.source
     out_dir = CHAR_OUT / unit.slug
@@ -495,22 +625,30 @@ def build_character(unit: Unit) -> tuple[float, str]:
     visual_path = RES_VISUALS / f"{unit.slug}_frames.tres"
     visual_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    # Actions + UnitDefinition resource.
+    # Actions + visual scene + UnitDefinition resource.
     action_paths = build_actions(unit, out_dir)
+    visual_scene_path = build_visual_scene(unit, unit.foot_offset, character_height)
+    behavior_path = build_behavior(unit)
     action_ext_lines = []
     action_refs = []
     for index, action_path in enumerate(action_paths):
         ext_id = str(4 + index)
         action_ext_lines.append(f'[ext_resource type="Resource" path="{action_path}" id="{ext_id}"]')
         action_refs.append(f'ExtResource("{ext_id}")')
+    visual_id = str(4 + len(action_paths))
+    behavior_id = str(5 + len(action_paths))
+    visual_ext_line = f'[ext_resource type="PackedScene" path="{visual_scene_path}" id="{visual_id}"]'
+    behavior_ext_line = f'[ext_resource type="Resource" path="{behavior_path}" id="{behavior_id}"]'
     accent = ROLE_COLORS[unit.role]
-    load_steps = 4 + len(action_paths)
+    load_steps = 6 + len(action_paths)
     content = f'''[gd_resource type="Resource" script_class="UnitDefinition" load_steps={load_steps} format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/{unit.slug}_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/{unit.slug}.png" id="3"]
 {chr(10).join(action_ext_lines)}
+{visual_ext_line}
+{behavior_ext_line}
 
 [resource]
 script = ExtResource("1")
@@ -538,6 +676,8 @@ character_height = {character_height:.1f}
 body_radius = {unit.body_radius * 1.05:.1f}
 accent_color = {godot_color(accent)}
 actions = [{", ".join(action_refs)}]
+behavior_profile = ExtResource("{behavior_id}")
+visual_scene = ExtResource("{visual_id}")
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")
 '''

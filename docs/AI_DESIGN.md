@@ -295,7 +295,22 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
 6. **UI**：OODA 镜已显示状态/动作名/冷却，可继续扩展冷却条和技能列表。
 
 当前已接入骑士火焰斩击，其他英雄仍只有自动生成的 `basic_attack` Action。
-## 五、调试与测试
+## 五、行为配置与视觉子场景
+
+每个英雄的 `UnitDefinition` 现在引用：
+
+```text
+visual_scene: scenes/units/<id>_visual.tscn
+behavior_profile: resources/behaviors/<id>.tres
+```
+
+- 视觉子场景：`Body`（AnimatedSprite2D）、血条、影子、选中环、脚底/命中点；
+- 行为配置：`WeightedTargeting` 索敌权重 + `StandardMovement` 移动参数；
+- 自定义索敌/移动逻辑时，新增 `TargetingStrategy` / `MovementStrategy` 资源脚本，
+  在 behavior `.tres` 中替换，不复制 Brain/FSM；
+- `tools/build_assets.py` 只生成缺失的视觉场景和行为配置，不覆盖手工调整。
+
+## 六、调试与测试
 
 - **OODA 观察镜**：战斗中点击任意单位，左下角实时显示：
   状态徽章、生命、蓝量、攻击范围、技能范围、目标、冷却和 OODA 文本；
@@ -303,7 +318,7 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
   打开后显示基础攻击范围（蓝圈）和技能范围（橙色虚线圈）。
 - **暂停/变速**：`空格`暂停、`F`变速，便于观察 AI 在某一帧的选择。
 - **自动化测试**：
-  - `tests/test_runner.tscn` 138 项检查；
+  - `tests/test_runner.tscn` 144 项检查；
   - `tools/soak_test.tscn` 8 场随机阵容，检查卡死与胜负分布。
 - **可调参数**：
   - `UnitBrain.THINK_INTERVAL`：思考频率；
@@ -315,7 +330,7 @@ desired = 目标位置 + (自身阵营方向 × forward, lateral)
 
 ---
 
-## 六、已知取舍
+## 七、已知取舍
 
 - 没有视野、寻路、障碍；AI 是“全图感知 + 直线移动”。
 - 目标评分是手调权重，不做学习；对局平衡由数值和阵容决定。

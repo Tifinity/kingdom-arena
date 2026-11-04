@@ -159,7 +159,13 @@ func _judge() -> void:
 	]
 
 
+func random_score() -> float:
+	return _rng.randf()
+
+
 func _score_target(enemy: Unit, distance: float) -> float:
+	if unit.definition.behavior_profile != null and unit.definition.behavior_profile.targeting != null:
+		return unit.definition.behavior_profile.targeting.score_target(self, enemy, distance)
 	# 距离、残血、输出威胁构成基础分；职业关系与当前目标粘性做修正。
 	var score := 0.0
 	score += (1.0 - clampf(distance / 1000.0, 0.0, 1.0)) * 0.50
@@ -177,6 +183,8 @@ func _score_target(enemy: Unit, distance: float) -> float:
 
 
 func _should_kite() -> bool:
+	if unit.definition.behavior_profile != null and unit.definition.behavior_profile.movement != null:
+		return unit.definition.behavior_profile.movement.should_kite(unit)
 	if not unit.definition.is_ranged() or not unit.has_live_target():
 		return false
 	return unit.distance_to_target() < unit.attack_range * 0.42

@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="UnitBehaviorProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/behavior/unit_behavior_profile.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ai/behavior/weighted_targeting.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ai/behavior/standard_movement.gd" id="3"]
+
+[sub_resource type="Resource" id="targeting"]
+script = ExtResource("2")
+distance_weight = 0.50
+low_hp_weight = 0.20
+threat_weight = 0.12
+backline_bonus = 0.04
+assassin_ranged_bonus = 0.18
+ranged_tank_penalty = 0.08
+sticky_bonus = 0.08
+random_jitter = 0.02
+
+[sub_resource type="Resource" id="movement"]
+script = ExtResource("3")
+preferred_range_ratio = 0.97
+lateral_span = 50.0
+forward_ratio = 0.92
+flank_y_bias = 0.0
+kite_ratio = 0.42
+kite_stop_ratio = 0.72
+
+[resource]
+script = ExtResource("1")
+behavior_id = &"lancer_behavior"
+display_name = "枪兵行为"
+targeting = SubResource("targeting")
+movement = SubResource("movement")

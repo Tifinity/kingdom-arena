@@ -106,19 +106,23 @@ Godot 文档：[Game embedding](https://docs.godotengine.org/en/stable/tutorials
 
 ## 调试单个英雄
 
-### 当前逻辑：一个单位场景 + 每个英雄一份资源
+### 当前逻辑：一个逻辑场景 + 每英雄视觉/行为配置
 
-本项目 **没有为 22 个英雄各复制一份 `.tscn`**。所有英雄共用
-[scenes/battle/unit.tscn](scenes/battle/unit.tscn)，差异全部放在资源里：
+本项目 **没有为 22 个英雄各复制一份完整的 `unit.tscn`**。逻辑仍然共享，
+但每个英雄现在都有自己的 **视觉子场景**，方便逐个拖拽精灵、血条和动画位置：
 
 ```text
-unit.tscn                         每个英雄共享的节点结构
-  ├─ Shadow / TeamRing / SelectionRing / Visual / HealthBar
-  ├─ Brain                        OODA 决策
-  └─ StateMachine                 Idle / Move / Action / Hurt / Death
+scenes/battle/unit.tscn             共享逻辑：Brain / StateMachine / VisualHost
+scenes/units/<id>_visual.tscn       每个英雄的视觉节点：
+  ├─ Shadow
+  ├─ TeamRing / SelectionRing
+  ├─ Body (AnimatedSprite2D)        ← 拖这里调整动画位置/缩放
+  ├─ HealthBar                      ← 拖这里调整血条位置
+  └─ FootMarker / HitPoint
 
-resources/units/<id>.tres         每个英雄的 UnitDefinition（数值、攻击方式、头像、缩放…）
-resources/visuals/<id>_frames.tres每个英雄的 SpriteFrames（idle/move/attack_01…）
+resources/units/<id>.tres           UnitDefinition（数值、Action、visual_scene…）
+resources/visuals/<id>_frames.tres  SpriteFrames
+resources/behaviors/<id>.tres       每个英雄的索敌/移动配置
 ```
 
 战斗生成单位时执行：
@@ -130,13 +134,56 @@ unit.setup(battle, team, slot, definition) # 注入该英雄的数据资源
 
 这样做的好处：
 
-- 22 个英雄的节点结构、AI、状态机完全一致，不会复制 22 份场景与逻辑。
+- 22 个英雄共享 Brain/FSM/Action 执行逻辑，不会复制 22 份逻辑场景。
 - 改一次血条/状态机/受击逻辑，22 个英雄同时生效。
-- 新增英雄只需要新增 `.tres` + SpriteFrames，不改代码。
-- 不同英雄的差异（动画、数值、近战/远程、投射物类型）都在数据层可查。
+- 新增英雄时生成 `.tres` + 视觉子场景 + behavior 配置，逻辑代码不变。
+- 动画位置、血条、缩放放在视觉子场景；索敌/移动参数放在 behavior 资源。
 
-如果某个英雄需要独有的节点结构（例如召唤物挂点、特殊碰撞盒），再为它创建
-`unit.tscn` 的继承场景或自定义场景，并在单位生成处替换场景即可；当前 MVP 没有这种需求。
+如果某个英雄需要独有的**逻辑节点结构**（例如召唤物挂点、特殊碰撞盒），再为它创建
+`unit.tscn` 的继承场景或自定义场景，并在单位生成处替换场景即可。
+视觉差异已经通过 `visual_scene` 放在独立子场景里，不需要覆盖完整逻辑场景。
+
+### 视觉动画位置怎么调
+
+打开：
+
+```text
+scenes/units/knight_visual.tscn
+scenes/units/archer_visual.tscn
+scenes/units/armored_axeman_visual.tscn
+...
+```
+
+在 2D 编辑器里直接调整：
+
+- `Body` 的 `position`、`scale`、`offset`：精灵/动画位置；
+- `HealthBar` 的 `position`：血条位置；
+- `Shadow` 的 `position`/`scale`：影子；
+- `FootMarker`、`HitPoint`：后续受击/命中锚点。
+
+`tools/build_assets.py` 只会在视觉场景**不存在**时生成它，**不会覆盖手工调整**。
+需要重置某个英雄时，删除对应 `_visual.tscn` 后重新运行构建脚本即可。
+
+### 索敌/移动怎么调
+
+每个英雄一份：
+
+```text
+resources/behaviors/<id>.tres
+```
+
+里面有：
+
+- `targeting`：索敌权重（距离、残血、威胁、后排、粘性）；
+- `movement`：期望射程比例、侧向站位、推进比例、后撤阈值、后撤停止比例、侧向偏移。
+
+同样，构建脚本只生成缺失文件，不会覆盖手工调整。共享逻辑在：
+
+- `scripts/ai/behavior/weighted_targeting.gd`
+- `scripts/ai/behavior/standard_movement.gd`
+
+需要完全不同的逻辑时，新增一个 `TargetingStrategy` / `MovementStrategy` 小脚本资源，
+在对应英雄的 behavior `.tres` 里替换即可，不需要复制 FSM 或完整单位场景。
 
 ### 用「英雄试炼场」调试
 
@@ -149,7 +196,7 @@ godot --path . res://scenes/debug/hero_lab.tscn
 ![英雄试炼场](artifacts/hero_lab.png)
 
 - 左侧：22 名英雄列表，点击切换预览对象。
-- 中间：直接使用真实 `unit.tscn` + 当前英雄的 SpriteFrames/数值，所见即战斗中的表现。
+- 中间：直接使用真实 `unit.tscn` + 当前英雄的 `visual_scene`/数值，所见即战斗中的表现。
 - 底部：手动播放 `idle / move / attack_01 / attack_02 / attack_03 / hurt / death` 等全部动作；
   预览模式会关闭 Brain 与 StateMachine，避免动画被 AI 状态覆盖。
 - 右侧：数值详情、对手选择与「开始 1v1」。
@@ -164,6 +211,7 @@ godot --path . res://scenes/debug/hero_lab.tscn
 | --- | --- |
 | 22 名英雄 | 名册、头像、属性、阵营、职业、详情 |
 | 单英雄调试 | 英雄试炼场：全部动作手动预览 + 真实 1v1 调试 |
+| 可视化调参 | 每个英雄独立视觉子场景 + 独立索敌/移动 behavior 资源 |
 | 双方布阵 | 5 槽位、替换、移除、随机、清空、战力统计 |
 | 自动战斗 | 索敌、推进、走位分离、近战/远程普攻、投射物、受击、死亡、胜负 |
 | OODA AI | 观察、评分判断、多 Action 选择、行动四段式；可暂停/变速观察 |
@@ -174,7 +222,7 @@ godot --path . res://scenes/debug/hero_lab.tscn
 | FSM | 待机、移动、行动、受击、死亡五个状态节点 |
 | 表现 | 像素动画、血条、队伍光环、选中圈、飘字、挥砍弧光、箭矢/法术弹、粒子火花、结算面板、OODA 观察镜 |
 | 分辨率自适应 | 窗口自由缩放；`canvas_items` + `expand`；背景/战场/站位按逻辑视口重算，布阵内容居中 |
-| 自动化测试 | 138 项无界面检查 + 8 场随机阵容压力测试 |
+| 自动化测试 | 144 项无界面检查 + 8 场随机阵容压力测试 |
 
 **当前范围**：普攻 + 骑士（火焰斩击、格挡）+ 重甲斧兵（旋风斩、重击）。已经加入基础蓝量池（100）、每秒 8 点回复和技能蓝耗；
 装备、升级、经济与商店、羁绊、存档、音效、寻路避障暂不包含。后续护盾/位移/连续攻击
@@ -199,11 +247,13 @@ project.godot
 │  ├─ Effects                         挥砍、火花、飘字
 │  └─ battle_hud.tscn                  紧凑顶栏、倒计时、OODA 观察镜、右下控制按钮、结算
 ├─ scenes/ui/control_button.tscn       半透明小控制按钮（战斗 3 个 + 布阵 4 个共用）
-├─ scenes/battle/unit.tscn             单位场景（22 个英雄共用）
-│  ├─ Shadow / TeamRing / SelectionRing / Visual / HealthBar
+├─ scenes/battle/unit.tscn             单位逻辑场景（22 个英雄共用）
+│  ├─ VisualHost                       每英雄视觉子场景挂点
 │  ├─ Brain                            OODA 节点
 │  └─ StateMachine
 │     ├─ Idle / Move / Action / Hurt / Death
+├─ scenes/units/<id>_visual.tscn       每个英雄的精灵/血条/影子/选中环
+├─ resources/behaviors/<id>.tres       每个英雄的索敌/移动配置
 ├─ scenes/debug/hero_lab.tscn          英雄试炼场（单英雄动作预览 + 1v1）
 ├─ resources/units/<id>.tres           UnitDefinition 数据
 ├─ resources/actions/<id>_basic.tres   每个英雄自动生成的基础普攻 Action
@@ -216,13 +266,13 @@ project.godot
 
 | 层 | 位置 | 职责 |
 | --- | --- | --- |
-| 场景结构 | `scenes/**/*.tscn` | 单位、UI、特效、关卡布局和节点连接关系 |
-| 静态数据 | `resources/units/*.tres`、`resources/visuals/*.tres` | 数值、攻击类型、动画帧、头像、缩放与脚底偏移 |
-| 动态逻辑 | `scripts/**/*.gd` | 生成卡牌、结算伤害、OODA、FSM、投射物、镜头外逻辑 |
+| 场景结构 | `scenes/**/*.tscn` | 单位逻辑、每英雄视觉子场景、UI、特效、关卡布局和节点连接关系 |
+| 静态数据 | `resources/units/*.tres`、`resources/visuals/*.tres`、`resources/behaviors/*.tres` | 数值、Action、动画帧、头像、索敌/移动参数 |
+| 动态逻辑 | `scripts/**/*.gd` | 生成卡牌、结算伤害、OODA、FSM、行为策略、投射物、镜头外逻辑 |
 | 跨场景数据 | `scripts/autoload/game_state.gd` | 双方槽位、上一局结算 |
 
 `UnitDefinition` 通过 `@export` 字段描述一个英雄；运行时 `Unit.setup()` 只把资源挂到
-`unit.tscn` 的 `AnimatedSprite2D` / 血条 / 状态机上，不包含任何具体英雄分支。
+共享逻辑场景与 `visual_scene` / `behavior_profile` 上，不包含任何具体英雄分支。
 新增英雄 = 新增一个 `resources/units/<id>.tres` + 一份 `SpriteFrames` + 贴图与头像，
 `UnitCatalog` 会在启动时自动扫描。
 

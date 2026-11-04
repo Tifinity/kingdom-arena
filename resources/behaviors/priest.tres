@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="UnitBehaviorProfile" format=3]
+
+[ext_resource type="Script" path="res://scripts/ai/behavior/unit_behavior_profile.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ai/behavior/weighted_targeting.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/ai/behavior/standard_movement.gd" id="3"]
+
+[sub_resource type="Resource" id="targeting"]
+script = ExtResource("2")
+distance_weight = 0.40
+low_hp_weight = 0.30
+threat_weight = 0.15
+backline_bonus = 0.10
+assassin_ranged_bonus = 0.18
+ranged_tank_penalty = 0.12
+sticky_bonus = 0.08
+random_jitter = 0.02
+
+[sub_resource type="Resource" id="movement"]
+script = ExtResource("3")
+preferred_range_ratio = 0.85
+lateral_span = 55.0
+forward_ratio = 0.92
+flank_y_bias = 0.0
+kite_ratio = 0.42
+kite_stop_ratio = 0.72
+
+[resource]
+script = ExtResource("1")
+behavior_id = &"priest_behavior"
+display_name = "牧师行为"
+targeting = SubResource("targeting")
+movement = SubResource("movement")

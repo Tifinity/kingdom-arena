@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/skeleton_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/skeleton.png" id="3"]
 [ext_resource type="Resource" path="res://resources/actions/skeleton_basic.tres" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/units/skeleton_visual.tscn" id="5"]
+[ext_resource type="Resource" path="res://resources/behaviors/skeleton.tres" id="6"]
 
 [resource]
 script = ExtResource("1")
@@ -31,5 +33,7 @@ character_height = 16.0
 body_radius = 29.4
 accent_color = Color(0.941, 0.702, 0.420, 1)
 actions = [ExtResource("4")]
+behavior_profile = ExtResource("6")
+visual_scene = ExtResource("5")
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")

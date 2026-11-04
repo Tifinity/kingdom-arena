@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/knight_frames.tres" id="2"]
@@ -6,6 +6,8 @@
 [ext_resource type="Resource" path="res://resources/actions/knight_basic.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/actions/knight_flame_slash.tres" id="5"]
 [ext_resource type="Resource" path="res://resources/actions/knight_block.tres" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/units/knight_visual.tscn" id="7"]
+[ext_resource type="Resource" path="res://resources/behaviors/knight.tres" id="8"]
 
 [resource]
 script = ExtResource("1")
@@ -33,5 +35,7 @@ character_height = 19.0
 body_radius = 33.6
 accent_color = Color(0.490, 0.698, 1.000, 1)
 actions = [ExtResource("4"), ExtResource("5"), ExtResource("6")]
+behavior_profile = ExtResource("8")
+visual_scene = ExtResource("7")
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")

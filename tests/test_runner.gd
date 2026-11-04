@@ -29,7 +29,7 @@ func _check(condition: bool, message: String) -> void:
 
 func _run_all() -> void:
 	await get_tree().process_frame
-	_test_catalog()
+	await _test_catalog()
 	await _test_setup_scene()
 	await _test_hero_lab()
 	await _test_flame_slash()
@@ -42,6 +42,37 @@ func _test_catalog() -> void:
 	print("\n[1] 英雄数据")
 	_check(UnitCatalog.count() == 22, "名册包含 22 名英雄（实际 %d）" % UnitCatalog.count())
 	var required := [&"idle", &"move", &"attack_01", &"hurt", &"death"]
+	var missing_visual: Array[String] = []
+	var missing_behavior: Array[String] = []
+	for definition in UnitCatalog.all():
+		if definition.visual_scene == null:
+			missing_visual.append(definition.unit_id)
+		if (definition.behavior_profile == null or definition.behavior_profile.targeting == null
+				or definition.behavior_profile.movement == null):
+			missing_behavior.append(definition.unit_id)
+	_check(missing_visual.is_empty(), "22 名英雄都有视觉子场景")
+	_check(missing_behavior.is_empty(), "22 名英雄都有索敌/移动行为配置")
+
+	var knight_definition := UnitCatalog.get_definition(&"knight")
+	var archer_definition := UnitCatalog.get_definition(&"archer")
+	var assassin_definition := UnitCatalog.get_definition(&"werewolf")
+	_check(knight_definition.behavior_profile.movement.preferred_range_ratio > 0.95,
+		"坦克使用贴近型移动配置")
+	_check(archer_definition.behavior_profile.movement.preferred_range_ratio < 0.90,
+		"弓手使用远程保持距离配置")
+	_check(assassin_definition.behavior_profile.targeting.backline_bonus > 0.20,
+		"突袭英雄拥有后排索敌加成")
+	var knight_visual: PackedScene = knight_definition.visual_scene
+	if knight_visual != null:
+		var visual_instance = knight_visual.instantiate()
+		add_child(visual_instance)
+		await get_tree().process_frame
+		_check(visual_instance.has_node("Body") and visual_instance.has_node("HealthBar")
+			and visual_instance.has_node("Shadow") and visual_instance.has_node("TeamRing")
+			and visual_instance.has_node("SelectionRing"), "视觉场景包含 Body/血条/影子/队伍环/选中环节点")
+		visual_instance.queue_free()
+		await get_tree().process_frame
+
 	for definition in UnitCatalog.all():
 		var valid := true
 		for animation in required:

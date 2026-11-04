@@ -52,11 +52,12 @@ var _flash_left := 0.0
 var _flinch_cooldown := 0.0
 var _current_animation: StringName = &""
 
-@onready var shadow: Sprite2D = $Shadow
-@onready var team_ring: UnitTeamRing = $TeamRing
-@onready var selection_ring: UnitSelectionRing = $SelectionRing
-@onready var visual: AnimatedSprite2D = $Visual
-@onready var health_bar: UnitHealthBar = $HealthBar
+var shadow: Sprite2D
+var team_ring: UnitTeamRing
+var selection_ring: UnitSelectionRing
+var visual: AnimatedSprite2D
+var health_bar: UnitHealthBar
+@onready var visual_host: Node2D = $VisualHost
 @onready var brain: UnitBrain = $Brain
 @onready var state_machine: UnitStateMachine = $StateMachine
 
@@ -90,14 +91,20 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 		if action != null:
 			action_cooldowns[action.action_id] = 0.0
 
-	visual.sprite_frames = p_definition.sprite_frames
-	visual.scale = Vector2.ONE * p_definition.visual_scale
-	visual.position = Vector2(0, -p_definition.foot_offset * p_definition.visual_scale)
+	var visual_scene: PackedScene = p_definition.visual_scene
+	if visual_scene == null:
+		push_warning("UnitDefinition %s 没有 visual_scene，使用骑士视觉场景回退" % p_definition.unit_id)
+		visual_scene = load("res://scenes/units/knight_visual.tscn")
+	var visual_root := visual_scene.instantiate()
+	visual_host.add_child(visual_root)
+	visual = visual_root.get_node("Body")
+	shadow = visual_root.get_node("Shadow")
+	team_ring = visual_root.get_node("TeamRing")
+	selection_ring = visual_root.get_node("SelectionRing")
+	health_bar = visual_root.get_node("HealthBar")
+
 	visual.flip_h = team == 1
 	visual.speed_scale = 1.0
-
-	shadow.scale = Vector2.ONE * (p_definition.body_radius / 80.0)
-	shadow.position = Vector2(0, -1)
 
 	team_ring.setup(GameState.team_color(team), p_definition.body_radius * 0.9)
 	selection_ring.setup(p_definition.body_radius * 1.35)
@@ -105,7 +112,6 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	selection_ring.visible = false
 
 	health_bar.setup(p_definition.body_radius * 1.65, GameState.team_color(team))
-	health_bar.position = Vector2(0, -character_height * p_definition.visual_scale - 15.0)
 	health_bar.set_ratio(1.0)
 
 	brain.setup(self)
@@ -227,6 +233,8 @@ func desired_stop_distance() -> float:
 ## 每名英雄围绕目标占据不同的位置：同排英雄沿 Y 轴错开，
 ## 避免 5 个人全部挤在同一个攻击点上，也让血条和特效更易读。
 func desired_combat_position() -> Vector2:
+	if definition != null and definition.behavior_profile != null and definition.behavior_profile.movement != null:
+		return definition.behavior_profile.movement.desired_position(self)
 	if not has_live_target():
 		return global_position
 	var stop := maxf(target_reach(-18.0), 54.0)
@@ -235,6 +243,17 @@ func desired_combat_position() -> Vector2:
 	var forward := sqrt(maxf(stop * stop - lateral * lateral, 0.0)) * 0.92
 	var side := -1.0 if team == 0 else 1.0
 	return battle.clamp_unit_position(target.global_position + Vector2(side * forward, lateral))
+
+
+func movement_goal() -> Vector2:
+	return desired_combat_position()
+
+
+func kite_stop_distance() -> float:
+	var ratio := 0.72
+	if definition != null and definition.behavior_profile != null and definition.behavior_profile.movement != null:
+		ratio = definition.behavior_profile.movement.get_kite_stop_ratio()
+	return attack_range * ratio
 
 
 func is_target_in_action_range(action: CombatActionDefinition, extra := 0.0) -> bool:
@@ -444,13 +463,15 @@ func hp_ratio() -> float:
 
 
 func get_hit_point() -> Vector2:
-	return global_position + Vector2(0.0, -character_height * definition.visual_scale * 0.52)
+	var visual_height := character_height * absf(visual.scale.y) if visual != null else character_height * definition.visual_scale
+	return global_position + Vector2(0.0, -visual_height * 0.52)
 
 
 func get_muzzle_point() -> Vector2:
+	var visual_height := character_height * absf(visual.scale.y) if visual != null else character_height * definition.visual_scale
 	return global_position + Vector2(
 		float(facing) * body_radius * 0.72,
-		-character_height * definition.visual_scale * 0.56
+		-visual_height * 0.56
 	)
 
 
