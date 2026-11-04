@@ -69,7 +69,14 @@ func _test_catalog() -> void:
 		await get_tree().process_frame
 		_check(visual_instance.has_node("Body") and visual_instance.has_node("HealthBar")
 			and visual_instance.has_node("Shadow") and visual_instance.has_node("TeamRing")
-			and visual_instance.has_node("SelectionRing"), "视觉场景包含 Body/血条/影子/队伍环/选中环节点")
+			and visual_instance.has_node("SelectionRing") and visual_instance.has_node("Hurtbox/CollisionShape2D")
+			and visual_instance.has_node("AttackBox/CollisionShape2D"),
+			"视觉场景包含 Body/血条/影子/选中环/受击框/攻击框节点")
+		var hurt_shape: Shape2D = visual_instance.get_node("Hurtbox/CollisionShape2D").shape
+		var attack_shape: Shape2D = visual_instance.get_node("AttackBox/CollisionShape2D").shape
+		_check(hurt_shape is CircleShape2D and attack_shape is CircleShape2D
+			and hurt_shape.radius > 0.0 and attack_shape.radius > 0.0,
+			"受击框/攻击框拥有可视的圆形范围")
 		visual_instance.queue_free()
 		await get_tree().process_frame
 

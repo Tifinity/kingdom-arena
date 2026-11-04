@@ -304,7 +304,7 @@ visual_scene: scenes/units/<id>_visual.tscn
 behavior_profile: resources/behaviors/<id>.tres
 ```
 
-- 视觉子场景：`Body`（AnimatedSprite2D）、血条、影子、选中环、脚底/命中点；
+- 视觉子场景：`Body`（AnimatedSprite2D）、血条、影子、选中环、 Hurtbox/AttackBox 调试形状、脚底/命中点；
 - 行为配置：`WeightedTargeting` 索敌权重 + `StandardMovement` 移动参数；
 - 自定义索敌/移动逻辑时，新增 `TargetingStrategy` / `MovementStrategy` 资源脚本，
   在 behavior `.tres` 中替换，不复制 Brain/FSM；
@@ -318,7 +318,7 @@ behavior_profile: resources/behaviors/<id>.tres
   打开后显示基础攻击范围（蓝圈）和技能范围（橙色虚线圈）。
 - **暂停/变速**：`空格`暂停、`F`变速，便于观察 AI 在某一帧的选择。
 - **自动化测试**：
-  - `tests/test_runner.tscn` 144 项检查；
+  - `tests/test_runner.tscn` 145 项检查；
   - `tools/soak_test.tscn` 8 场随机阵容，检查卡死与胜负分布。
 - **可调参数**：
   - `UnitBrain.THINK_INTERVAL`：思考频率；

@@ -398,13 +398,20 @@ def build_visual_scene(unit: Unit, foot_offset: float, character_height: float) 
     body_y = -foot_offset * scale
     bar_y = -character_height * scale - 15.0
     shadow_scale = unit.body_radius * 1.05 / 80.0
-    content = f'''[gd_scene load_steps=6 format=3]
+    hurt_radius = unit.body_radius * 1.05
+    content = f'''[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle/team_ring.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/battle/selection_ring.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/battle/health_bar.gd" id="3"]
 [ext_resource type="Texture2D" path="res://assets/ui/soft_shadow.png" id="4"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/{unit.slug}_frames.tres" id="5"]
+
+[sub_resource type="CircleShape2D" id="hurt_shape"]
+radius = {hurt_radius:.1f}
+
+[sub_resource type="CircleShape2D" id="attack_shape"]
+radius = {unit.attack_range:.1f}
 
 [node name="UnitVisual" type="Node2D"]
 
@@ -433,6 +440,26 @@ sprite_frames = ExtResource("5")
 z_index = 20
 position = Vector2(0, {bar_y:.1f})
 script = ExtResource("3")
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("hurt_shape")
+debug_color = Color(1, 0.35, 0.35, 0.55)
+
+[node name="AttackBox" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackBox"]
+shape = SubResource("attack_shape")
+debug_color = Color(0.35, 0.7, 1, 0.45)
 
 [node name="FootMarker" type="Marker2D" parent="."]
 

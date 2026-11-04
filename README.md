@@ -159,7 +159,14 @@ scenes/units/armored_axeman_visual.tscn
 - `Body` 的 `position`、`scale`、`offset`：精灵/动画位置；
 - `HealthBar` 的 `position`：血条位置；
 - `Shadow` 的 `position`/`scale`：影子；
-- `FootMarker`、`HitPoint`：后续受击/命中锚点。
+- `Hurtbox` 的 `CollisionShape2D`：受击范围（圆形，红色调试轮廓）；
+- `AttackBox` 的 `CollisionShape2D`：基础普攻范围（圆形，蓝色调试轮廓）；
+- `FootMarker`、`HitPoint`：命中点/脚底锚点。
+
+`Hurtbox` / `AttackBox` 目前是**编辑器可视化和调试形状**：`monitoring = false`、
+碰撞层为 0，不参与实际伤害结算。当前伤害仍由 Action 的距离/扇形/矩形数据判定。
+`AttackBox` 表示基础普攻范围；技能范围请用战斗中选中单位后的「范围」按钮查看，
+或编辑对应 `ActionEffectDefinition` 的 shape/length/width。
 
 `tools/build_assets.py` 只会在视觉场景**不存在**时生成它，**不会覆盖手工调整**。
 需要重置某个英雄时，删除对应 `_visual.tscn` 后重新运行构建脚本即可。
@@ -222,7 +229,7 @@ godot --path . res://scenes/debug/hero_lab.tscn
 | FSM | 待机、移动、行动、受击、死亡五个状态节点 |
 | 表现 | 像素动画、血条、队伍光环、选中圈、飘字、挥砍弧光、箭矢/法术弹、粒子火花、结算面板、OODA 观察镜 |
 | 分辨率自适应 | 窗口自由缩放；`canvas_items` + `expand`；背景/战场/站位按逻辑视口重算，布阵内容居中 |
-| 自动化测试 | 144 项无界面检查 + 8 场随机阵容压力测试 |
+| 自动化测试 | 145 项无界面检查 + 8 场随机阵容压力测试 |
 
 **当前范围**：普攻 + 骑士（火焰斩击、格挡）+ 重甲斧兵（旋风斩、重击）。已经加入基础蓝量池（100）、每秒 8 点回复和技能蓝耗；
 装备、升级、经济与商店、羁绊、存档、音效、寻路避障暂不包含。后续护盾/位移/连续攻击
