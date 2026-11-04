@@ -359,7 +359,7 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
         _write_action(
             spin_path, spin_name, "旋风斧", 1, 4, "attack_02",
             190.0, 9.0, 9, spin_effects,
-            mana_cost=30.0, advance_speed=240.0, min_targets=2,
+            mana_cost=30.0, advance_speed=240.0, min_targets=1,
         )
         actions.append(f"res://resources/actions/{spin_name}.tres")
 

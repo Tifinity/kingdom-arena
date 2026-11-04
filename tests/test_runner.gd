@@ -275,7 +275,7 @@ func _test_axeman_skills() -> void:
 		return
 	_check(spin.animation == &"attack_02" and spin.target_mode == CombatActionDefinition.TargetMode.DIRECTION,
 		"旋风斧使用 attack_02 并选择方向")
-	_check(spin.effects.size() == 5 and spin.advance_speed > 0.0 and spin.min_targets >= 2,
+	_check(spin.effects.size() == 5 and spin.advance_speed > 0.0 and spin.min_targets <= 1,
 		"旋风斧包含 5 个伤害帧并边转边移动")
 	_check(heavy.animation == &"attack_03" and not heavy.effects.is_empty()
 		and is_equal_approx(heavy.effects[0].damage_ratio, 2.0), "重劈使用 attack_03 且为 2 倍单体伤害")
@@ -311,8 +311,14 @@ func _test_axeman_skills() -> void:
 		enemy.brain.enabled = false
 	axeman.brain.enabled = true
 	axeman.brain.force_think()
+	_check(axeman.planned_action != null and axeman.planned_action.action_id == &"armored_axeman_spin",
+		"只有单个目标时旋风斧仍然满足释放条件")
+	# 旋风斧冷却时才轮到重劈；重劈不是靠“至少 2 人”这个条件才出现的。
+	axeman.action_cooldowns[spin.action_id] = spin.cooldown
+	axeman.brain.force_think()
 	_check(axeman.planned_action != null and axeman.planned_action.action_id == &"armored_axeman_heavy",
-		"只有单个目标时决策层选择重劈")
+		"旋风斧冷却后单目标选择重劈")
+	axeman.action_cooldowns[spin.action_id] = 0.0
 	enemies[0].position = Vector2(820, 650)
 	enemies[1].position = Vector2(820, 700)
 	enemies[2].position = Vector2(600, 650)
