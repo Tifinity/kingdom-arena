@@ -274,6 +274,28 @@ func _test_flame_slash() -> void:
 	_check(hud_snapshot.has("mana") and hud_snapshot.has("attack_range") and hud_snapshot.has("skill_range"),
 		"调试快照包含蓝量与攻击范围")
 
+	# AOE 选择距离应和扇形实际半径一致，并留出施法缓冲。
+	knight.target = enemies[1]  # archer
+	knight.position = Vector2(700, 650)
+	enemies[1].position = knight.position + Vector2(180, 0)
+	_check(not knight.is_target_in_action_range(skill, 4.0),
+		"火焰斩击不会在扇形有效半径之外释放")
+	enemies[1].position = knight.position + Vector2(160, 0)
+	_check(knight.is_target_in_action_range(skill, 4.0),
+		"火焰斩击在安全范围内可释放")
+	var cleave: CombatActionDefinition = null
+	for action in knight.actions:
+		if action.action_id == &"knight_cleave":
+			cleave = action
+			break
+	if cleave != null:
+		enemies[1].position = knight.position + Vector2(112, 0)
+		_check(not knight.is_target_in_action_range(cleave, 4.0),
+			"回旋斩不会在扇形有效半径之外释放")
+		enemies[1].position = knight.position + Vector2(95, 0)
+		_check(knight.is_target_in_action_range(cleave, 4.0),
+			"回旋斩在安全范围内可释放")
+
 	# 低血量、火焰斩击与格挡都就绪时，防御紧迫度应让格挡胜出。
 	knight.hp = knight.max_hp * 0.4
 	knight.mana = knight.max_mana

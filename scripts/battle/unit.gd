@@ -275,9 +275,32 @@ func kite_stop_distance() -> float:
 	return attack_range * ratio
 
 
+const AOE_CAST_BUFFER := 0.88
+
+
+## 扇形/矩形/自身圆形等以自身为原点的 AOE，实际命中半径由效果形状决定。
+func action_aoe_reach(action: CombatActionDefinition) -> float:
+	if action == null:
+		return 0.0
+	var reach := 0.0
+	for effect in action.effects:
+		if effect.kind != ActionEffectDefinition.Kind.DAMAGE:
+			continue
+		if effect.shape == ActionEffectDefinition.Shape.CONE:
+			reach = maxf(reach, effect.radius)
+		elif effect.shape == ActionEffectDefinition.Shape.RECT:
+			reach = maxf(reach, effect.length)
+	return reach
+
+
 func is_target_in_action_range(action: CombatActionDefinition, extra := 0.0) -> bool:
 	if action == null or not has_live_target():
 		return false
+	var aoe_reach := action_aoe_reach(action)
+	if aoe_reach > 0.0:
+		# AOE 选择距离必须和伤害形状一致，并留 12% 施法缓冲。
+		var reach := (aoe_reach + target.body_radius + extra) * AOE_CAST_BUFFER
+		return distance_to_target() <= reach
 	var reach := action.action_range + target.body_radius + body_radius * 0.35 + extra
 	return distance_to_target() <= reach
 
@@ -444,8 +467,11 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 			target.take_damage(damage, self, impact)
 			battle.action_hits += 1
 		ActionEffectDefinition.Shape.CONE:
+			var cone_direction := planned_direction
+			if cone_direction.length_squared() < 0.0001:
+				cone_direction = Vector2(float(facing), 0.0)
 			var victims: Array = battle.units_in_cone(
-				self, Vector2(float(facing), 0.0), effect.radius, effect.half_angle
+				self, cone_direction, effect.radius, effect.half_angle
 			)
 			for victim in victims:
 				victim.take_damage(damage, self, victim.get_hit_point())

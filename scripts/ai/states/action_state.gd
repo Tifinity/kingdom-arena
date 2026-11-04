@@ -36,6 +36,7 @@ func enter(_previous: StringName) -> void:
 		else:
 			_direction = Vector2(float(unit.facing), 0.0)
 	_direction = _direction.normalized()
+	unit.planned_direction = _direction
 	unit.face_direction(_direction.x)
 	unit.visual.speed_scale = maxf(_action.animation_speed, 0.05)
 	unit.play_animation(_action.animation, true)

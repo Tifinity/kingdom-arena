@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://babl2snucqggk" path="res://scripts/battle/selection_ring.gd" id="2"]
 [ext_resource type="Script" uid="uid://bx24eitnuqwg2" path="res://scripts/battle/health_bar.gd" id="3"]
 [ext_resource type="Texture2D" uid="uid://cf6pmkef5d1gn" path="res://assets/ui/soft_shadow.png" id="4"]
-[ext_resource type="SpriteFrames" path="res://resources/visuals/soldier_frames.tres" id="5"]
+[ext_resource type="SpriteFrames" uid="uid://dvvi8fth10ai3" path="res://resources/visuals/soldier_frames.tres" id="5"]
 
 [sub_resource type="CircleShape2D" id="hurt_shape"]
 radius = 31.5
@@ -33,7 +33,7 @@ texture_filter = 1
 position = Vector2(0, -32)
 scale = Vector2(4.48, 4.48)
 sprite_frames = ExtResource("5")
-animation = &"idle"
+animation = &"attack_03"
 
 [node name="HealthBar" type="Node2D" parent="." unique_id=158315190]
 z_index = 20

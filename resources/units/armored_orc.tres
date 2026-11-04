@@ -1,14 +1,15 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" format=3 uid="uid://dyfn1euk3c16x"]
 
-[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
-[ext_resource type="SpriteFrames" path="res://resources/visuals/armored_orc_frames.tres" id="2"]
-[ext_resource type="Texture2D" path="res://assets/portraits/armored_orc.png" id="3"]
-[ext_resource type="Resource" path="res://resources/actions/armored_orc_basic.tres" id="4"]
-[ext_resource type="Resource" path="res://resources/actions/armored_orc_bash.tres" id="5"]
-[ext_resource type="Resource" path="res://resources/actions/armored_orc_quakeslam.tres" id="6"]
-[ext_resource type="Resource" path="res://resources/actions/armored_orc_block.tres" id="7"]
+[ext_resource type="Script" uid="uid://bu55wkuo84wfe" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://hq4wq54ylw3j" path="res://scripts/data/combat_action_definition.gd" id="1_ofpmm"]
+[ext_resource type="SpriteFrames" uid="uid://3yilg2hoil1" path="res://resources/visuals/armored_orc_frames.tres" id="2"]
+[ext_resource type="Texture2D" uid="uid://o0rf6l1prj1" path="res://assets/portraits/armored_orc.png" id="3"]
+[ext_resource type="Resource" uid="uid://cpw35iadnsg71" path="res://resources/actions/armored_orc_basic.tres" id="4"]
+[ext_resource type="Resource" uid="uid://dbek5l1h68blc" path="res://resources/actions/armored_orc_bash.tres" id="5"]
+[ext_resource type="Resource" uid="uid://c2qfdw0bwppvs" path="res://resources/actions/armored_orc_quakeslam.tres" id="6"]
+[ext_resource type="Resource" uid="uid://wppu4j6vgo1b" path="res://resources/actions/armored_orc_block.tres" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/units/armored_orc_visual.tscn" id="8"]
-[ext_resource type="Resource" path="res://resources/behaviors/armored_orc.tres" id="9"]
+[ext_resource type="Resource" uid="uid://blr1paoxd22ai" path="res://resources/behaviors/armored_orc.tres" id="9"]
 
 [resource]
 script = ExtResource("1")
@@ -21,22 +22,17 @@ roster_order = 11
 description = "铁颚重甲兽人，移动缓慢但极难击倒。"
 max_hp = 1060.0
 attack_damage = 72.0
-attack_speed = 1.50
-attack_range = 84.0
-max_mana = 100.0
-mana_regen = 8.0
+attack_speed = 1.5
+attack_range = 85.0
 move_speed = 92.0
 armor = 0.22
 attack_windup = 0.42
-attack_kind = 0
-projectile_kind = 0
-visual_scale = 4.70
-foot_offset = 7.0
-character_height = 20.0
-body_radius = 35.7
-accent_color = Color(0.490, 0.698, 1.000, 1)
-actions = [ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7")]
 behavior_profile = ExtResource("9")
+actions = Array[ExtResource("1_ofpmm")]([ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7")])
 visual_scene = ExtResource("8")
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")
+visual_scale = 4.7
+character_height = 20.0
+body_radius = 35.7
+accent_color = Color(0.49, 0.698, 1, 1)
