@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="SpriteFrames" path="res://resources/visuals/necromancer_summon_effect_frames.tres" id="1"]
+[ext_resource type="Script" path="res://scripts/fx/one_shot_effect.gd" id="2"]
+
+[node name="NecromancerSummonCircle" type="AnimatedSprite2D"]
+texture_filter = 1
+z_index = 6
+sprite_frames = ExtResource("1")
+script = ExtResource("2")

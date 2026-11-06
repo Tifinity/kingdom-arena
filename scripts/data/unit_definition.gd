@@ -6,20 +6,21 @@ extends Resource
 ## 场景/动画/数值全部作为资源持有：运行时只负责把资源挂到单位场景上，
 ## 战斗逻辑不内嵌任何具体英雄的数值。
 
-enum Faction { KINGDOM, LEGION }
+enum Faction { HUMAN, WILDERNESS, MONSTER }
 enum AttackKind { MELEE, RANGED }
-enum ProjectileKind { NONE, ARROW, MAGIC }
+enum ProjectileKind { NONE, ARROW, MAGIC, ICE, FIREBALL, GHOSTFIRE }
 
 const FACTION_NAMES := {
-	Faction.KINGDOM: "王国",
-	Faction.LEGION: "荒野",
+	Faction.HUMAN: "人类",
+	Faction.WILDERNESS: "荒野",
+	Faction.MONSTER: "怪物",
 }
 
 @export_group("身份")
 @export var unit_id: StringName
 @export var display_name: String = "英雄"
 @export var title: String = ""
-@export_enum("王国:0", "荒野:1") var faction: int = Faction.KINGDOM
+@export_enum("人类:0", "荒野:1", "怪物:2") var faction: int = Faction.HUMAN
 @export var role: String = "战士"
 ## 名册排序，数值越小越靠前。
 @export var roster_order: int = 0
@@ -39,6 +40,8 @@ const FACTION_NAMES := {
 
 @export_group("资源")
 @export var max_mana := 100.0
+## 新入场单位的初始蓝量；所有现有英雄统一为 0。
+@export var starting_mana := 0.0
 @export var mana_regen := 8.0
 
 @export_group("行为")
@@ -97,3 +100,13 @@ func faction_label() -> String:
 
 func stat_line() -> String:
 	return "生命 %d · 攻击 %d · 攻速 %.2f/s" % [roundi(max_hp), roundi(attack_damage), attack_speed]
+
+
+func skill_description_text() -> String:
+	var lines: Array[String] = []
+	for action in actions:
+		if action == null or action.category == CombatActionDefinition.Category.BASIC:
+			continue
+		var mana_text := "满蓝" if action.mana_cost >= max_mana - 0.001 else ("蓝 %.0f" % action.mana_cost if action.mana_cost > 0.0 else "0 蓝")
+		lines.append("%s｜%s｜CD %.0f 秒：%s" % [action.display_name, mana_text, action.cooldown, action.detail_text()])
+	return "\n".join(PackedStringArray(lines))

@@ -108,7 +108,7 @@ func _update_details(definition: UnitDefinition) -> void:
 	detail_title.text = "「%s」" % definition.title
 	detail_meta.text = "%s · %s · 蓝量 %d" % [definition.faction_label(), definition.role, roundi(definition.max_mana)]
 	detail_meta.add_theme_color_override("font_color", definition.accent_color)
-	detail_desc.text = definition.description
+	detail_desc.text = "%s\n%s" % [definition.description, definition.skill_description_text()]
 	stat_hp.text = "%d" % roundi(definition.max_hp)
 	stat_atk.text = "%d" % roundi(definition.attack_damage)
 	stat_aspd.text = "%.2f" % definition.attack_speed
@@ -142,12 +142,14 @@ func _rebuild_animation_buttons() -> void:
 		return
 	for animation in _sorted_animations():
 		var button := Button.new()
-		button.text = _animation_label(animation)
+		var unused_summon: bool = animation == &"summon" and not _animation_used_by_action(animation)
+		button.text = "素材·召唤" if unused_summon else _animation_label(animation)
 		button.custom_minimum_size = Vector2(68, 30)
 		button.focus_mode = Control.FOCUS_NONE
-		button.tooltip_text = "%s · %d 帧" % [
+		button.tooltip_text = "%s · %d 帧%s" % [
 			_animation_label(animation),
 			selected_definition.sprite_frames.get_frame_count(animation),
+			" · 未配置实战技能" if unused_summon else "",
 		]
 		button.pressed.connect(_play_animation.bind(StringName(animation)))
 		animation_buttons.add_child(button)
@@ -160,7 +162,8 @@ func _play_animation(animation: StringName) -> void:
 	preview_unit.play_preview_animation(animation)
 	var frames := selected_definition.sprite_frames.get_frame_count(animation)
 	var speed := selected_definition.sprite_frames.get_animation_speed(animation)
-	current_anim.text = "%s · %d 帧 · %.0f FPS" % [_animation_label(animation), frames, speed]
+	var label: String = "素材·召唤" if animation == &"summon" and not _animation_used_by_action(animation) else _animation_label(animation)
+	current_anim.text = "%s · %d 帧 · %.0f FPS" % [label, frames, speed]
 
 
 func _sorted_animations() -> Array:
@@ -177,6 +180,13 @@ func _sorted_animations() -> Array:
 
 func _animation_label(animation: StringName) -> String:
 	return ANIM_LABELS.get(animation, String(animation))
+
+
+func _animation_used_by_action(animation: StringName) -> bool:
+	for action in selected_definition.actions:
+		if action != null and action.animation == animation:
+			return true
+	return false
 
 
 func _start_1v1() -> void:

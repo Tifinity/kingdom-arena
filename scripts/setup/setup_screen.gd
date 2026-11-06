@@ -30,8 +30,9 @@ var cards: Array[UnitCard] = []
 @onready var lab_button: Button = $Root/VBox/Header/HeaderRight/LabButton
 @onready var start_button: Button = $Root/VBox/Header/HeaderRight/StartButton
 @onready var all_filter: Button = $Root/VBox/Content/Center/RosterHeader/Filters/AllFilter
-@onready var kingdom_filter: Button = $Root/VBox/Content/Center/RosterHeader/Filters/KingdomFilter
-@onready var legion_filter: Button = $Root/VBox/Content/Center/RosterHeader/Filters/LegionFilter
+@onready var human_filter: Button = $Root/VBox/Content/Center/RosterHeader/Filters/HumanFilter
+@onready var wilderness_filter: Button = $Root/VBox/Content/Center/RosterHeader/Filters/WildernessFilter
+@onready var monster_filter: Button = $Root/VBox/Content/Center/RosterHeader/Filters/MonsterFilter
 @onready var toast_box: PanelContainer = $ToastBox
 @onready var toast_label: Label = $ToastBox/ToastLabel
 
@@ -54,8 +55,9 @@ func _ready() -> void:
 	lab_button.pressed.connect(_on_lab_pressed)
 	start_button.pressed.connect(_on_start_pressed)
 	all_filter.pressed.connect(_set_filter.bind(-1))
-	kingdom_filter.pressed.connect(_set_filter.bind(UnitDefinition.Faction.KINGDOM))
-	legion_filter.pressed.connect(_set_filter.bind(UnitDefinition.Faction.LEGION))
+	human_filter.pressed.connect(_set_filter.bind(UnitDefinition.Faction.HUMAN))
+	wilderness_filter.pressed.connect(_set_filter.bind(UnitDefinition.Faction.WILDERNESS))
+	monster_filter.pressed.connect(_set_filter.bind(UnitDefinition.Faction.MONSTER))
 	toast_box.visible = false
 	_build_roster()
 	_refresh_panels()
@@ -84,7 +86,7 @@ func _select_definition(definition: UnitDefinition) -> void:
 	detail_title.text = "「%s」" % definition.title
 	detail_meta.text = "%s · %s" % [definition.faction_label(), definition.role]
 	detail_meta.add_theme_color_override("font_color", definition.accent_color)
-	detail_desc.text = definition.description
+	detail_desc.text = "%s\n%s" % [definition.description, definition.skill_description_text()]
 	stat_hp.text = "%d" % roundi(definition.max_hp)
 	stat_atk.text = "%d" % roundi(definition.attack_damage)
 	stat_aspd.text = "%.2f" % definition.attack_speed

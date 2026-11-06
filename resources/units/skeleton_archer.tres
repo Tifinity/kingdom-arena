@@ -4,7 +4,7 @@
 [ext_resource type="SpriteFrames" path="res://resources/visuals/skeleton_archer_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/skeleton_archer.png" id="3"]
 [ext_resource type="Resource" path="res://resources/actions/skeleton_archer_basic.tres" id="4"]
-[ext_resource type="Resource" path="res://resources/actions/skeleton_archer_summon.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/actions/skeleton_archer_volley.tres" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/units/skeleton_archer_visual.tscn" id="6"]
 [ext_resource type="Resource" path="res://resources/behaviors/skeleton_archer.tres" id="7"]
 
@@ -13,7 +13,7 @@ script = ExtResource("1")
 unit_id = &"skeleton_archer"
 display_name = "骷髅弓手"
 title = "骸骨射手"
-faction = 1
+faction = 2
 role = "射手"
 roster_order = 16
 description = "从墓穴中爬出的弓手，远程压制力不俗。"

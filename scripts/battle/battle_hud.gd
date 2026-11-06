@@ -23,6 +23,7 @@ var _refresh_accum := 0.0
 @onready var inspector_state: Label = $Root/Inspector/Margin/VBox/Header/InspectorState
 @onready var inspector_name: Label = $Root/Inspector/Margin/VBox/InspectorName
 @onready var inspector_hp: Label = $Root/Inspector/Margin/VBox/InspectorHp
+@onready var skill_status: Label = $Root/Inspector/Margin/VBox/SkillStatus
 @onready var observe_text: Label = $Root/Inspector/Margin/VBox/ObserveRow/ObserveText
 @onready var judge_text: Label = $Root/Inspector/Margin/VBox/JudgeRow/JudgeText
 @onready var decide_text: Label = $Root/Inspector/Margin/VBox/DecideRow/DecideText
@@ -125,7 +126,7 @@ func _refresh() -> void:
 func refresh_controls() -> void:
 	if battle == null:
 		return
-	speed_button.text = "×%d" % int(battle.speed_multiplier)
+	speed_button.text = "×0.5" if battle.speed_multiplier < 0.75 else "×%d" % int(battle.speed_multiplier)
 	pause_button.text = "继续" if get_tree().paused else "暂停"
 	range_button.set_pressed_no_signal(battle.show_combat_ranges)
 
@@ -176,10 +177,21 @@ func _update_inspector() -> void:
 		definition.role,
 	]
 	inspector_name.add_theme_color_override("font_color", GameState.team_color(snapshot.team))
-	inspector_hp.text = "生命 %s · 目标 %s · 冷却 %ss\n蓝量 %s · 攻击范围 %s · 技能范围 %s" % [
-		snapshot.hp, snapshot.target, snapshot.cooldown,
+	inspector_hp.text = "生命 %s · 护盾 %s（%.1f秒） · 目标 %s\n蓝量 %s · 攻击范围 %s · 技能范围 %s" % [
+		snapshot.hp, snapshot.shield, float(snapshot.shield_time), snapshot.target,
 		snapshot.mana, snapshot.attack_range, snapshot.skill_range,
 	]
+	var skill_lines: Array[String] = []
+	for action in selected_unit.actions:
+		if action == null or action.category == CombatActionDefinition.Category.BASIC:
+			continue
+		var remaining := selected_unit.action_cooldown(action)
+		var state := "CD %.1fs" % remaining if remaining > 0.01 else ("缺蓝" if not selected_unit.has_mana(action) else "可释放")
+		skill_lines.append("%s · %s · 蓝 %.0f/%.0f · %s" % [
+			action.display_name, state, selected_unit.mana, action.mana_cost,
+			"满蓝" if action.mana_cost >= selected_unit.max_mana - 0.001 else "技能",
+		])
+	skill_status.text = "\n".join(PackedStringArray(skill_lines))
 	inspector_state.text = snapshot.state
 	if snapshot.state_key == "action" and snapshot.get("action_name", "—") != "—":
 		inspector_state.text = "%s · %s" % [snapshot.state, snapshot.action_name]

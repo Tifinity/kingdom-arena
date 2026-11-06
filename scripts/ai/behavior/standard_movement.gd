@@ -19,9 +19,35 @@ func desired_position(unit: Unit) -> Vector2:
 	var lateral := (2.0 - float(unit.slot)) / 2.0 * span + flank_y_bias
 	var forward := sqrt(maxf(stop * stop - lateral * lateral, 0.0)) * forward_ratio
 	var side := -1.0 if unit.team == 0 else 1.0
-	return unit.battle.clamp_unit_position(
-		unit.target.global_position + Vector2(side * forward, lateral)
-	)
+	var preferred: Vector2 = unit.battle.clamp_unit_position(unit.target.global_position + Vector2(side * forward, lateral))
+	var candidates: Array[Vector2] = [preferred, unit.global_position]
+	for offset in [-100.0, -50.0, 50.0, 100.0]:
+		candidates.append(unit.battle.clamp_unit_position(preferred + Vector2(0.0, offset)))
+	for offset in [-40.0, 40.0]:
+		candidates.append(unit.battle.clamp_unit_position(preferred + Vector2(side * offset, 0.0)))
+	var nearby_units: Array[Unit] = unit.battle.living_units()
+	var best := preferred
+	var best_cost := INF
+	for point in candidates:
+		var cost := absf(point.distance_to(unit.target.global_position) - stop) / stop * 4.0
+		cost += point.distance_to(preferred) * 0.004
+		cost += point.distance_to(unit.global_position) * 0.002
+		if point == unit.global_position:
+			cost -= 0.25
+		for other in nearby_units:
+			if other == unit:
+				continue
+			var separation := point.distance_to(other.global_position)
+			if other.team == unit.team:
+				cost += maxf(0.0, 1.0 - separation / (unit.body_radius + other.body_radius + 20.0)) * 2.0
+			elif unit.definition.is_ranged():
+				cost += maxf(0.0, 1.0 - separation / maxf(unit.attack_range * 0.55, 90.0)) * 3.0
+			elif unit.hp_ratio() < 0.45 and other != unit.target:
+				cost += maxf(0.0, 1.0 - separation / 120.0)
+		if cost < best_cost:
+			best_cost = cost
+			best = point
+	return best
 
 
 func should_kite(unit: Unit) -> bool:

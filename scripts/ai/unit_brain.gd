@@ -26,6 +26,8 @@ var target: Unit
 var planned_action: CombatActionDefinition
 var planned_direction := Vector2.ZERO
 var planned_target_count := 0
+var plan_score := 0.0
+var plan_reason := ""
 var observation: Dictionary = {}
 var judgment: Dictionary = {}
 
@@ -134,6 +136,8 @@ func _judge() -> void:
 		last_judge_text = "没有可交战目标"
 		return
 
+	var previous_target: Unit = target if is_instance_valid(target) and target.alive else null
+	var previous_score := -INF
 	var best: Unit = null
 	var best_score := -INF
 	var close_threats := 0
@@ -142,12 +146,18 @@ func _judge() -> void:
 	for enemy in enemies:
 		var distance: float = unit.global_position.distance_to(enemy.global_position)
 		var score := _score_target(enemy, distance)
+		if enemy == previous_target:
+			previous_score = score
 		if distance <= threat_radius:
 			close_threats += 1
 		if score > best_score:
 			best_score = score
 			best = enemy
 
+	# 微小评分波动不换目标，避免每次思考都重新转身。
+	if previous_target != null and best != previous_target and previous_score >= best_score - 0.12:
+		best = previous_target
+		best_score = previous_score
 	target = best
 	var threat := clampf(float(close_threats) / 4.0 + (1.0 - unit.hp_ratio()) * 0.55, 0.0, 1.0)
 	judgment = {
@@ -166,22 +176,24 @@ func random_score() -> float:
 
 
 func _score_target(enemy: Unit, distance: float) -> float:
-	if unit.definition.behavior_profile != null and unit.definition.behavior_profile.targeting != null:
-		return unit.definition.behavior_profile.targeting.score_target(self, enemy, distance)
-	# 距离、残血、输出威胁构成基础分；职业关系与当前目标粘性做修正。
 	var score := 0.0
-	score += (1.0 - clampf(distance / 1000.0, 0.0, 1.0)) * 0.50
-	score += (1.0 - enemy.hp_ratio()) * 0.25
-	score += clampf(enemy.definition.damage_per_second() / 140.0, 0.0, 1.0) * 0.12
-
-	if unit.definition.role == "突袭" and enemy.definition.is_ranged():
-		score += 0.18
-	if unit.definition.is_ranged() and enemy.definition.role == "坦克":
-		score -= 0.08
-	if unit.has_live_target() and enemy == unit.target:
-		score += 0.08
-	score += _rng.randf() * 0.02
-	return clampf(score, 0.0, 1.0)
+	if unit.definition.behavior_profile != null and unit.definition.behavior_profile.targeting != null:
+		score = unit.definition.behavior_profile.targeting.score_target(self, enemy, distance)
+	else:
+		score = (1.0 - clampf(distance / 1000.0, 0.0, 1.0)) * 0.50
+		score += (1.0 - enemy.hp_ratio()) * 0.25
+		score += clampf(enemy.definition.damage_per_second() / 140.0, 0.0, 1.0) * 0.12
+	# 队友正在集火时协助；后排被贴身追击时优先保护。
+	for ally in observation.get("allies", []):
+		if not is_instance_valid(ally) or not ally.alive:
+			continue
+		if ally.has_live_target() and ally.target == enemy:
+			score += 0.07
+			if ally.state_machine.current_name == &"action" and enemy.hp <= ally.attack_damage * 1.2:
+				score -= 0.18
+		if enemy.has_live_target() and enemy.target == ally and ally.definition.is_ranged() and enemy.global_position.distance_to(ally.global_position) < 180.0:
+			score += 0.35
+	return score
 
 
 func _should_kite() -> bool:
@@ -200,6 +212,8 @@ func _decide() -> void:
 	planned_action = null
 	planned_direction = Vector2.ZERO
 	planned_target_count = 0
+	plan_score = 0.0
+	plan_reason = ""
 
 	if target == null or not is_instance_valid(target) or not target.alive:
 		target = null
@@ -210,8 +224,10 @@ func _decide() -> void:
 	var plan := _select_action()
 	if plan != null:
 		planned_action = plan.action
+		if planned_action.target_mode == CombatActionDefinition.TargetMode.ENEMY:
+			target = plan.target
 		intent = Intent.ACTION
-		intent_reason = "使用 %s（%s）" % [planned_action.display_name, planned_action.category_label()]
+		intent_reason = "使用 %s（%s，%s）" % [planned_action.display_name, planned_action.category_label(), plan_reason]
 	elif _should_kite():
 		intent = Intent.KITE
 		intent_reason = "距离过近，后撤拉开射程"
@@ -224,13 +240,11 @@ func _decide() -> void:
 	last_decide_text = "%s：%s" % [INTENT_LABELS[intent], intent_reason]
 
 
-## 决策层的核心：从该单位所有 Action 中选一个当前可用的、优先级最高的动作。
+## 对每个可用动作和目标组合评分；施法目标由动作收益决定。
 func _select_action() -> ActionPlan:
 	var best_plan: ActionPlan = null
 	var best_score := -INF
-	var best_priority := -999
-	# 决策阶段先让 Unit 指向候选目标，动作范围和 AOE 数量都基于这个目标计算。
-	unit.target = target
+	var enemies: Array = observation.get("enemies", [])
 	for action in unit.actions:
 		if action == null:
 			continue
@@ -238,15 +252,20 @@ func _select_action() -> ActionPlan:
 			continue
 		if unit.summoned and _contains_summon(action):
 			continue
-
-		# 目标类型与硬性条件
-		var action_target: Unit = target
-		var action_direction := Vector2.ZERO
-		var target_count := 0
+		var candidates: Array[Unit] = []
+		var direction := Vector2.ZERO
 		match action.target_mode:
 			CombatActionDefinition.TargetMode.ENEMY:
-				if not unit.has_live_target() or not unit.is_target_in_action_range(action, 4.0):
-					continue
+				if action.charge_to_farthest:
+					var farthest: Unit = null
+					for enemy in enemies:
+						if farthest == null or unit.global_position.distance_squared_to(enemy.global_position) > unit.global_position.distance_squared_to(farthest.global_position):
+							farthest = enemy
+					if farthest != null:
+						candidates.append(farthest)
+				else:
+					for enemy in enemies:
+						candidates.append(enemy)
 			CombatActionDefinition.TargetMode.SELF:
 				if unit.hp_ratio() < action.min_self_hp_ratio or unit.hp_ratio() > action.max_self_hp_ratio:
 					continue
@@ -254,41 +273,116 @@ func _select_action() -> ActionPlan:
 					continue
 				if not _self_area_has_enemy(action):
 					continue
-				action_target = unit
+				candidates.append(unit)
 			CombatActionDefinition.TargetMode.DIRECTION:
-				if not unit.has_live_target():
-					continue
 				var best_dir := _best_direction_for(action)
-				target_count = int(best_dir.get("count", 0))
-				if target_count < maxi(action.min_targets, 1):
+				if int(best_dir.get("count", 0)) < maxi(action.min_targets, 1):
 					continue
-				action_direction = best_dir.get("direction", Vector2.ZERO)
+				direction = best_dir.get("direction", Vector2.ZERO)
+				candidates.append(target)
 			_:
 				continue
-
-		# 行动价值：基础优先级 + situational utility
-		var score := float(action.priority)
-		for effect in action.effects:
-			if effect.kind != ActionEffectDefinition.Kind.DAMAGE:
+		for candidate in candidates:
+			if candidate == null or not is_instance_valid(candidate) or not candidate.alive:
 				continue
-			if effect.shape == ActionEffectDefinition.Shape.CONE or effect.shape == ActionEffectDefinition.Shape.CIRCLE:
-				score += _count_targets_in_effect(action, effect) * 1.5
-			elif effect.shape == ActionEffectDefinition.Shape.RECT and action.target_mode == CombatActionDefinition.TargetMode.DIRECTION:
-				score += target_count * 2.0
-		# 防御动作在生命越低时越紧急。
-		if action.category == CombatActionDefinition.Category.DEFENSE:
-			score += (1.0 - unit.hp_ratio()) * 25.0
-
-		# 分数相同则用 action.priority 决胜；仍相同则保留 actions 数组中的先后顺序。
-		if score > best_score + 0.001 or (
-			absf(score - best_score) <= 0.001 and action.priority > best_priority
-		):
-			best_score = score
-			best_priority = action.priority
-			planned_direction = action_direction
-			planned_target_count = target_count
-			best_plan = ActionPlan.create(action, action_target, action_direction)
+			unit.target = candidate
+			if action.target_mode == CombatActionDefinition.TargetMode.ENEMY and not action.charge_to_farthest and not unit.is_target_in_action_range(action, 4.0):
+				unit.target = target
+				continue
+			if action.target_mode == CombatActionDefinition.TargetMode.ENEMY and unit.distance_to_target() < action.min_range:
+				unit.target = target
+				continue
+			# 范围检查需要临时目标；评分时恢复已锁定目标，避免每个候选都得到粘性加分。
+			unit.target = target
+			var candidate_direction := direction
+			if action.charge_to_farthest:
+				candidate_direction = (candidate.global_position - unit.global_position).normalized()
+			var evaluation := _evaluate_plan(action, candidate, candidate_direction)
+			var score: float = evaluation.score
+			if score > best_score + 0.001:
+				best_score = score
+				planned_direction = candidate_direction
+				planned_target_count = int(evaluation.hits)
+				plan_score = score
+				plan_reason = evaluation.reason
+				best_plan = ActionPlan.create(action, candidate, candidate_direction)
+	unit.target = target
 	return best_plan
+
+
+func _evaluate_plan(action: CombatActionDefinition, candidate: Unit, direction: Vector2) -> Dictionary:
+	var damage_by_target: Dictionary = {}
+	var victims_by_id: Dictionary = {}
+	var support := 0.0
+	for effect in action.effects:
+		if effect.kind == ActionEffectDefinition.Kind.DAMAGE or effect.kind == ActionEffectDefinition.Kind.PROJECTILE:
+			for victim in _plan_victims(action, effect, candidate, direction):
+				var key := victim.get_instance_id()
+				victims_by_id[key] = victim
+				damage_by_target[key] = float(damage_by_target.get(key, 0.0)) + unit.attack_damage * maxf(effect.damage_ratio, 0.0)
+		elif effect.kind == ActionEffectDefinition.Kind.HEAL:
+			for ally in observation.get("allies", []):
+				if effect.radius <= 0.0 or ally.global_position.distance_to(unit.global_position) <= effect.radius + ally.body_radius:
+					support += minf(ally.max_hp - ally.hp, effect.heal_amount + unit.attack_damage * effect.heal_ratio) / maxf(unit.attack_damage, 1.0)
+		elif effect.kind == ActionEffectDefinition.Kind.STATUS and effect.status_kind == ActionEffectDefinition.StatusKind.STUN:
+			support += 1.0
+		elif effect.kind == ActionEffectDefinition.Kind.SHIELD:
+			var nearby: int = unit.battle.units_in_circle(unit, unit.global_position, effect.radius).size()
+			var shield_gain: float = minf(unit.max_hp * effect.shield_per_target_ratio * nearby,
+				maxf(0.0, unit.max_hp * effect.shield_max_ratio - unit.shield))
+			support += shield_gain / maxf(unit.attack_damage, 1.0)
+	var expected_damage := 0.0
+	var kills := 0
+	for key in damage_by_target:
+		var victim: Unit = victims_by_id[key]
+		var dealt: float = float(damage_by_target[key]) * (1.0 - clampf(victim.armor, 0.0, 0.8))
+		var remaining_hp := maxf(0.0, victim.hp - _committed_ally_damage(victim))
+		expected_damage += minf(remaining_hp, dealt) / maxf(unit.attack_damage, 1.0)
+		if remaining_hp > 0.0 and dealt >= remaining_hp:
+			kills += 1
+	var score := float(action.priority) + expected_damage * 1.2 + float(kills) * 1.0 + support * 1.5
+	if candidate != unit:
+		score += _score_target(candidate, unit.global_position.distance_to(candidate.global_position)) * 2.0
+		if action.teleport_to_target and action.preferred_min_range > 0.0:
+			if unit.global_position.distance_to(candidate.global_position) >= action.preferred_min_range:
+				score += 3.0
+	if action.category == CombatActionDefinition.Category.DEFENSE:
+		score += (1.0 - unit.hp_ratio()) * 25.0
+	if action.mana_cost >= unit.max_mana - 0.001:
+		score -= 0.8
+		if victims_by_id.size() == 1 and candidate != unit and candidate.hp - _committed_ally_damage(candidate) <= unit.attack_damage:
+			score -= 12.0
+	return {"score": score, "hits": victims_by_id.size(),
+		"reason": "预计命中 %d 人，评分 %.1f" % [victims_by_id.size(), score]}
+
+
+func _committed_ally_damage(victim: Unit) -> float:
+	var incoming := 0.0
+	for ally in observation.get("allies", []):
+		if not is_instance_valid(ally) or not ally.alive or not ally.has_live_target() or ally.target != victim:
+			continue
+		if ally.state_machine.current_name != &"action" or ally.planned_action == null:
+			continue
+		for effect in ally.planned_action.effects:
+			if (effect.kind == ActionEffectDefinition.Kind.DAMAGE or effect.kind == ActionEffectDefinition.Kind.PROJECTILE) and effect.shape == ActionEffectDefinition.Shape.SINGLE:
+				incoming += ally.attack_damage * effect.damage_ratio * (1.0 - clampf(victim.armor, 0.0, 0.8))
+	return incoming
+
+
+func _plan_victims(action: CombatActionDefinition, effect: ActionEffectDefinition, candidate: Unit, direction: Vector2) -> Array[Unit]:
+	if action.charge_to_farthest:
+		return unit.battle.units_in_rect(unit, direction, unit.global_position.distance_to(candidate.global_position), effect.width)
+	match effect.shape:
+		ActionEffectDefinition.Shape.SINGLE:
+			return [candidate]
+		ActionEffectDefinition.Shape.CIRCLE:
+			return unit.battle.units_in_circle(unit, unit.global_position if effect.center_on_self else candidate.global_position, effect.radius)
+		ActionEffectDefinition.Shape.CONE:
+			return unit.battle.units_in_cone(unit, (candidate.global_position - unit.global_position).normalized(), effect.radius, effect.half_angle)
+		ActionEffectDefinition.Shape.RECT:
+			var aim := direction if direction.length_squared() > 0.0001 else (candidate.global_position - unit.global_position).normalized()
+			return unit.battle.units_in_rect(unit, aim, effect.length, effect.width)
+	return []
 
 
 ## 在 360° 方向上搜索直线矩形内敌人数最多的方向。

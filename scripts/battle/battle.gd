@@ -175,6 +175,8 @@ func _resolve_separation() -> void:
 			var b: Unit = living[other_index]
 			if not is_instance_valid(b) or not b.alive:
 				continue
+			if a.is_charging() or b.is_charging():
+				continue
 			var min_distance := (a.body_radius + b.body_radius) * 0.86
 			var offset: Vector2 = b.position - a.position
 			var distance := offset.length()
@@ -312,7 +314,13 @@ func spawn_heal_text(at: Vector2, amount: float) -> void:
 	number.setup_text("+%d" % roundi(amount), Color("#8fe3a8"), at)
 
 
-func spawn_summons(source: Unit, unit_id: StringName, count: int) -> void:
+func spawn_shield_text(at: Vector2, amount: float) -> void:
+	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
+	effects_root.add_child(number)
+	number.setup_text("护盾 +%d" % roundi(amount), Color("#59d9ff"), at)
+
+
+func spawn_summons(source: Unit, unit_id: StringName, count: int, effect_scene: PackedScene = null) -> void:
 	if not is_instance_valid(source) or unit_id == &"":
 		return
 	var definition := UnitCatalog.get_definition(unit_id)
@@ -323,7 +331,13 @@ func spawn_summons(source: Unit, unit_id: StringName, count: int) -> void:
 		var unit: Unit = scene.instantiate()
 		units_root.add_child(unit)
 		var angle := TAU * float(index) / float(maxi(count, 1))
-		unit.position = source.global_position + Vector2.from_angle(angle) * 58.0
+		var spawn_position := source.global_position + Vector2.from_angle(angle) * 58.0
+		unit.position = spawn_position
+		if effect_scene != null:
+			var fx := effect_scene.instantiate()
+			effects_root.add_child(fx)
+			if fx is Node2D:
+				fx.global_position = spawn_position
 		unit.setup(self, source.team, source.slot, definition)
 		unit.summoned = true
 		unit.face_direction(-1.0 if source.team == 0 else 1.0)
@@ -332,6 +346,7 @@ func spawn_summons(source: Unit, unit_id: StringName, count: int) -> void:
 		units.append(unit)
 		team_sizes[source.team] += 1
 		team_max_hp_total[source.team] += unit.max_hp
+		unit.play_summon_intro()
 
 
 func register_action_cast(source: Unit, action: CombatActionDefinition) -> void:
@@ -404,11 +419,11 @@ func spawn_action_effect(scene: PackedScene, source: Unit, effect: ActionEffectD
 		fx.setup_from_effect(source, effect)
 
 
-func spawn_projectile(source: Unit, target: Unit, damage: float, kind: int, color: Color, can_interrupt := true) -> void:
+func spawn_projectile(source: Unit, target: Unit, damage: float, kind: int, color: Color, can_interrupt := true, effect: ActionEffectDefinition = null) -> void:
 	projectiles_fired += 1
 	var projectile: Projectile = PROJECTILE_SCENE.instantiate()
 	projectiles_root.add_child(projectile)
-	projectile.setup(source, target, damage, kind, color, can_interrupt)
+	projectile.setup(source, target, damage, kind, color, can_interrupt, effect)
 
 
 func spawn_slash(at: Vector2, color: Color, direction: float) -> void:
@@ -431,7 +446,12 @@ func spawn_death_burst(at: Vector2, color: Color) -> void:
 func toggle_speed() -> void:
 	if finished:
 		return
-	speed_multiplier = 2.0 if speed_multiplier < 1.5 else 1.0
+	if speed_multiplier < 0.75:
+		speed_multiplier = 1.0
+	elif speed_multiplier < 1.5:
+		speed_multiplier = 2.0
+	else:
+		speed_multiplier = 0.5
 	Engine.time_scale = speed_multiplier
 	hud.refresh_controls()
 

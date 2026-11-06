@@ -8,9 +8,10 @@
 - 来源目录（用户于 2026-11 提供）：
   `~/Downloads/Tiny RPG Character Asset Pack 01 v2.0 -Full 22 Characters/`
 - 使用范围：
-  - 22 名角色的逐动作 PNG（`Characters(100x100 split)/<角色>/<角色>/*.png`），
+  - 除士兵外的 21 名角色的逐动作 PNG（`Characters(100x100 split)/<角色>/<角色>/*.png`），
     复制到 `assets/characters/<slug>/`，保留待机、行走、攻击、受击、死亡等全部逐动作帧；
   - 箭矢 `Arrow(Projectile)/Arrow01(32x32).png`，复制为 `assets/projectiles/arrow.png`。
+  - 法师冰封和火球 `Magic(Projectile)/Wizard_Attack01_Effect.png`、`Wizard_Attack02_Effect.png`，分别复制为 `assets/projectiles/wizard_ice.png`、`wizard_fireball.png`。
 - 派生：
   - `assets/portraits/*.png` 由各角色待机动画首帧自动裁切/最近邻放大生成；
   - `assets/projectiles/magic_orb.png`、`assets/ui/soft_shadow.png`、`assets/ui/spark.png`
@@ -21,6 +22,11 @@
   截图 `artifacts/*.png` 同样只包含项目内使用的素材。
 - 请保留购买凭证；不要把完整素材包作为独立资源再分发。若未来要商用或单独分发素材，
   需再次核对原作者条款。
+
+### 士兵无影子动画
+
+- 来源：`~/Downloads/Tiny RPG Character Asset Pack v1.03 -Free Soldier&Orc/Characters(100x100)/Soldier/Soldier/Soldier-*.png`。
+- 使用范围：士兵待机、行走、三段攻击、受击、死亡共 7 条动画。原付费包中士兵的“Soldier”和“Soldier with shadows”逐动作 PNG 相同；项目和付费包 `Soldier/Soldier` 的 PNG 已换成免费版无影子图，付费包 `Soldier with shadows` 保留原图。
 
 ## 2. 字体：Fusion Pixel Font 12px
 

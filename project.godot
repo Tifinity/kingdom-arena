@@ -29,14 +29,13 @@ window/size/viewport_width=1600
 window/size/viewport_height=900
 window/size/window_width_override=1440
 window/size/window_height_override=810
-window/size/resizable=true
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
 [gui]
 
-theme/custom_font="res://assets/fonts/fusion-pixel-12px-zh_hans.woff2"
 theme/custom="res://resources/theme/arena_theme.tres"
+theme/custom_font="res://assets/fonts/fusion-pixel-12px-zh_hans.woff2"
 
 [input]
 

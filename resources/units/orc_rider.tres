@@ -1,41 +1,43 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/orc_rider_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/orc_rider.png" id="3"]
 [ext_resource type="Resource" path="res://resources/actions/orc_rider_basic.tres" id="4"]
-[ext_resource type="Resource" path="res://resources/actions/orc_rider_whirl.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/actions/orc_rider_ram.tres" id="5"]
 [ext_resource type="Resource" path="res://resources/actions/orc_rider_cyclone.tres" id="6"]
-[ext_resource type="PackedScene" path="res://scenes/units/orc_rider_visual.tscn" id="7"]
-[ext_resource type="Resource" path="res://resources/behaviors/orc_rider.tres" id="8"]
+[ext_resource type="Resource" path="res://resources/actions/orc_rider_block.tres" id="7"]
+[ext_resource type="PackedScene" path="res://scenes/units/orc_rider_visual.tscn" id="8"]
+[ext_resource type="Resource" path="res://resources/behaviors/orc_rider.tres" id="9"]
 
 [resource]
 script = ExtResource("1")
 unit_id = &"orc_rider"
 display_name = "兽人骑兵"
-title = "裂地骑兵"
+title = "荒野壁垒"
 faction = 1
-role = "突袭"
+role = "坦克"
 roster_order = 12
-description = "高速冲锋的兽人骑兵，善于切入后排。"
-max_hp = 780.0
-attack_damage = 84.0
-attack_speed = 1.20
+description = "荒野阵营最坚韧的骑兵，突进顶开敌人，环斩时以命中人数凝聚护盾。"
+max_hp = 1240.0
+attack_damage = 70.0
+attack_speed = 1.00
 attack_range = 104.0
 max_mana = 100.0
 mana_regen = 8.0
-move_speed = 158.0
-armor = 0.08
-attack_windup = 0.30
+move_speed = 125.0
+armor = 0.24
+attack_windup = 0.28
 attack_kind = 0
 projectile_kind = 0
+attack_animation = &"attack_02"
 visual_scale = 4.93
 foot_offset = 7.0
 character_height = 29.0
 body_radius = 37.8
-accent_color = Color(1.000, 0.561, 0.639, 1)
-actions = [ExtResource("4"), ExtResource("5"), ExtResource("6")]
-behavior_profile = ExtResource("8")
-visual_scene = ExtResource("7")
+accent_color = Color(0.490, 0.698, 1.000, 1)
+actions = [ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7")]
+behavior_profile = ExtResource("9")
+visual_scene = ExtResource("8")
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")

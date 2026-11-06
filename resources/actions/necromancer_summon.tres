@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/fx/necromancer_summon_circle.tscn" id="3"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -20,7 +21,8 @@ status_power = 0.00
 heal_amount = 0.0
 heal_ratio = 0.00
 summon_unit_id = &"skeleton"
-summon_count = 2
+summon_count = 1
+effect_scene = ExtResource("3")
 knockback = 0.0
 projectile_kind = 0
 duration = 0.00
@@ -28,7 +30,7 @@ duration = 0.00
 [resource]
 script = ExtResource("1")
 action_id = &"necromancer_summon"
-display_name = "亡者大军"
+display_name = "亡者召唤"
 category = 1
 target_mode = 2
 animation = &"summon"
