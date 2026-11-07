@@ -20,6 +20,7 @@ damage_ratio = 0.0
 radius = 110.0
 center_on_self = true
 status_duration = 0.9
+requires_action_hit = true
 
 [sub_resource type="Resource" id="effect_2"]
 script = ExtResource("2")
@@ -35,6 +36,7 @@ knockback = 35.0
 script = ExtResource("1")
 action_id = &"armored_orc_bash"
 display_name = "盾牌震击"
+description = "以自身为圆心震击，对被命中的敌人造成伤害、眩晕 0.9 秒并击退。"
 category = 1
 target_mode = 2
 animation = &"attack_02"

@@ -74,6 +74,7 @@ var selection_ring: UnitSelectionRing
 var visual: AnimatedSprite2D
 var health_bar: UnitHealthBar
 @onready var visual_host: Node2D = $VisualHost
+@onready var stun_fx: StunStars = $StunFX
 @onready var brain: UnitBrain = $Brain
 @onready var state_machine: UnitStateMachine = $StateMachine
 
@@ -133,6 +134,10 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	health_bar.setup(p_definition.body_radius * 1.65, GameState.team_color(team))
 	health_bar.set_ratio(1.0)
 	health_bar.set_shield_ratio(0.0)
+	# 三星眩晕特效放在血条上方，跟随单位移动；不同英雄的血条高度不同，这里统一以血条为基准。
+	if stun_fx != null:
+		stun_fx.position = Vector2(0.0, health_bar.position.y - 22.0)
+		stun_fx.stop()
 
 	brain.setup(self)
 	state_machine.setup(self)
@@ -213,7 +218,10 @@ func _physics_process(delta: float) -> void:
 		if shield_time <= 0.0:
 			shield = 0.0
 			health_bar.set_shield_ratio(0.0)
+	var was_stunned := stun_time > 0.0
 	stun_time = maxf(0.0, stun_time - delta)
+	if was_stunned and stun_time <= 0.0 and stun_fx != null:
+		stun_fx.stop()
 	slow_time = maxf(0.0, slow_time - delta)
 	if slow_time <= 0.0:
 		slow_factor = 1.0
@@ -476,9 +484,7 @@ func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
 		return
 	match effect.status_kind:
 		ActionEffectDefinition.StatusKind.STUN:
-			stun_time = maxf(stun_time, effect.status_duration)
-			if state_machine != null:
-				state_machine.transition_to(&"idle", true)
+			_enter_stun(effect.status_duration)
 		ActionEffectDefinition.StatusKind.SLOW:
 			slow_time = maxf(slow_time, effect.status_duration)
 			slow_factor = clampf(effect.status_power, 0.1, 1.0)
@@ -490,6 +496,26 @@ func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
 				bleed_source = source
 		ActionEffectDefinition.StatusKind.BURN:
 			apply_burn(effect.status_duration, effect.status_power, source)
+
+
+## 进入眩晕：立刻打断当前动作，切到受击状态并亮起头顶三星。
+## 已经处于眩晕时只刷新时长/特效，不重复打断。
+func _enter_stun(duration: float) -> void:
+	if not alive or duration <= 0.0:
+		return
+	var already_stunned := is_stunned()
+	stun_time = maxf(stun_time, duration)
+	if stun_fx != null:
+		stun_fx.position = Vector2(0.0, health_bar.position.y - 22.0)
+		stun_fx.play()
+	if state_machine != null and state_machine.current_name != &"death":
+		if state_machine.current_name == &"hurt":
+			# 技能伤害可能已经先把单位打进 Hurt；眩晕起手时重播一次受击动画。
+			play_animation(&"hurt", not already_stunned)
+		else:
+			state_machine.transition_to(&"hurt", true)
+	if battle != null:
+		battle.spawn_hit_spark(get_hit_point() + Vector2(0.0, -22.0), Color("#ffd35e"), 1.15)
 
 
 func apply_burn(duration: float, dps: float, source: Unit) -> void:
@@ -718,6 +744,8 @@ func die(killer: Unit) -> void:
 	health_bar.hide()
 	team_ring.hide()
 	selection_ring.hide()
+	if stun_fx != null:
+		stun_fx.stop()
 	shadow.modulate = Color(1.0, 1.0, 1.0, 0.4)
 	state_machine.transition_to(&"death", true)
 	died.emit(self, killer)

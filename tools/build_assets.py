@@ -461,10 +461,11 @@ def _skills_for(unit: Unit) -> list[dict]:
         skills.append(_skill("armored_orc_bash", "盾牌震击", "attack_02",
                              [_fx(shape=1, ratio=1.2, frame=5, radius=110.0, center_self=True),
                               _fx(kind=5, shape=1, frame=5, radius=110.0, center_self=True,
-                                  status_kind=0, status_duration=0.9),
+                                  status_kind=0, status_duration=0.9, requires_action_hit=True),
                               _fx(kind=6, shape=1, frame=5, radius=110.0, center_self=True,
                                   knockback=35.0)],
-                             7.0, 7, 0.0, rng, target_mode=2))
+                             7.0, 7, 0.0, rng, target_mode=2,
+                             description="以自身为圆心震击，对被命中的敌人造成伤害、眩晕 0.9 秒并击退。"))
         skills.append(_skill("armored_orc_quakeslam", "裂地", "attack_03",
                              [_fx(shape=1, ratio=1.8, frame=6, radius=150.0, center_self=True),
                               _fx(kind=5, shape=0, frame=6, status_kind=0,

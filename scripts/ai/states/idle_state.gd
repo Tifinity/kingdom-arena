@@ -13,7 +13,8 @@ func update(_delta: float) -> void:
 	if not unit.alive:
 		return
 	if unit.is_stunned():
-		unit.play_animation(&"hurt")
+		# 防御性兜底：正常路径会在施加眩晕时直接切到 Hurt。
+		machine.transition_to(&"hurt")
 		return
 	unit.face_target()
 	unit.play_animation(&"idle")

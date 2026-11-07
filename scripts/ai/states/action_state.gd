@@ -25,6 +25,10 @@ func enter(_previous: StringName) -> void:
 	if _action == null:
 		machine.transition_to(&"idle")
 		return
+	# 眩晕期间即使是旧计划也不能开始新动作。
+	if unit.is_stunned():
+		machine.transition_to(&"hurt", true)
+		return
 	# 防御性保护：同一个动作在冷却中绝不允许重复进入，避免一次技能释放两次。
 	if unit.action_cooldown(_action) > 0.001:
 		machine.transition_to(&"idle")
@@ -75,10 +79,21 @@ func enter(_previous: StringName) -> void:
 	)
 	if _action.charge_to_farthest and _action.charge_speed > 0.0:
 		_duration = maxf(_duration, unit.global_position.distance_to(_charge_destination) / _action.charge_speed)
-	_effects = _action.effects.duplicate()
-	_effects.sort_custom(func(a: ActionEffectDefinition, b: ActionEffectDefinition) -> bool:
-		return a.trigger_frame < b.trigger_frame
+	_effects.clear()
+	# 同一帧可能有多个效果（伤害 → 眩晕 → 击退）。Godot 的 sort_custom 不是稳定排序，
+	# 这里用原始下标做第二排序键，保证数据里“先伤害、后状态”的顺序不会被交换。
+	var ordered: Array = []
+	for effect_index in _action.effects.size():
+		ordered.append([_action.effects[effect_index], effect_index])
+	ordered.sort_custom(func(a: Array, b: Array) -> bool:
+		var a_frame := int(a[0].trigger_frame)
+		var b_frame := int(b[0].trigger_frame)
+		if a_frame != b_frame:
+			return a_frame < b_frame
+		return int(a[1]) < int(b[1])
 	)
+	for entry in ordered:
+		_effects.append(entry[0] as ActionEffectDefinition)
 	unit.start_action_cooldown(_action)
 	if unit.battle != null and unit.battle.has_method("register_action_cast"):
 		unit.battle.register_action_cast(unit, _action)

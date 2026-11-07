@@ -41,6 +41,7 @@ func _run_all() -> void:
 	await _test_armored_skeleton_basic_and_ultimate()
 	await _test_axeman_skills()
 	await _test_skill_effects()
+	await _test_stun_effect()
 	await _test_basic_no_interrupt()
 	await _test_necromancer()
 	await _test_battle()
@@ -1213,6 +1214,106 @@ func _test_skill_effects() -> void:
 	await get_tree().create_timer(2.6).timeout
 	GameState.reset_lineups()
 	cc_battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_stun_effect() -> void:
+	print("\n[眩晕] 三星特效/打断/盾击")
+	var orc_definition := UnitCatalog.get_definition(&"armored_orc")
+	var bash: CombatActionDefinition = null
+	for action in orc_definition.actions:
+		if action.action_id == &"armored_orc_bash":
+			bash = action
+			break
+	_check(bash != null, "重甲兽人拥有盾牌震击 Action")
+	if bash == null:
+		return
+	var stun_effect: ActionEffectDefinition = null
+	for effect in bash.effects:
+		if effect.kind == ActionEffectDefinition.Kind.STATUS \
+				and effect.status_kind == ActionEffectDefinition.StatusKind.STUN:
+			stun_effect = effect
+			break
+	_check(stun_effect != null and stun_effect.status_duration > 0.0,
+		"盾牌震击配置了眩晕状态")
+	_check(stun_effect != null and stun_effect.requires_action_hit,
+		"盾牌震击只眩晕本次实际命中的敌人")
+
+	# 特效本身：三颗星星、可播放、持续旋转、可停止。
+	var star_scene: PackedScene = load("res://scenes/fx/stun_stars.tscn")
+	_check(star_scene != null, "三星眩晕特效场景可加载")
+	if star_scene != null:
+		var stars: StunStars = star_scene.instantiate()
+		add_child(stars)
+		await get_tree().process_frame
+		_check(stars.star_count() == 3, "眩晕特效由 3 颗星星组成")
+		var start_angle := stars._angle
+		stars.play()
+		await get_tree().create_timer(0.22).timeout
+		_check(stars.visible and stars.is_playing(), "眩晕特效可以播放")
+		_check(not is_equal_approx(stars._angle, start_angle), "眩晕星星持续旋转")
+		stars.stop()
+		_check(not stars.visible, "眩晕特效可以停止")
+		stars.queue_free()
+		await get_tree().process_frame
+
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"armored_orc")
+	GameState.set_slot(1, 0, &"werebear")
+	GameState.set_slot(1, 1, &"soldier")
+	GameState.set_slot(1, 2, &"skeleton")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var orc: Unit = battle.living_units(0)[0]
+	var bear: Unit = battle.living_units(1)[0]
+	var soldier: Unit = battle.living_units(1)[1]
+	var outside: Unit = battle.living_units(1)[2]
+	for unit in battle.units:
+		unit.brain.enabled = false
+	orc.position = Vector2(700, 650)
+	bear.position = Vector2(770, 650)
+	soldier.position = Vector2(700, 720)
+	outside.position = Vector2(1100, 650)
+	var bear_hp := bear.hp
+	var soldier_hp := soldier.hp
+	var outside_hp := outside.hp
+
+	# 让目标先处于 Action 中，验证眩晕会强制打断当前动作。
+	bear.target = orc
+	bear.planned_action = bear.actions[0]
+	bear.state_machine.transition_to(&"action", true)
+	_check(bear.state_machine.current_name == &"action", "测试前目标正在执行动作")
+
+	orc.target = bear
+	orc.planned_action = bash
+	orc.state_machine.transition_to(&"action", true)
+	# attack_02 第 5 帧约 0.31 秒触发伤害/眩晕。
+	await get_tree().create_timer(0.55).timeout
+	_check(bear.hp < bear_hp and soldier.hp < soldier_hp,
+		"盾牌震击命中圆形范围内的敌人")
+	_check(bear.stun_time > 0.0 and soldier.stun_time > 0.0,
+		"盾牌震击眩晕范围内被命中的敌人")
+	_check(bear.state_machine.current_name == &"hurt",
+		"眩晕立即打断目标当前动作并进入受击状态")
+	_check(bear.current_animation() == &"hurt", "眩晕期间播放受击动画")
+	_check(bear.stun_fx.visible and bear.stun_fx.is_playing(),
+		"眩晕单位头顶出现三星特效")
+	_check(bear.stun_fx.position.y < bear.health_bar.position.y,
+		"三星特效位于血条上方（头顶）")
+	_check(outside.stun_time <= 0.0 and is_equal_approx(outside.hp, outside_hp),
+		"圆形范围外的敌人既不受伤害也不眩晕")
+
+	await get_tree().create_timer(0.95).timeout
+	_check(bear.stun_time <= 0.0 and not bear.stun_fx.visible,
+		"眩晕结束后头顶三星消失")
+	_check(bear.state_machine.current_name != &"hurt",
+		"眩晕结束后离开受击状态")
+
+	await get_tree().create_timer(3.2).timeout
+	GameState.reset_lineups()
+	battle.queue_free()
 	await get_tree().process_frame
 
 

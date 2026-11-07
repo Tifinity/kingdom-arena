@@ -225,7 +225,7 @@ func can_transition(next: StringName) -> bool
 | Idle | 重置动画速度，播 `idle` | 面向目标；读 `brain.intent` | ActionPlan 可用 → Action；推进/后撤 → Move |
 | Move | 播 `move` | 朝个人战斗位移动/后撤；面向移动方向或目标 | 到位/失去目标/意图待机 → Idle；ActionPlan 可用 → Action |
 | Action | 面向目标，播放 `plan.action.animation` | 累计动画时间；按 `trigger_frame` 执行 effects | 动画时长结束 → Idle |
-| Hurt | 强制打断当前动作，播 `hurt` | 累计 0.26s | 时间到 → Idle |
+| Hurt | 强制打断当前动作，播 `hurt`；若带眩晕则保持受击动画 | 无眩晕时累计 0.26s；眩晕时等待 `stun_time` 归零 | 硬直结束 / 眩晕结束 → Idle |
 | Death | 停用大脑、隐藏血条与队伍环、播 `death` | 无（由 Tween 淡出） | 淡出结束 → `queue_free()` |
 
 ### 受击保护
@@ -236,6 +236,17 @@ func can_transition(next: StringName) -> bool
 - 触发后 `_flinch_cooldown = 1.05s`，期间再受伤只掉血、不再硬直。
 
 更小的伤害只触发 0.09s 的红色闪烁，不打断动作。
+
+### 眩晕
+
+`STATUS` 效果中的 `STUN` 走同一条受击通道，但表现和持续时间更明确：
+
+- 立即强制切到 `Hurt`，打断 `Action`、移动、蓄力或冲锋；
+- 播放 `hurt` 动画，并在血条上方显示三颗金色星星（`scenes/fx/stun_stars.tscn`）；
+- `HurtState` 在 `unit.is_stunned()` 期间保持受击动画，眩晕时间归零后立刻回到 `Idle`；
+- 重复眩晕取剩余时间的最大值，不会叠加成无限控制；
+- 技能可要求 `requires_action_hit = true`，只对本次动作真正命中的目标施加眩晕
+  （重甲兽人·盾牌震击即为此配置）。
 
 ### 攻击节奏
 
@@ -320,7 +331,7 @@ behavior_profile: resources/behaviors/<id>.tres
   打开后显示基础攻击范围（蓝圈）和技能范围（橙色虚线圈）。
 - **暂停/变速**：`空格`暂停、`F`变速，便于观察 AI 在某一帧的选择。
 - **自动化测试**：
-  - `tests/test_runner.tscn` 264 项检查；
+  - `tests/test_runner.tscn` 282 项检查；
   - `tools/soak_test.tscn` 8 场随机阵容，检查卡死与胜负分布。
 - **可调参数**：
   - `UnitBrain.THINK_INTERVAL`：思考频率；
