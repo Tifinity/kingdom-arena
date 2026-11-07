@@ -42,6 +42,7 @@ func _run_all() -> void:
 	await _test_axeman_skills()
 	await _test_skill_effects()
 	await _test_stun_effect()
+	await _test_status_framework()
 	await _test_basic_no_interrupt()
 	await _test_necromancer()
 	await _test_battle()
@@ -1344,20 +1345,136 @@ func _test_stun_effect() -> void:
 	_check(bear.state_machine.current_name == &"hurt" and soldier.state_machine.current_name == &"hurt",
 		"眩晕立即打断所有目标的当前动作")
 	_check(bear.current_animation() == &"hurt", "眩晕期间播放受击动画")
-	_check(bear.stun_fx.visible and bear.stun_fx.is_playing()
-		and soldier.stun_fx.visible and soldier.stun_fx.is_playing(),
+	var bear_vfx := bear.status_controller.get_vfx(&"stun") as StunStars
+	var soldier_vfx := soldier.status_controller.get_vfx(&"stun") as StunStars
+	_check(bear_vfx != null and bear_vfx.visible and bear_vfx.is_playing()
+		and soldier_vfx != null and soldier_vfx.visible and soldier_vfx.is_playing(),
 		"每名眩晕单位头顶都出现三星特效")
-	_check(bear.stun_fx.position.y < bear.health_bar.position.y,
+	_check(bear_vfx != null and bear_vfx.position.y < bear.health_bar.position.y,
 		"三星特效位于血条上方（头顶）")
 	_check(outside.stun_time <= 0.0 and is_equal_approx(outside.hp, outside_hp),
 		"圆形范围外的敌人既不受伤害也不眩晕")
 
 	await get_tree().create_timer(0.95).timeout
 	_check(bear.stun_time <= 0.0 and soldier.stun_time <= 0.0
-		and not bear.stun_fx.visible and not soldier.stun_fx.visible,
+		and bear.status_controller.get_vfx(&"stun") == null
+		and soldier.status_controller.get_vfx(&"stun") == null,
 		"眩晕结束后所有头顶三星消失")
 	_check(bear.state_machine.current_name != &"hurt" and soldier.state_machine.current_name != &"hurt",
 		"眩晕结束后所有目标离开受击状态")
+
+	await get_tree().create_timer(3.2).timeout
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_status_framework() -> void:
+	print("\n[状态] 定义/叠加/中毒爆发/图标")
+	var stun_def := StatusCatalog.get_definition(&"stun")
+	var slow_def := StatusCatalog.get_definition(&"slow")
+	var bleed_def := StatusCatalog.get_definition(&"bleed")
+	var burn_def := StatusCatalog.get_definition(&"burn")
+	var poison_def := StatusCatalog.get_definition(&"poison")
+	_check(StatusCatalog.count() == 5, "状态目录包含 5 种状态")
+	_check(stun_def != null and slow_def != null and bleed_def != null
+		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
+	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,
+		"眩晕使用刷新叠加")
+	_check(bleed_def != null and bleed_def.stack_policy == StatusDefinition.StackPolicy.STRONGEST
+		and burn_def != null and burn_def.stack_policy == StatusDefinition.StackPolicy.STRONGEST,
+		"流血/燃烧只取最强")
+	_check(slow_def != null and slow_def.stack_policy == StatusDefinition.StackPolicy.STRONGEST,
+		"减速只取最强")
+	_check(poison_def != null and poison_def.stack_policy == StatusDefinition.StackPolicy.STACK
+		and poison_def.max_stacks == 5, "中毒叠层上限为 5")
+	_check(stun_def != null and stun_def.icon != null and slow_def != null and slow_def.icon != null
+		and bleed_def != null and bleed_def.icon != null
+		and burn_def != null and burn_def.icon != null
+		and poison_def != null and poison_def.icon != null, "五种状态都有占位图标")
+	var slime_definition := UnitCatalog.get_definition(&"slime")
+	var slime_acid: CombatActionDefinition = null
+	for action in slime_definition.actions:
+		if action.action_id == &"slime_acid":
+			slime_acid = action
+	var slime_has_poison := false
+	if slime_acid != null:
+		for effect in slime_acid.effects:
+			if effect.kind == ActionEffectDefinition.Kind.STATUS and effect.status_id == &"poison":
+				slime_has_poison = true
+	_check(slime_has_poison, "酸液喷吐可以附加中毒状态")
+
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"armored_orc")
+	GameState.set_slot(1, 0, &"werebear")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var source: Unit = battle.living_units(0)[0]
+	var victim: Unit = battle.living_units(1)[0]
+	for unit in battle.units:
+		unit.brain.enabled = false
+	victim.position = Vector2(900, 650)
+	source.position = Vector2(700, 650)
+	victim.hp = victim.max_hp
+	victim.health_bar.set_ratio(1.0)
+
+	# 眩晕：刷新而不是累加。
+	victim.status_controller.apply(stun_def, source, {"duration": 1.0})
+	await get_tree().create_timer(0.2).timeout
+	var stun_left := victim.status_controller.remaining(&"stun")
+	victim.status_controller.apply(stun_def, source, {"duration": 0.6})
+	_check(stun_left > 0.5 and victim.status_controller.remaining(&"stun") <= stun_left + 0.05,
+		"眩晕刷新剩余时间而不是累加")
+	_check(victim.status_controller.get_vfx(&"stun") != null, "眩晕状态自动创建三星特效")
+	battle.hud.set_selected_unit(victim)
+	await get_tree().process_frame
+	_check(battle.hud.status_row.visible and battle.hud.status_row.get_child_count() > 0,
+		"观察镜显示状态图标")
+	victim.status_controller.clear_all()
+	await get_tree().process_frame
+
+	# 流血：取最强，弱效果不会覆盖强效果。
+	victim.status_controller.apply(bleed_def, source, {"duration": 4.0, "power": 10.0})
+	victim.status_controller.apply(bleed_def, source, {"duration": 4.0, "power": 20.0})
+	victim.status_controller.apply(bleed_def, source, {"duration": 4.0, "power": 5.0})
+	_check(is_equal_approx(victim.status_controller.power(&"bleed"), 20.0)
+		and victim.status_controller.remaining(&"bleed") > 3.5,
+		"流血只保留最强伤害并刷新持续时间")
+	victim.status_controller.clear_all()
+
+	# 燃烧：同样取最强。
+	victim.status_controller.apply(burn_def, source, {"duration": 3.0, "power": 10.0})
+	victim.status_controller.apply(burn_def, source, {"duration": 3.0, "power": 18.0})
+	victim.status_controller.apply(burn_def, source, {"duration": 3.0, "power": 6.0})
+	_check(is_equal_approx(victim.status_controller.power(&"burn"), 18.0),
+		"燃烧只保留最强伤害")
+	victim.status_controller.clear_all()
+
+	# 减速：0.5 比 0.7 更强，0.8 不会覆盖 0.5。
+	victim.status_controller.apply(slow_def, source, {"duration": 2.0, "power": 0.7})
+	victim.status_controller.apply(slow_def, source, {"duration": 2.0, "power": 0.5})
+	victim.status_controller.apply(slow_def, source, {"duration": 2.0, "power": 0.8})
+	_check(is_equal_approx(victim.status_controller.modify_stat(&"move_speed", 1.0), 0.5),
+		"减速只保留最强倍率")
+	victim.status_controller.clear_all()
+
+	# 中毒：叠到 5 层立即结算剩余 DoT 并移除。
+	victim.hp = victim.max_hp
+	victim.health_bar.set_ratio(1.0)
+	var poison_hp := victim.hp
+	for index in 4:
+		victim.status_controller.apply(poison_def, source, {"duration": 4.0, "power": 0.02})
+	_check(victim.status_controller.stacks(&"poison") == 4 and victim.status_controller.has_status(&"poison"),
+		"中毒可以叠到 4 层")
+	victim.status_controller.apply(poison_def, source, {"duration": 4.0, "power": 0.02})
+	_check(not victim.status_controller.has_status(&"poison") and victim.hp < poison_hp
+		and victim.alive, "中毒满 5 层立即引爆剩余伤害并移除")
+	var poison_effect := ActionEffectDefinition.new()
+	poison_effect.status_id = &"poison"
+	_check(StatusCatalog.definition_for_effect(poison_effect) == poison_def,
+		"ActionEffect 可通过 status_id 引用中毒定义")
 
 	await get_tree().create_timer(3.2).timeout
 	GameState.reset_lineups()
@@ -1582,7 +1699,8 @@ func _run_battle(label: String) -> void:
 			if unit_id == null:
 				continue
 			var definition: UnitDefinition = UnitCatalog.get_definition(unit_id)
-			if definition != null and definition.is_ranged():
+			if definition != null and definition.is_ranged() \
+					and definition.projectile_kind != UnitDefinition.ProjectileKind.NONE:
 				lineup_has_ranged = true
 	for unit in battle.units:
 		var record := Callable(self, "_record_state").bind(unit, states_seen, attack_units)

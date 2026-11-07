@@ -6,6 +6,7 @@ extends CanvasLayer
 var battle: Battle
 var selected_unit: Unit
 var _refresh_accum := 0.0
+var status_row: HBoxContainer
 var debug_panel: PanelContainer
 var debug_fields: Dictionary = {}
 const DEBUG_FIELD_DEFS := [
@@ -67,6 +68,7 @@ func _ready() -> void:
 	exit_button.pressed.connect(_on_exit_pressed)
 	rematch_button.pressed.connect(_on_rematch_pressed)
 	back_button.pressed.connect(_on_back_pressed)
+	_build_status_row()
 	_build_debug_panel()
 	refresh_controls()
 
@@ -186,10 +188,52 @@ func set_selected_unit(unit: Unit) -> void:
 	selected_unit = unit
 	inspector.visible = unit != null
 	hint_label.visible = unit == null
-	if unit != null:
+	if unit == null:
+		_update_status_icons([])
+	elif unit != null:
 		_update_inspector()
 	if debug_panel != null and debug_panel.visible:
 		_sync_debug_panel()
+
+
+func _build_status_row() -> void:
+	status_row = HBoxContainer.new()
+	status_row.name = "StatusRow"
+	status_row.add_theme_constant_override("separation", 4)
+	status_row.visible = false
+	var vbox := $Root/Inspector/Margin/VBox
+	vbox.add_child(status_row)
+	vbox.move_child(status_row, inspector_hp.get_index() + 1)
+
+
+func _update_status_icons(statuses: Array) -> void:
+	if status_row == null:
+		return
+	for child in status_row.get_children():
+		status_row.remove_child(child)
+		child.queue_free()
+	status_row.visible = not statuses.is_empty()
+	for data in statuses:
+		var box := HBoxContainer.new()
+		box.add_theme_constant_override("separation", 1)
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(22, 22)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = data.get("icon")
+		icon.tooltip_text = "%s" % data.get("display_name", "状态")
+		box.add_child(icon)
+		var stacks := int(data.get("stacks", 1))
+		if stacks > 1:
+			var stack_label := Label.new()
+			stack_label.text = "×%d" % stacks
+			stack_label.add_theme_font_size_override("font_size", 11)
+			stack_label.add_theme_color_override("font_color", Color("#e7c46b"))
+			box.add_child(stack_label)
+		box.tooltip_text = "%s · 剩余 %.1f 秒" % [
+			data.get("display_name", "状态"), float(data.get("remaining", 0.0))
+		]
+		status_row.add_child(box)
 
 
 func _build_debug_panel() -> void:
@@ -299,6 +343,7 @@ func _update_inspector() -> void:
 		snapshot.hp, snapshot.shield, float(snapshot.shield_time), snapshot.target,
 		snapshot.mana, snapshot.attack_range, snapshot.skill_range,
 	]
+	_update_status_icons(snapshot.get("statuses", []))
 	var skill_lines: Array[String] = []
 	for action in selected_unit.actions:
 		if action == null or action.category == CombatActionDefinition.Category.BASIC:

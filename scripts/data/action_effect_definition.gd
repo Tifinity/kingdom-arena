@@ -28,11 +28,15 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 ## 圆形 AOE 是否以自身为中心（否则以当前目标为中心）。
 @export var center_on_self := false
 
-## 状态效果：0 眩晕，1 减速，2 流血。
+## 状态效果：0 眩晕，1 减速，2 流血，3 燃烧（旧数据兼容）。
 @export var status_kind: int = StatusKind.STUN
+## 新数据优先使用 status_id 引用 resources/status 下的定义，例如 &"poison"。
+@export var status_id: StringName = &""
 @export var status_duration: float = 0.0
-## 减速为速度倍率；流血为每秒伤害。
+## 旧语义：减速为速度倍率；流血/燃烧为每秒伤害。新状态由 StatusBehavior 解释。
 @export var status_power: float = 0.0
+## 施加层数；中毒等可叠层状态使用。
+@export var status_stacks := 1
 ## 状态只作用于本次动作已命中的目标，用于连斩后的流血等效果。
 @export var requires_action_hit := false
 ## 伤害效果命中后附加的火焰 DOT；每秒伤害 = 攻击力 × 倍率。

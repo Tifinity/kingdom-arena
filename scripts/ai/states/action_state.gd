@@ -25,9 +25,12 @@ func enter(_previous: StringName) -> void:
 	if _action == null:
 		machine.transition_to(&"idle")
 		return
-	# 眩晕期间即使是旧计划也不能开始新动作。
-	if unit.is_stunned():
+	# 被硬控期间即使是旧计划也不能开始新动作。
+	if not unit.can_act():
 		machine.transition_to(&"hurt", true)
+		return
+	if _action.category != CombatActionDefinition.Category.BASIC and not unit.can_use_skill():
+		machine.transition_to(&"idle")
 		return
 	# 防御性保护：同一个动作在冷却中绝不允许重复进入，避免一次技能释放两次。
 	if unit.action_cooldown(_action) > 0.001:

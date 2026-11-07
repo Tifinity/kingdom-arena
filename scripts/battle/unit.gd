@@ -25,17 +25,22 @@ var shield_time := 0.0
 var _action_hit_targets: Dictionary = {}
 var summoned := false
 var last_heal_amount := 0.0
-var stun_time := 0.0
-var slow_time := 0.0
-var slow_factor := 1.0
-var bleed_time := 0.0
-var bleed_dps := 0.0
-var bleed_source: Unit
-var _bleed_tick := 0.0
-var burn_time := 0.0
-var burn_dps := 0.0
-var burn_source: Unit
-var _burn_tick := 0.0
+## 兼容旧测试/UI 的只读视图；真实状态数据在 StatusController 的 StatusInstance 里。
+var stun_time: float:
+	get:
+		return status_controller.remaining(&"stun") if status_controller != null else 0.0
+var slow_time: float:
+	get:
+		return status_controller.remaining(&"slow") if status_controller != null else 0.0
+var slow_factor: float:
+	get:
+		return status_controller.modify_stat(&"move_speed", 1.0) if status_controller != null else 1.0
+var bleed_time: float:
+	get:
+		return status_controller.remaining(&"bleed") if status_controller != null else 0.0
+var burn_time: float:
+	get:
+		return status_controller.remaining(&"burn") if status_controller != null else 0.0
 var attack_damage := 10.0
 var attack_interval := 1.0
 var attack_range := 80.0
@@ -74,9 +79,14 @@ var selection_ring: UnitSelectionRing
 var visual: AnimatedSprite2D
 var health_bar: UnitHealthBar
 @onready var visual_host: Node2D = $VisualHost
-@onready var stun_fx: StunStars = $StunFX
+@onready var status_controller: UnitStatusController = $StatusController
 @onready var brain: UnitBrain = $Brain
 @onready var state_machine: UnitStateMachine = $StateMachine
+
+## 兼容旧测试/表现代码；眩晕 VFX 现在由 StatusController 根据 StatusDefinition 创建。
+var stun_fx: StunStars:
+	get:
+		return status_controller.get_vfx(&"stun") as StunStars if status_controller != null else null
 
 
 func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinition) -> void:
@@ -134,11 +144,7 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	health_bar.setup(p_definition.body_radius * 1.65, GameState.team_color(team))
 	health_bar.set_ratio(1.0)
 	health_bar.set_shield_ratio(0.0)
-	# 三星眩晕特效放在血条上方，跟随单位移动；不同英雄的血条高度不同，这里统一以血条为基准。
-	if stun_fx != null:
-		stun_fx.position = Vector2(0.0, health_bar.position.y - 22.0)
-		stun_fx.stop()
-
+	status_controller.setup(self)
 	brain.setup(self)
 	state_machine.setup(self)
 	initialized = true
@@ -192,7 +198,7 @@ func _process(delta: float) -> void:
 			visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
 		elif shield > 0.0:
 			visual.modulate = Color(0.72, 0.92, 1.0, 1.0)
-		elif burn_time > 0.0:
+		elif status_controller.has_status(&"burn"):
 			visual.modulate = Color(1.0, 0.65, 0.35, 1.0)
 		else:
 			visual.modulate = Color.WHITE
@@ -200,7 +206,7 @@ func _process(delta: float) -> void:
 		visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
 	elif shield > 0.0:
 		visual.modulate = Color(0.72, 0.92, 1.0, 1.0)
-	elif burn_time > 0.0:
+	elif status_controller.has_status(&"burn"):
 		visual.modulate = Color(1.0, 0.65, 0.35, 1.0)
 	else:
 		visual.modulate = Color.WHITE
@@ -218,35 +224,6 @@ func _physics_process(delta: float) -> void:
 		if shield_time <= 0.0:
 			shield = 0.0
 			health_bar.set_shield_ratio(0.0)
-	var was_stunned := stun_time > 0.0
-	stun_time = maxf(0.0, stun_time - delta)
-	if was_stunned and stun_time <= 0.0 and stun_fx != null:
-		stun_fx.stop()
-	slow_time = maxf(0.0, slow_time - delta)
-	if slow_time <= 0.0:
-		slow_factor = 1.0
-	if bleed_time > 0.0 and bleed_dps > 0.0:
-		var valid_bleed_source: Unit = bleed_source if is_instance_valid(bleed_source) else null
-		var bleed_active := minf(delta, bleed_time)
-		bleed_time = maxf(0.0, bleed_time - delta)
-		_bleed_tick += bleed_active
-		while _bleed_tick >= 0.5 and alive:
-			_bleed_tick -= 0.5
-			take_damage(bleed_dps * 0.5, valid_bleed_source, get_hit_point(), false)
-		if bleed_time <= 0.0 and _bleed_tick > 0.0 and alive:
-			take_damage(bleed_dps * _bleed_tick, valid_bleed_source, get_hit_point(), false)
-			_bleed_tick = 0.0
-	if burn_time > 0.0 and burn_dps > 0.0:
-		var valid_burn_source: Unit = burn_source if is_instance_valid(burn_source) else null
-		var active := minf(delta, burn_time)
-		burn_time = maxf(0.0, burn_time - delta)
-		_burn_tick += active
-		while _burn_tick >= 0.5 and alive:
-			_burn_tick -= 0.5
-			take_damage(burn_dps * 0.5, valid_burn_source, get_hit_point(), false)
-		if burn_time <= 0.0 and _burn_tick > 0.0 and alive:
-			take_damage(burn_dps * _burn_tick, valid_burn_source, get_hit_point(), false)
-			_burn_tick = 0.0
 	_flinch_cooldown = maxf(0.0, _flinch_cooldown - delta)
 
 
@@ -474,24 +451,46 @@ func battle_active() -> bool:
 
 
 func move_step(direction: Vector2, delta: float) -> void:
-	if direction.length_squared() < 0.0001 or is_stunned():
+	if direction.length_squared() < 0.0001 or not can_move():
 		return
-	var speed := move_speed * (slow_factor if slow_time > 0.0 else 1.0)
+	var speed := status_controller.modify_stat(&"move_speed", move_speed)
 	position += direction.normalized() * speed * delta
 	position = battle.clamp_unit_position(position)
 
 
 func advance_step(direction: Vector2, speed: float, delta: float) -> void:
-	if direction.length_squared() < 0.0001 or speed <= 0.0 or is_stunned():
+	if direction.length_squared() < 0.0001 or speed <= 0.0 or not can_move():
 		return
-	var factor := slow_factor if slow_time > 0.0 else 1.0
+	var factor := status_controller.modify_stat(&"move_speed", 1.0)
 	position += direction.normalized() * speed * factor * delta
 	if battle != null:
 		position = battle.clamp_unit_position(position)
 
 
 func is_stunned() -> bool:
-	return stun_time > 0.0
+	return status_controller != null and status_controller.has_status(&"stun")
+
+
+func can_move() -> bool:
+	return status_controller == null or status_controller.can_move()
+
+
+func can_act() -> bool:
+	return status_controller == null or status_controller.can_act()
+
+
+func can_use_skill() -> bool:
+	return status_controller == null or status_controller.can_use_skill()
+
+
+## 控制类状态施加时调用：打断当前动作并进入受击姿态。
+func interrupt_current_action() -> void:
+	if not alive or state_machine == null or state_machine.current_name == &"death":
+		return
+	if state_machine.current_name == &"hurt":
+		play_animation(&"hurt", true)
+	else:
+		state_machine.transition_to(&"hurt", true)
 
 
 func is_charging() -> bool:
@@ -521,53 +520,28 @@ func heal(amount: float, healer: Unit = null) -> void:
 
 
 func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
-	if not alive or effect == null:
+	if not alive or effect == null or status_controller == null:
 		return
-	match effect.status_kind:
-		ActionEffectDefinition.StatusKind.STUN:
-			_enter_stun(effect.status_duration)
-		ActionEffectDefinition.StatusKind.SLOW:
-			slow_time = maxf(slow_time, effect.status_duration)
-			slow_factor = clampf(effect.status_power, 0.1, 1.0)
-		ActionEffectDefinition.StatusKind.BLEED:
-			var was_bleeding := bleed_time > 0.0
-			bleed_time = maxf(bleed_time, effect.status_duration)
-			if not was_bleeding or effect.status_power >= bleed_dps:
-				bleed_dps = effect.status_power
-				bleed_source = source
-		ActionEffectDefinition.StatusKind.BURN:
-			apply_burn(effect.status_duration, effect.status_power, source)
-
-
-## 进入眩晕：立刻打断当前动作，切到受击状态并亮起头顶三星。
-## 已经处于眩晕时只刷新时长/特效，不重复打断。
-func _enter_stun(duration: float) -> void:
-	if not alive or duration <= 0.0:
+	var definition := StatusCatalog.definition_for_effect(effect)
+	if definition == null:
+		push_warning("未找到状态定义: %s" % effect.status_id)
 		return
-	var already_stunned := is_stunned()
-	stun_time = maxf(stun_time, duration)
-	if stun_fx != null:
-		stun_fx.position = Vector2(0.0, health_bar.position.y - 22.0)
-		stun_fx.play()
-	if state_machine != null and state_machine.current_name != &"death":
-		if state_machine.current_name == &"hurt":
-			# 技能伤害可能已经先把单位打进 Hurt；眩晕起手时重播一次受击动画。
-			play_animation(&"hurt", not already_stunned)
-		else:
-			state_machine.transition_to(&"hurt", true)
-	if battle != null:
-		battle.spawn_hit_spark(get_hit_point() + Vector2(0.0, -22.0), Color("#ffd35e"), 1.15)
+	var duration := effect.status_duration if effect.status_duration > 0.0 else definition.duration
+	var power := effect.status_power if effect.status_power > 0.0 else definition.base_power
+	status_controller.apply(definition, source, {
+		"duration": duration,
+		"power": power,
+		"stacks": effect.status_stacks,
+	})
 
 
 func apply_burn(duration: float, dps: float, source: Unit) -> void:
-	if not alive or duration <= 0.0 or dps <= 0.0:
+	if not alive or status_controller == null or duration <= 0.0 or dps <= 0.0:
 		return
-	# 重复命中刷新时长；取较强的火焰，不把多个来源无限叠加。
-	if dps >= burn_dps or burn_time <= 0.0:
-		burn_dps = dps
-		burn_source = source
-	burn_time = duration
-	_burn_tick = 0.0
+	var definition := StatusCatalog.get_definition(&"burn")
+	if definition == null:
+		return
+	status_controller.apply(definition, source, {"duration": duration, "power": dps})
 
 
 func hit_by_action(victim: Unit, action: CombatActionDefinition, effect: ActionEffectDefinition) -> void:
@@ -728,7 +702,7 @@ func is_guarding() -> bool:
 	return guard_time > 0.0
 
 
-func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, can_interrupt := true) -> void:
+func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, can_interrupt := true, ignore_armor := false, ignore_shield := false) -> void:
 	if not alive or raw_amount <= 0.0:
 		return
 	if guard_time > 0.0:
@@ -739,8 +713,8 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 		battle.spawn_hit_spark(block_at, Color("#e7c46b"), 1.8)
 		battle.spawn_block_text(block_at)
 		return
-	var amount := raw_amount * (1.0 - clampf(armor, 0.0, 0.8))
-	if shield > 0.0:
+	var amount := raw_amount if ignore_armor else raw_amount * (1.0 - clampf(armor, 0.0, 0.8))
+	if shield > 0.0 and not ignore_shield:
 		var absorbed := minf(shield, amount)
 		shield -= absorbed
 		amount -= absorbed
@@ -775,7 +749,8 @@ func die(killer: Unit) -> void:
 	shield = 0.0
 	shield_time = 0.0
 	health_bar.set_shield_ratio(0.0)
-	burn_time = 0.0
+	if status_controller != null:
+		status_controller.clear_all()
 	target = null
 	brain.enabled = false
 	brain.last_observe_text = "生命归零，已失去感知"
@@ -785,8 +760,6 @@ func die(killer: Unit) -> void:
 	health_bar.hide()
 	team_ring.hide()
 	selection_ring.hide()
-	if stun_fx != null:
-		stun_fx.stop()
 	shadow.modulate = Color(1.0, 1.0, 1.0, 0.4)
 	state_machine.transition_to(&"death", true)
 	died.emit(self, killer)
@@ -867,5 +840,6 @@ func ai_snapshot() -> Dictionary:
 		"stun": "%.1f" % stun_time,
 		"slow": "%.1f" % slow_time,
 		"bleed": "%.1f" % bleed_time,
+		"statuses": status_controller.snapshot() if status_controller != null else [],
 		"alive": alive,
 	}

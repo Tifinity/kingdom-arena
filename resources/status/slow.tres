@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="StatusDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/status/status_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/status/behaviors/stat_modifier_behavior.gd" id="2"]
+[ext_resource type="Texture2D" path="res://assets/status/slow.png" id="3"]
+
+[sub_resource type="Resource" id="behavior"]
+script = ExtResource("2")
+stat = &"move_speed"
+mode = 0
+stronger_when_lower = true
+
+[resource]
+script = ExtResource("1")
+id = &"slow"
+display_name = "减速"
+description = "移动速度降低，只保留最强的一次减速。"
+icon = ExtResource("3")
+tags = Array[StringName]([&"debuff", &"slow"])
+duration = 2.5
+tick_interval = 0.0
+max_stacks = 1
+stack_policy = 2
+source_scoped = false
+base_power = 0.55
+behavior = SubResource("behavior")
+vfx_offset = Vector2(0, -22)

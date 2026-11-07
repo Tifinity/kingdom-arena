@@ -92,8 +92,12 @@ func detail_text() -> String:
 			ActionEffectDefinition.Kind.SUMMON:
 				parts.append("召唤 %d 名单位" % effect.summon_count)
 			ActionEffectDefinition.Kind.STATUS:
-				var status := ["眩晕", "减速", "流血", "灼烧"]
-				parts.append("附加%s %.1f 秒" % [status[clampi(effect.status_kind, 0, 3)], effect.status_duration])
+				var status_definition := StatusCatalog.definition_for_effect(effect)
+				var status_name := status_definition.display_name if status_definition != null else "状态"
+				var status_text := "附加%s %.1f 秒" % [status_name, effect.status_duration]
+				if effect.status_stacks > 1:
+					status_text += " ×%d" % effect.status_stacks
+				parts.append(status_text)
 			ActionEffectDefinition.Kind.DISPLACE:
 				parts.append("击退 %.0f 像素" % effect.knockback)
 	if advance_speed > 0.0:
