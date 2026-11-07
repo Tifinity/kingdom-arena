@@ -6,6 +6,17 @@ extends CanvasLayer
 var battle: Battle
 var selected_unit: Unit
 var _refresh_accum := 0.0
+var debug_panel: PanelContainer
+var debug_fields: Dictionary = {}
+const DEBUG_FIELD_DEFS := [
+	["max_hp", "生命上限", 100.0, 5000.0, 10.0],
+	["attack_damage", "攻击力", 1.0, 1000.0, 1.0],
+	["attack_speed", "攻速/秒", 0.05, 10.0, 0.05],
+	["attack_range", "攻击距离", 10.0, 2000.0, 5.0],
+	["armor", "护甲 %", 0.0, 80.0, 1.0],
+	["move_speed", "移动速度", 10.0, 800.0, 5.0],
+	["mana_regen", "每秒回蓝", 0.0, 50.0, 1.0],
+]
 
 @onready var blue_name: Label = $Root/TopBar/Margin/Row/BlueTeam/BlueHeader/BlueName
 @onready var blue_alive: Label = $Root/TopBar/Margin/Row/BlueTeam/BlueHeader/BlueAlive
@@ -56,6 +67,7 @@ func _ready() -> void:
 	exit_button.pressed.connect(_on_exit_pressed)
 	rematch_button.pressed.connect(_on_rematch_pressed)
 	back_button.pressed.connect(_on_back_pressed)
+	_build_debug_panel()
 	refresh_controls()
 
 
@@ -76,6 +88,18 @@ func _unhandled_input(event: InputEvent) -> void:
 			battle._select_at(world_point)
 			get_viewport().set_input_as_handled()
 			return
+	if event is InputEventKey:
+		var key := event as InputEventKey
+		if key.pressed and not key.echo and key.keycode == KEY_F2:
+			debug_panel.visible = not debug_panel.visible
+			if debug_panel.visible:
+				_sync_debug_panel()
+			get_viewport().set_input_as_handled()
+			return
+	if debug_panel.visible and event.is_action_pressed("ui_cancel"):
+		debug_panel.visible = false
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause"):
 		battle.toggle_pause()
 		get_viewport().set_input_as_handled()
@@ -164,6 +188,100 @@ func set_selected_unit(unit: Unit) -> void:
 	hint_label.visible = unit == null
 	if unit != null:
 		_update_inspector()
+	if debug_panel != null and debug_panel.visible:
+		_sync_debug_panel()
+
+
+func _build_debug_panel() -> void:
+	debug_panel = PanelContainer.new()
+	debug_panel.name = "StatDebugPanel"
+	debug_panel.visible = false
+	debug_panel.z_index = 100
+	debug_panel.anchor_left = 1.0
+	debug_panel.anchor_right = 1.0
+	debug_panel.offset_left = -356.0
+	debug_panel.offset_right = -16.0
+	debug_panel.offset_top = 92.0
+	debug_panel.offset_bottom = 470.0
+	debug_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	$Root.add_child(debug_panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_right", 14)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	debug_panel.add_child(margin)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	margin.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "属性调试（F2 关闭）"
+	title.add_theme_color_override("font_color", Color("#e7c46b"))
+	vbox.add_child(title)
+	var hint := Label.new()
+	hint.text = "仅修改当前场上单位，点应用立即生效"
+	hint.add_theme_color_override("font_color", Color("#93a0b4"))
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(hint)
+
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 4)
+	vbox.add_child(grid)
+	for def in DEBUG_FIELD_DEFS:
+		var caption := Label.new()
+		caption.text = def[1]
+		grid.add_child(caption)
+		var spin := SpinBox.new()
+		spin.min_value = def[2]
+		spin.max_value = def[3]
+		spin.step = def[4]
+		spin.allow_greater = true
+		spin.custom_minimum_size = Vector2(132, 0)
+		grid.add_child(spin)
+		debug_fields[def[0]] = spin
+
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 8)
+	vbox.add_child(buttons)
+	var apply_button := Button.new()
+	apply_button.text = "应用"
+	apply_button.pressed.connect(_on_debug_apply)
+	buttons.add_child(apply_button)
+	var close_button := Button.new()
+	close_button.text = "关闭"
+	close_button.pressed.connect(func() -> void: debug_panel.visible = false)
+	buttons.add_child(close_button)
+
+
+func _sync_debug_panel() -> void:
+	if selected_unit == null or not is_instance_valid(selected_unit):
+		return
+	debug_fields["max_hp"].value = selected_unit.max_hp
+	debug_fields["attack_damage"].value = selected_unit.attack_damage
+	debug_fields["attack_speed"].value = 1.0 / maxf(selected_unit.attack_interval, 0.001)
+	debug_fields["attack_range"].value = selected_unit.attack_range
+	debug_fields["armor"].value = selected_unit.armor * 100.0
+	debug_fields["move_speed"].value = selected_unit.move_speed
+	debug_fields["mana_regen"].value = selected_unit.mana_regen
+
+
+func _on_debug_apply() -> void:
+	if selected_unit == null or not is_instance_valid(selected_unit):
+		return
+	selected_unit.apply_debug_stats({
+		"max_hp": debug_fields["max_hp"].value,
+		"attack_damage": debug_fields["attack_damage"].value,
+		"attack_speed": debug_fields["attack_speed"].value,
+		"attack_range": debug_fields["attack_range"].value,
+		"armor": debug_fields["armor"].value / 100.0,
+		"move_speed": debug_fields["move_speed"].value,
+		"mana_regen": debug_fields["mana_regen"].value,
+	})
+	_update_inspector()
 
 
 func _update_inspector() -> void:

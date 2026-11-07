@@ -390,6 +390,47 @@ func spend_mana(action: CombatActionDefinition) -> void:
 	mana = maxf(0.0, mana - action.mana_cost)
 
 
+## 战斗/Hero Lab 调试：把数值直接应用到当前单位，并同步基础攻击 Action/UI。
+func apply_debug_stats(stats: Dictionary) -> void:
+	if not alive:
+		return
+	var old_max_hp := max_hp
+	var old_range := attack_range
+	var old_ratio := hp / max_hp if max_hp > 0.0 else 1.0
+	if stats.has("max_hp"):
+		max_hp = maxf(1.0, float(stats["max_hp"]))
+		hp = clampf(max_hp * old_ratio, 1.0, max_hp)
+		if battle != null and battle.has_method("team_max_hp_total"):
+			battle.team_max_hp_total[team] += max_hp - old_max_hp
+	if stats.has("attack_damage"):
+		attack_damage = maxf(1.0, float(stats["attack_damage"]))
+	if stats.has("attack_speed"):
+		attack_interval = 1.0 / clampf(float(stats["attack_speed"]), 0.05, 20.0)
+	if stats.has("attack_range"):
+		attack_range = clampf(float(stats["attack_range"]), 10.0, 2000.0)
+	if stats.has("armor"):
+		armor = clampf(float(stats["armor"]), 0.0, 0.8)
+	if stats.has("move_speed"):
+		move_speed = clampf(float(stats["move_speed"]), 10.0, 800.0)
+	if stats.has("mana_regen"):
+		mana_regen = clampf(float(stats["mana_regen"]), 0.0, 100.0)
+	if stats.has("max_mana"):
+		max_mana = maxf(0.0, float(stats["max_mana"]))
+		mana = minf(mana, max_mana)
+	for index in actions.size():
+		var action := actions[index]
+		if action == null or action.category != CombatActionDefinition.Category.BASIC:
+			continue
+		var copy: CombatActionDefinition = action.duplicate()
+		copy.cooldown = attack_interval
+		if is_equal_approx(action.action_range, old_range):
+			copy.action_range = attack_range
+		actions[index] = copy
+		action_cooldowns[copy.action_id] = 0.0
+	health_bar.set_ratio(hp / max_hp)
+	selection_ring.set_combat_ranges(attack_range, _max_action_range())
+
+
 func action_cooldown(action: CombatActionDefinition) -> float:
 	if action == null:
 		return 0.0

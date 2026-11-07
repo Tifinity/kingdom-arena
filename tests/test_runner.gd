@@ -46,6 +46,7 @@ func _run_all() -> void:
 	await _test_necromancer()
 	await _test_battle()
 	await _test_extra_lineup()
+	await _test_stat_editor()
 
 
 func _test_catalog() -> void:
@@ -129,6 +130,26 @@ func _test_catalog() -> void:
 			if shape_reach > 0.0 and not is_equal_approx(action.action_range, shape_reach):
 				bad_aoe_range.append("%s/%s" % [definition.unit_id, action.action_id])
 	_check(bad_aoe_range.is_empty(), "所有扇形/矩形技能的释放距离与实际伤害范围一致")
+
+	var expected_ranged := {
+		&"archer": 510.0, &"priest": 465.0, &"wizard": 540.0,
+		&"skeleton_archer": 495.0, &"necromancer": 525.0,
+	}
+	var ranged_range_ok := true
+	var ranged_basic_ok := true
+	for unit_id in expected_ranged:
+		var definition := UnitCatalog.get_definition(unit_id)
+		if definition == null or not is_equal_approx(definition.attack_range, expected_ranged[unit_id]):
+			ranged_range_ok = false
+			continue
+		var basic: CombatActionDefinition = null
+		for action in definition.actions:
+			if action.action_id == (&"%s_basic" % unit_id) or action.action_id == &"necromancer_ghostfire":
+				basic = action
+		if basic == null or not is_equal_approx(basic.action_range, expected_ranged[unit_id]):
+			ranged_basic_ok = false
+	_check(ranged_range_ok, "所有远程单位的射程为原来的 1.5 倍")
+	_check(ranged_basic_ok, "所有远程单位的基础攻击距离同步为 1.5 倍")
 
 	var knight_definition := UnitCatalog.get_definition(&"knight")
 	var archer_definition := UnitCatalog.get_definition(&"archer")
@@ -238,6 +259,13 @@ func _test_hero_lab() -> void:
 	lab._play_animation(&"attack_01")
 	_check(lab.current_anim.text.begins_with("普攻1"), "手动播放普攻动画并更新状态标签")
 	_check(lab.preview_unit.current_animation() == &"attack_01", "预览单位实际切到 attack_01")
+	var original_attack := wizard.attack_damage
+	lab.stat_atk.value = 77.0
+	await get_tree().process_frame
+	_check(is_equal_approx(wizard.attack_damage, 77.0) and is_equal_approx(lab.preview_unit.attack_damage, 77.0),
+		"在属性展示 SpinBox 上修改立即生效")
+	lab.stat_atk.value = original_attack
+	await get_tree().process_frame
 	lab.queue_free()
 	await get_tree().process_frame
 	GameState.reset_lineups()
@@ -1393,9 +1421,9 @@ func _test_necromancer() -> void:
 		and not scythe.effects.is_empty() and scythe.effects[0].kind == ActionEffectDefinition.Kind.DAMAGE,
 		"近战使用 attack01 镰刀")
 	_check(ghostfire.animation == &"attack_02" and ghostfire.min_range >= 100.0
-		and not ghostfire.effects.is_empty() and ghostfire.effects[0].kind == ActionEffectDefinition.Kind.PROJECTILE
-		and ghostfire.effects[0].projectile_kind == UnitDefinition.ProjectileKind.GHOSTFIRE,
-		"远程使用 attack02 锁定鬼火")
+		and not ghostfire.effects.is_empty() and ghostfire.effects[0].kind == ActionEffectDefinition.Kind.DAMAGE
+		and ghostfire.effects[0].effect_scene != null,
+		"远程使用 attack02 在目标位置生成鬼火")
 	_check(not summon.effects.is_empty() and summon.effects[0].kind == ActionEffectDefinition.Kind.SUMMON
 		and summon.effects[0].summon_count == 1 and summon.effects[0].effect_scene != null,
 		"大招召唤 1 只骷髅并带魔法阵特效")
@@ -1433,8 +1461,8 @@ func _test_necromancer() -> void:
 		necro.planned_action = ghostfire
 		necro.state_machine.transition_to(&"action", true)
 		await get_tree().create_timer(0.9).timeout
-		_check(battle.projectiles_fired > projectiles_before and target.hp < hp_before,
-			"鬼火投射物实际发射并命中")
+		_check(battle.projectiles_fired == projectiles_before and target.hp < hp_before,
+			"鬼火直接在目标位置生成并命中，不发射飞行物")
 
 		# 召唤完整流程：魔法阵 + 骷髅 summon 动画 + 正常行动。
 		necro.mana = necro.max_mana
@@ -1451,6 +1479,47 @@ func _test_necromancer() -> void:
 		_check(summoned != null and not summoned.brain.enabled, "召唤骷髅先播放 summon 动画")
 		await get_tree().create_timer(1.1).timeout
 		_check(summoned != null and summoned.brain.enabled, "召唤动画结束后骷髅恢复行动")
+	await get_tree().create_timer(3.2).timeout
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_stat_editor() -> void:
+	print("\n[10] 属性调试立即生效")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight")
+	GameState.set_slot(1, 0, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	_check(battle.hud != null and battle.hud.debug_panel != null, "战斗内 F2 属性调试面板已创建")
+	var unit: Unit = null
+	for fighter in battle.units:
+		if fighter.team == 0:
+			unit = fighter
+	if unit != null:
+		unit.brain.enabled = false
+		var old_ratio := unit.hp / unit.max_hp
+		unit.apply_debug_stats({
+			"max_hp": 1200.0, "attack_damage": 120.0, "attack_speed": 2.0,
+			"attack_range": 140.0, "armor": 0.30, "move_speed": 150.0,
+			"mana_regen": 12.0,
+		})
+		_check(is_equal_approx(unit.max_hp, 1200.0) and is_equal_approx(unit.hp / unit.max_hp, old_ratio)
+			and is_equal_approx(unit.attack_damage, 120.0) and is_equal_approx(unit.attack_interval, 0.5)
+			and is_equal_approx(unit.attack_range, 140.0) and is_equal_approx(unit.armor, 0.30)
+			and is_equal_approx(unit.move_speed, 150.0) and is_equal_approx(unit.mana_regen, 12.0),
+			"战斗内属性修改立即写入 Unit")
+		var new_basic: CombatActionDefinition = null
+		for action in unit.actions:
+			if action.category == CombatActionDefinition.Category.BASIC:
+				new_basic = action
+				break
+		_check(new_basic != null and is_equal_approx(new_basic.cooldown, 0.5)
+			and is_equal_approx(new_basic.action_range, 140.0),
+			"战斗内修改同步基础攻击冷却与距离")
 	await get_tree().create_timer(3.2).timeout
 	GameState.reset_lineups()
 	battle.queue_free()

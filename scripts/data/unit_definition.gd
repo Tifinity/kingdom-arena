@@ -77,6 +77,37 @@ const FACTION_NAMES := {
 @export var accent_color: Color = Color("#f0b36b")
 
 
+## 调试/Hero Lab：同时修改定义与基础 Action，供后续生成的单位使用。
+func apply_stat_override(stats: Dictionary) -> void:
+	var old_range := attack_range
+	if stats.has("max_hp"):
+		max_hp = maxf(1.0, float(stats["max_hp"]))
+	if stats.has("attack_damage"):
+		attack_damage = maxf(1.0, float(stats["attack_damage"]))
+	if stats.has("attack_speed"):
+		attack_speed = clampf(float(stats["attack_speed"]), 0.05, 20.0)
+	if stats.has("attack_range"):
+		attack_range = clampf(float(stats["attack_range"]), 10.0, 2000.0)
+	if stats.has("armor"):
+		armor = clampf(float(stats["armor"]), 0.0, 0.8)
+	if stats.has("move_speed"):
+		move_speed = clampf(float(stats["move_speed"]), 10.0, 800.0)
+	if stats.has("mana_regen"):
+		mana_regen = clampf(float(stats["mana_regen"]), 0.0, 100.0)
+	if stats.has("max_mana"):
+		max_mana = maxf(0.0, float(stats["max_mana"]))
+	var new_interval := attack_interval()
+	for index in actions.size():
+		var action := actions[index]
+		if action == null or action.category != CombatActionDefinition.Category.BASIC:
+			continue
+		var copy: CombatActionDefinition = action.duplicate()
+		copy.cooldown = new_interval
+		if is_equal_approx(action.action_range, old_range):
+			copy.action_range = attack_range
+		actions[index] = copy
+
+
 func attack_interval() -> float:
 	return 1.0 / maxf(attack_speed, 0.05)
 

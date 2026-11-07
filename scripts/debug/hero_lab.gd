@@ -43,12 +43,13 @@ var _opponents: Array[UnitDefinition] = []
 @onready var detail_title: Label = $HUD/Root/RightPanel/VBox/NameRow/Title
 @onready var detail_meta: Label = $HUD/Root/RightPanel/VBox/Meta
 @onready var detail_desc: Label = $HUD/Root/RightPanel/VBox/Desc
-@onready var stat_hp: Label = $HUD/Root/RightPanel/VBox/Stats/HpValue
-@onready var stat_atk: Label = $HUD/Root/RightPanel/VBox/Stats/AtkValue
-@onready var stat_aspd: Label = $HUD/Root/RightPanel/VBox/Stats/AspdValue
-@onready var stat_range: Label = $HUD/Root/RightPanel/VBox/Stats/RangeValue
-@onready var stat_armor: Label = $HUD/Root/RightPanel/VBox/Stats/ArmorValue
-@onready var stat_speed: Label = $HUD/Root/RightPanel/VBox/Stats/SpeedValue
+@onready var stat_hp: SpinBox = $HUD/Root/RightPanel/VBox/Stats/HpValue
+@onready var stat_atk: SpinBox = $HUD/Root/RightPanel/VBox/Stats/AtkValue
+@onready var stat_aspd: SpinBox = $HUD/Root/RightPanel/VBox/Stats/AspdValue
+@onready var stat_range: SpinBox = $HUD/Root/RightPanel/VBox/Stats/RangeValue
+@onready var stat_armor: SpinBox = $HUD/Root/RightPanel/VBox/Stats/ArmorValue
+@onready var stat_speed: SpinBox = $HUD/Root/RightPanel/VBox/Stats/SpeedValue
+@onready var stat_regen: SpinBox = $HUD/Root/RightPanel/VBox/Stats/ManaValue
 @onready var opponent_option: OptionButton = $HUD/Root/RightPanel/VBox/OpponentRow/OpponentOption
 @onready var start_button: Button = $HUD/Root/RightPanel/VBox/StartButton
 @onready var back_button: Button = $HUD/Root/TopBar/HBox/BackButton
@@ -64,6 +65,8 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_reposition_preview)
 	_build_cards()
 	_populate_opponents()
+	_wire_stat_inputs()
+	_move_1v1_to_bottom()
 	if not _cards.is_empty():
 		_select_definition(_cards[0].definition)
 	call_deferred("_reposition_preview")
@@ -109,12 +112,13 @@ func _update_details(definition: UnitDefinition) -> void:
 	detail_meta.text = "%s · %s · 蓝量 %d" % [definition.faction_label(), definition.role, roundi(definition.max_mana)]
 	detail_meta.add_theme_color_override("font_color", definition.accent_color)
 	detail_desc.text = "%s\n%s" % [definition.description, definition.skill_description_text()]
-	stat_hp.text = "%d" % roundi(definition.max_hp)
-	stat_atk.text = "%d" % roundi(definition.attack_damage)
-	stat_aspd.text = "%.2f" % definition.attack_speed
-	stat_range.text = "%d" % roundi(definition.attack_range)
-	stat_armor.text = "%d%%" % roundi(definition.armor * 100.0)
-	stat_speed.text = "%d" % roundi(definition.move_speed)
+	stat_hp.set_value_no_signal(definition.max_hp)
+	stat_atk.set_value_no_signal(definition.attack_damage)
+	stat_aspd.set_value_no_signal(definition.attack_speed)
+	stat_range.set_value_no_signal(definition.attack_range)
+	stat_armor.set_value_no_signal(definition.armor * 100.0)
+	stat_speed.set_value_no_signal(definition.move_speed)
+	stat_regen.set_value_no_signal(definition.mana_regen)
 
 
 func _spawn_preview(definition: UnitDefinition) -> void:
@@ -187,6 +191,37 @@ func _animation_used_by_action(animation: StringName) -> bool:
 		if action != null and action.animation == animation:
 			return true
 	return false
+
+
+func _wire_stat_inputs() -> void:
+	for spin in [stat_hp, stat_atk, stat_aspd, stat_range, stat_armor, stat_speed, stat_regen]:
+		spin.value_changed.connect(_on_stat_value_changed)
+
+
+func _move_1v1_to_bottom() -> void:
+	var vbox := $HUD/Root/RightPanel/VBox
+	for node_name in ["Separator2", "Section", "OpponentRow", "StartButton", "Hint"]:
+		var node := vbox.get_node_or_null(node_name)
+		if node != null:
+			vbox.move_child(node, vbox.get_child_count() - 1)
+
+
+func _on_stat_value_changed(_value: float) -> void:
+	if selected_definition == null:
+		return
+	var stats := {
+		"max_hp": stat_hp.value,
+		"attack_damage": stat_atk.value,
+		"attack_speed": stat_aspd.value,
+		"attack_range": stat_range.value,
+		"armor": stat_armor.value / 100.0,
+		"move_speed": stat_speed.value,
+		"mana_regen": stat_regen.value,
+	}
+	selected_definition.apply_stat_override(stats)
+	if is_instance_valid(preview_unit):
+		preview_unit.apply_debug_stats(stats)
+	_update_details(selected_definition)
 
 
 func _start_1v1() -> void:
