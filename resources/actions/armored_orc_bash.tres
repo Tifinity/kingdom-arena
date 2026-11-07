@@ -35,8 +35,8 @@ knockback = 35.0
 [resource]
 script = ExtResource("1")
 action_id = &"armored_orc_bash"
-display_name = "盾牌震击"
-description = "以自身为圆心震击，对被命中的敌人造成伤害、眩晕 0.9 秒并击退。"
+display_name = "贯甲突刺"
+description = "长矛向前突刺，对近身敌人造成伤害、眩晕 0.9 秒并击退。"
 category = 1
 target_mode = 2
 animation = &"attack_02"

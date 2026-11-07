@@ -1,6 +1,6 @@
 extends Node
 
-## 开发用：让重甲兽人释放盾牌震击，并在两名敌人被眩晕时截图。
+## 开发用：让重甲兽人释放贯甲突刺，并在两名敌人被眩晕时截图。
 ## 运行：godot --path . res://tools/stun_capture.tscn --resolution 1600x900
 
 const BATTLE_SCENE := preload("res://scenes/battle/battle.tscn")
@@ -39,7 +39,7 @@ func _ready() -> void:
 				bash = action
 				break
 	if orc == null or enemies.size() < 2 or bash == null:
-		printerr("[stun] 找不到重甲兽人/敌人/盾牌震击")
+		printerr("[stun] 找不到重甲兽人/敌人/贯甲突刺")
 		get_tree().quit(1)
 		return
 

@@ -246,7 +246,7 @@ func can_transition(next: StringName) -> bool
 - `HurtState` 在 `unit.is_stunned()` 期间保持受击动画，眩晕时间归零后立刻回到 `Idle`；
 - 重复眩晕取剩余时间的最大值，不会叠加成无限控制；
 - 技能可要求 `requires_action_hit = true`，只对本次动作真正命中的目标施加眩晕
-  （重甲兽人·盾牌震击即为此配置）。
+  （重甲兽人·贯甲突刺即为此配置）。
 
 ### 攻击节奏
 

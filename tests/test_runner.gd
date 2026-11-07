@@ -1171,14 +1171,14 @@ func _test_skill_effects() -> void:
 	if orc != null and bear != null and far_enemy != null:
 		for unit in cc_battle.units:
 			unit.brain.enabled = false
-		# 目标太远时，盾牌震击不应参与决策（它是自身圆形 AOE）。
+		# 目标太远时，贯甲突刺不应参与决策（它是自身圆形 AOE）。
 		orc.position = Vector2(700, 650)
 		bear.position = Vector2(700, 300)
 		far_enemy.position = Vector2(1200, 300)
 		orc.brain.enabled = true
 		orc.brain.force_think()
 		_check(orc.planned_action == null or orc.planned_action.action_id != &"armored_orc_bash",
-			"盾牌震击不会无视距离释放")
+			"贯甲突刺不会无视距离释放")
 		orc.brain.enabled = false
 		orc.position = Vector2(700, 650)
 		bear.position = Vector2(790, 650)
@@ -1195,9 +1195,9 @@ func _test_skill_effects() -> void:
 			orc.planned_action = bash
 			orc.state_machine.transition_to(&"action", true)
 			await get_tree().create_timer(0.7).timeout
-			_check(bear.stun_time > 0.0, "盾牌震击造成眩晕")
-			_check(bear.global_position.x > bear_x, "盾牌震击造成击退")
-			_check(far_enemy.stun_time <= 0.0, "盾牌震击不命中圆形范围外敌人")
+			_check(bear.stun_time > 0.0, "贯甲突刺造成眩晕")
+			_check(bear.global_position.x > bear_x, "贯甲突刺造成击退")
+			_check(far_enemy.stun_time <= 0.0, "贯甲突刺不命中圆形范围外敌人")
 
 		# 暂停时 HUD 应继续处理点击选人。
 		get_tree().paused = true
@@ -1225,7 +1225,7 @@ func _test_stun_effect() -> void:
 		if action.action_id == &"armored_orc_bash":
 			bash = action
 			break
-	_check(bash != null, "重甲兽人拥有盾牌震击 Action")
+	_check(bash != null, "重甲兽人拥有贯甲突刺 Action")
 	if bash == null:
 		return
 	var stun_effect: ActionEffectDefinition = null
@@ -1235,9 +1235,9 @@ func _test_stun_effect() -> void:
 			stun_effect = effect
 			break
 	_check(stun_effect != null and stun_effect.status_duration > 0.0,
-		"盾牌震击配置了眩晕状态")
+		"贯甲突刺配置了眩晕状态")
 	_check(stun_effect != null and stun_effect.requires_action_hit,
-		"盾牌震击只眩晕本次实际命中的敌人")
+		"贯甲突刺只眩晕本次实际命中的敌人")
 
 	# 特效本身：三颗星星、可播放、持续旋转、可停止。
 	var star_scene: PackedScene = load("res://scenes/fx/stun_stars.tscn")
@@ -1292,9 +1292,9 @@ func _test_stun_effect() -> void:
 	# attack_02 第 5 帧约 0.31 秒触发伤害/眩晕。
 	await get_tree().create_timer(0.55).timeout
 	_check(bear.hp < bear_hp and soldier.hp < soldier_hp,
-		"盾牌震击命中圆形范围内的敌人")
+		"贯甲突刺命中圆形范围内的敌人")
 	_check(bear.stun_time > 0.0 and soldier.stun_time > 0.0,
-		"盾牌震击眩晕范围内被命中的敌人")
+		"贯甲突刺眩晕范围内被命中的敌人")
 	_check(bear.state_machine.current_name == &"hurt",
 		"眩晕立即打断目标当前动作并进入受击状态")
 	_check(bear.current_animation() == &"hurt", "眩晕期间播放受击动画")
