@@ -460,18 +460,16 @@ def _skills_for(unit: Unit) -> list[dict]:
     elif slug == "armored_orc":
         skills.append(_skill("armored_orc_bash", "贯甲突刺", "attack_02",
                              [_fx(shape=1, ratio=1.2, frame=5, radius=110.0, center_self=True),
-                              _fx(kind=5, shape=1, frame=5, radius=110.0, center_self=True,
-                                  status_kind=0, status_duration=0.9, requires_action_hit=True),
                               _fx(kind=6, shape=1, frame=5, radius=110.0, center_self=True,
                                   knockback=35.0)],
                              7.0, 7, 0.0, rng, target_mode=2,
-                             description="长矛向前突刺，对近身敌人造成伤害、眩晕 0.9 秒并击退。"))
+                             description="长矛向前突刺，对近身敌人造成伤害并击退。"))
         skills.append(_skill("armored_orc_quakeslam", "裂地盾击", "attack_03",
                              [_fx(shape=1, ratio=1.8, frame=6, radius=150.0, center_self=True),
-                              _fx(kind=5, shape=0, frame=6, status_kind=0,
-                                  status_duration=1.0)],
+                              _fx(kind=5, shape=1, frame=6, radius=150.0, center_self=True,
+                                  status_kind=0, status_duration=1.0, requires_action_hit=True)],
                              16.0, 10, 0.0, rng, mana=100.0, target_mode=2,
-                             description="以盾牌砸向地面释放冲击波，对范围内敌人造成伤害，并眩晕主目标 1 秒。"))
+                             description="以盾牌砸向地面释放冲击波，对范围内敌人造成伤害，并眩晕所有被命中的敌人 1 秒。"))
         skills.append(_guard_action("armored_orc_block", "格挡"))
     elif slug == "orc_rider":
         skills.append(_skill("orc_rider_ram", "裂阵冲撞", "attack_01",

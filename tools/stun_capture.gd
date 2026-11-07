@@ -1,6 +1,6 @@
 extends Node
 
-## 开发用：让重甲兽人释放贯甲突刺，并在两名敌人被眩晕时截图。
+## 开发用：让重甲兽人释放裂地盾击，并在两名敌人被眩晕时截图。
 ## 运行：godot --path . res://tools/stun_capture.tscn --resolution 1600x900
 
 const BATTLE_SCENE := preload("res://scenes/battle/battle.tscn")
@@ -32,14 +32,14 @@ func _ready() -> void:
 			orc = unit
 		else:
 			enemies.append(unit)
-	var bash: CombatActionDefinition = null
+	var slam: CombatActionDefinition = null
 	if orc != null:
 		for action in orc.actions:
-			if action.action_id == &"armored_orc_bash":
-				bash = action
+			if action.action_id == &"armored_orc_quakeslam":
+				slam = action
 				break
-	if orc == null or enemies.size() < 2 or bash == null:
-		printerr("[stun] 找不到重甲兽人/敌人/贯甲突刺")
+	if orc == null or enemies.size() < 2 or slam == null:
+		printerr("[stun] 找不到重甲兽人/敌人/裂地盾击")
 		get_tree().quit(1)
 		return
 
@@ -52,11 +52,12 @@ func _ready() -> void:
 	orc.position = Vector2(700, 660)
 	enemies[0].position = Vector2(785, 635)
 	enemies[1].position = Vector2(600, 720)
+	orc.mana = orc.max_mana
 	orc.target = enemies[0]
-	orc.planned_action = bash
+	orc.planned_action = slam
 	orc.state_machine.transition_to(&"action", true)
-	# 第 5 帧约 0.31s 触发眩晕；再等一小段让星星完全淡入。
-	await _wait(0.58)
+	# 第 6 帧约 0.375s 触发眩晕；再等一小段让星星完全淡入。
+	await _wait(0.7)
 	battle._select_at(enemies[0].global_position + Vector2(0, -50))
 	await _wait(0.08)
 	await RenderingServer.frame_post_draw

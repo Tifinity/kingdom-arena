@@ -14,15 +14,19 @@ center_on_self = true
 [sub_resource type="Resource" id="effect_1"]
 script = ExtResource("2")
 kind = 5
+shape = 1
 trigger_frame = 6
 damage_ratio = 0.0
+radius = 150.0
+center_on_self = true
 status_duration = 1.0
+requires_action_hit = true
 
 [resource]
 script = ExtResource("1")
 action_id = &"armored_orc_quakeslam"
 display_name = "裂地盾击"
-description = "以盾牌砸向地面释放冲击波，对范围内敌人造成伤害，并眩晕主目标 1 秒。"
+description = "以盾牌砸向地面释放冲击波，对范围内敌人造成伤害，并眩晕所有被命中的敌人 1 秒。"
 category = 1
 target_mode = 2
 animation = &"attack_03"

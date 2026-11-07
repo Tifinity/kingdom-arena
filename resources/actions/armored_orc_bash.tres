@@ -13,17 +13,6 @@ center_on_self = true
 
 [sub_resource type="Resource" id="effect_1"]
 script = ExtResource("2")
-kind = 5
-shape = 1
-trigger_frame = 5
-damage_ratio = 0.0
-radius = 110.0
-center_on_self = true
-status_duration = 0.9
-requires_action_hit = true
-
-[sub_resource type="Resource" id="effect_2"]
-script = ExtResource("2")
 kind = 6
 shape = 1
 trigger_frame = 5
@@ -36,11 +25,11 @@ knockback = 35.0
 script = ExtResource("1")
 action_id = &"armored_orc_bash"
 display_name = "贯甲突刺"
-description = "长矛向前突刺，对近身敌人造成伤害、眩晕 0.9 秒并击退。"
+description = "长矛向前突刺，对近身敌人造成伤害并击退。"
 category = 1
 target_mode = 2
 animation = &"attack_02"
 action_range = 0.0
 cooldown = 7.0
 priority = 7
-effects = Array[ExtResource("2")]([SubResource("effect_0"), SubResource("effect_1"), SubResource("effect_2")])
+effects = Array[ExtResource("2")]([SubResource("effect_0"), SubResource("effect_1")])

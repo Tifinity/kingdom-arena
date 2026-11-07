@@ -1188,16 +1188,20 @@ func _test_skill_effects() -> void:
 			if action.action_id == &"armored_orc_bash":
 				bash = action
 				break
-		_check(bash != null, "重甲兽人拥有铁颚重击 Action")
+		_check(bash != null, "重甲兽人拥有贯甲突刺 Action")
 		if bash != null:
 			var bear_x := bear.global_position.x
+			var bear_hp := bear.hp
+			var far_hp := far_enemy.hp
 			orc.target = bear
 			orc.planned_action = bash
 			orc.state_machine.transition_to(&"action", true)
 			await get_tree().create_timer(0.7).timeout
-			_check(bear.stun_time > 0.0, "贯甲突刺造成眩晕")
-			_check(bear.global_position.x > bear_x, "贯甲突刺造成击退")
-			_check(far_enemy.stun_time <= 0.0, "贯甲突刺不命中圆形范围外敌人")
+			_check(bear.hp < bear_hp and bear.global_position.x > bear_x,
+				"贯甲突刺造成伤害与击退")
+			_check(bear.stun_time <= 0.0, "贯甲突刺不再造成眩晕")
+			_check(far_enemy.stun_time <= 0.0 and is_equal_approx(far_enemy.hp, far_hp),
+				"贯甲突刺不命中圆形范围外敌人")
 
 		# 暂停时 HUD 应继续处理点击选人。
 		get_tree().paused = true
@@ -1218,26 +1222,35 @@ func _test_skill_effects() -> void:
 
 
 func _test_stun_effect() -> void:
-	print("\n[眩晕] 三星特效/打断/盾击")
+	print("\n[眩晕] 三星特效/打断/裂地盾击")
 	var orc_definition := UnitCatalog.get_definition(&"armored_orc")
 	var bash: CombatActionDefinition = null
+	var quakeslam: CombatActionDefinition = null
 	for action in orc_definition.actions:
 		if action.action_id == &"armored_orc_bash":
 			bash = action
-			break
-	_check(bash != null, "重甲兽人拥有贯甲突刺 Action")
-	if bash == null:
+		elif action.action_id == &"armored_orc_quakeslam":
+			quakeslam = action
+	_check(bash != null and quakeslam != null, "重甲兽人拥有贯甲突刺/裂地盾击")
+	if bash == null or quakeslam == null:
 		return
-	var stun_effect: ActionEffectDefinition = null
+	var bash_has_stun := false
 	for effect in bash.effects:
+		if effect.kind == ActionEffectDefinition.Kind.STATUS \
+				and effect.status_kind == ActionEffectDefinition.StatusKind.STUN:
+			bash_has_stun = true
+	_check(not bash_has_stun, "贯甲突刺只有伤害和击退，不附带眩晕")
+	var stun_effect: ActionEffectDefinition = null
+	for effect in quakeslam.effects:
 		if effect.kind == ActionEffectDefinition.Kind.STATUS \
 				and effect.status_kind == ActionEffectDefinition.StatusKind.STUN:
 			stun_effect = effect
 			break
-	_check(stun_effect != null and stun_effect.status_duration > 0.0,
-		"贯甲突刺配置了眩晕状态")
-	_check(stun_effect != null and stun_effect.requires_action_hit,
-		"贯甲突刺只眩晕本次实际命中的敌人")
+	_check(stun_effect != null and stun_effect.status_duration > 0.0
+		and stun_effect.shape == ActionEffectDefinition.Shape.CIRCLE
+		and stun_effect.center_on_self and stun_effect.radius >= 150.0
+		and stun_effect.requires_action_hit,
+		"裂地盾击只眩晕圆形范围内被命中的敌人")
 
 	# 特效本身：三颗星星、可播放、持续旋转、可停止。
 	var star_scene: PackedScene = load("res://scenes/fx/stun_stars.tscn")
@@ -1280,36 +1293,43 @@ func _test_stun_effect() -> void:
 	var soldier_hp := soldier.hp
 	var outside_hp := outside.hp
 
-	# 让目标先处于 Action 中，验证眩晕会强制打断当前动作。
+	# 两名目标都先处于 Action 中，验证裂地盾击会打断所有被命中目标。
 	bear.target = orc
 	bear.planned_action = bear.actions[0]
 	bear.state_machine.transition_to(&"action", true)
-	_check(bear.state_machine.current_name == &"action", "测试前目标正在执行动作")
+	soldier.target = orc
+	soldier.planned_action = soldier.actions[0]
+	soldier.state_machine.transition_to(&"action", true)
+	_check(bear.state_machine.current_name == &"action" and soldier.state_machine.current_name == &"action",
+		"测试前两名目标都在执行动作")
 
+	orc.mana = orc.max_mana
 	orc.target = bear
-	orc.planned_action = bash
+	orc.planned_action = quakeslam
 	orc.state_machine.transition_to(&"action", true)
-	# attack_02 第 5 帧约 0.31 秒触发伤害/眩晕。
-	await get_tree().create_timer(0.55).timeout
+	# attack_03 第 6 帧约 0.375 秒触发伤害/眩晕。
+	await get_tree().create_timer(0.7).timeout
 	_check(bear.hp < bear_hp and soldier.hp < soldier_hp,
-		"贯甲突刺命中圆形范围内的敌人")
+		"裂地盾击命中圆形范围内的所有敌人")
 	_check(bear.stun_time > 0.0 and soldier.stun_time > 0.0,
-		"贯甲突刺眩晕范围内被命中的敌人")
-	_check(bear.state_machine.current_name == &"hurt",
-		"眩晕立即打断目标当前动作并进入受击状态")
+		"裂地盾击眩晕所有被命中的敌人")
+	_check(bear.state_machine.current_name == &"hurt" and soldier.state_machine.current_name == &"hurt",
+		"眩晕立即打断所有目标的当前动作")
 	_check(bear.current_animation() == &"hurt", "眩晕期间播放受击动画")
-	_check(bear.stun_fx.visible and bear.stun_fx.is_playing(),
-		"眩晕单位头顶出现三星特效")
+	_check(bear.stun_fx.visible and bear.stun_fx.is_playing()
+		and soldier.stun_fx.visible and soldier.stun_fx.is_playing(),
+		"每名眩晕单位头顶都出现三星特效")
 	_check(bear.stun_fx.position.y < bear.health_bar.position.y,
 		"三星特效位于血条上方（头顶）")
 	_check(outside.stun_time <= 0.0 and is_equal_approx(outside.hp, outside_hp),
 		"圆形范围外的敌人既不受伤害也不眩晕")
 
 	await get_tree().create_timer(0.95).timeout
-	_check(bear.stun_time <= 0.0 and not bear.stun_fx.visible,
-		"眩晕结束后头顶三星消失")
-	_check(bear.state_machine.current_name != &"hurt",
-		"眩晕结束后离开受击状态")
+	_check(bear.stun_time <= 0.0 and soldier.stun_time <= 0.0
+		and not bear.stun_fx.visible and not soldier.stun_fx.visible,
+		"眩晕结束后所有头顶三星消失")
+	_check(bear.state_machine.current_name != &"hurt" and soldier.state_machine.current_name != &"hurt",
+		"眩晕结束后所有目标离开受击状态")
 
 	await get_tree().create_timer(3.2).timeout
 	GameState.reset_lineups()
