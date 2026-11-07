@@ -5,6 +5,9 @@ extends Node2D
 
 const ARROW_TEXTURE := preload("res://assets/projectiles/arrow.png")
 const ORB_TEXTURE := preload("res://assets/projectiles/magic_orb.png")
+const ICE_TEXTURE := preload("res://assets/projectiles/wizard_ice.png")
+const FIREBALL_TEXTURE := preload("res://assets/projectiles/wizard_fireball.png")
+const GHOSTFIRE_TEXTURE := preload("res://assets/magic/necromancer_attack02_effect.png")
 
 var source: Unit
 var target: Unit
@@ -13,27 +16,44 @@ var damage := 0.0
 var kind := 0
 var tint := Color.WHITE
 var can_interrupt := true
+var effect: ActionEffectDefinition
 var speed := 900.0
 var life := 2.6
 
 var _velocity := Vector2.RIGHT
 var _started := false
 var _fizzle := 0.0
+var _travel_elapsed := 0.0
+var _impact_elapsed := -1.0
 
 @onready var sprite: Sprite2D = $Sprite
 
 
-func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color: Color, p_can_interrupt := true) -> void:
+func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color: Color, p_can_interrupt := true, p_effect: ActionEffectDefinition = null) -> void:
 	source = p_source
 	target = p_target
 	battle = p_source.battle if p_source != null else null
 	damage = p_damage
 	kind = p_kind
-	tint = p_color
+	tint = Color("#87d9ff") if p_kind == UnitDefinition.ProjectileKind.ICE else (
+		Color("#ff9d42") if p_kind == UnitDefinition.ProjectileKind.FIREBALL else (
+			Color("#8be38b") if p_kind == UnitDefinition.ProjectileKind.GHOSTFIRE else p_color
+		)
+	)
 	can_interrupt = p_can_interrupt
+	effect = p_effect
 	global_position = p_source.get_muzzle_point()
 
-	if kind == UnitDefinition.ProjectileKind.MAGIC:
+	if kind == UnitDefinition.ProjectileKind.ICE or kind == UnitDefinition.ProjectileKind.FIREBALL:
+		sprite.scale = Vector2(2.4, 2.4)
+		speed = 800.0
+		_set_effect_frame(7 if kind == UnitDefinition.ProjectileKind.ICE else 0)
+	elif kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
+		sprite.scale = Vector2(2.4, 2.4)
+		sprite.modulate = Color(0.9, 1.0, 0.85, 1.0)
+		speed = 700.0
+		_set_effect_frame(0)
+	elif kind == UnitDefinition.ProjectileKind.MAGIC:
 		sprite.texture = ORB_TEXTURE
 		sprite.scale = Vector2(0.95, 0.95)
 		sprite.modulate = tint.lightened(0.25)
@@ -54,10 +74,24 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 
 
 func _physics_process(delta: float) -> void:
+	if _impact_elapsed >= 0.0:
+		_impact_elapsed += delta
+		var frame_base := 0 if kind == UnitDefinition.ProjectileKind.ICE else (3 if kind == UnitDefinition.ProjectileKind.GHOSTFIRE else 4)
+		var max_frame := 5 if kind == UnitDefinition.ProjectileKind.GHOSTFIRE else 6
+		_set_effect_frame(mini(max_frame, int(_impact_elapsed * 16.0) + frame_base))
+		var impact_life := 0.44 if kind == UnitDefinition.ProjectileKind.ICE else (0.24 if kind == UnitDefinition.ProjectileKind.GHOSTFIRE else 0.19)
+		if _impact_elapsed >= impact_life:
+			queue_free()
+		return
 	life -= delta
 	if life <= 0.0:
 		queue_free()
 		return
+	_travel_elapsed += delta
+	if kind == UnitDefinition.ProjectileKind.FIREBALL:
+		_set_effect_frame(int(_travel_elapsed * 16.0) % 4)
+	elif kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
+		_set_effect_frame(mini(2, int(_travel_elapsed * 12.0)))
 
 	if target != null and is_instance_valid(target) and target.alive:
 		var aim := target.get_hit_point()
@@ -85,10 +119,37 @@ func _physics_process(delta: float) -> void:
 func _hit() -> void:
 	if target != null and is_instance_valid(target) and target.alive:
 		var shooter: Unit = source if is_instance_valid(source) else null
+		var blocked := target.is_guarding()
 		target.take_damage(damage, shooter, global_position, can_interrupt)
+		if not blocked and target.alive and effect != null:
+			if effect.burn_duration > 0.0:
+				target.apply_burn(effect.burn_duration, shooter.attack_damage * effect.burn_dps_ratio if shooter != null else 0.0, shooter)
+			if effect.status_duration > 0.0:
+				target.apply_status(effect, shooter)
 	if battle != null and is_instance_valid(battle):
-		battle.spawn_hit_spark(global_position, tint, 1.0 if kind != UnitDefinition.ProjectileKind.MAGIC else 1.35)
-	queue_free()
+		var spark_color := Color("#87d9ff") if kind == UnitDefinition.ProjectileKind.ICE else (
+			Color("#ff9d42") if kind == UnitDefinition.ProjectileKind.FIREBALL else (
+				Color("#8be38b") if kind == UnitDefinition.ProjectileKind.GHOSTFIRE else tint
+			)
+		)
+		battle.spawn_hit_spark(global_position, spark_color, 1.35)
+	if kind == UnitDefinition.ProjectileKind.ICE or kind == UnitDefinition.ProjectileKind.FIREBALL or kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
+		_impact_elapsed = 0.0
+		_set_effect_frame(0 if kind == UnitDefinition.ProjectileKind.ICE else (3 if kind == UnitDefinition.ProjectileKind.GHOSTFIRE else 4))
+	else:
+		queue_free()
+
+
+func _set_effect_frame(frame: int) -> void:
+	var atlas := AtlasTexture.new()
+	if kind == UnitDefinition.ProjectileKind.ICE:
+		atlas.atlas = ICE_TEXTURE
+	elif kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
+		atlas.atlas = GHOSTFIRE_TEXTURE
+	else:
+		atlas.atlas = FIREBALL_TEXTURE
+	atlas.region = Rect2(frame * 100, 0, 100, 100)
+	sprite.texture = atlas
 
 
 func _draw() -> void:

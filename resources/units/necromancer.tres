@@ -4,7 +4,7 @@
 [ext_resource type="SpriteFrames" path="res://resources/visuals/necromancer_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/necromancer.png" id="3"]
 [ext_resource type="Resource" path="res://resources/actions/necromancer_basic.tres" id="4"]
-[ext_resource type="Resource" path="res://resources/actions/necromancer_bolt.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/actions/necromancer_ghostfire.tres" id="5"]
 [ext_resource type="Resource" path="res://resources/actions/necromancer_summon.tres" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/units/necromancer_visual.tscn" id="7"]
 [ext_resource type="Resource" path="res://resources/behaviors/necromancer.tres" id="8"]
@@ -14,14 +14,14 @@ script = ExtResource("1")
 unit_id = &"necromancer"
 display_name = "死灵法师"
 title = "墓穴低语者"
-faction = 1
+faction = 2
 role = "法师"
 roster_order = 17
-description = "操纵暗影法术的施法者，普攻为暗影弹。"
+description = "近身以镰刀斩击，远程锁定敌人施放鬼火，并能召唤骷髅。"
 max_hp = 440.0
 attack_damage = 90.0
 attack_speed = 1.60
-attack_range = 350.0
+attack_range = 525.0
 max_mana = 100.0
 mana_regen = 8.0
 move_speed = 102.0

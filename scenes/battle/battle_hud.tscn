@@ -206,7 +206,7 @@ anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 20.0
-offset_top = -352.0
+offset_top = -432.0
 offset_right = 420.0
 offset_bottom = -22.0
 grow_vertical = 0
@@ -246,6 +246,14 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.545, 0.639, 0.741, 1)
 theme_override_font_sizes/font_size = 12
 text = "生命 640/640 · 目标 无 · 冷却 0.00s"
+
+[node name="SkillStatus" type="Label" parent="Root/Inspector/Margin/VBox"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.906, 0.769, 0.42, 1)
+theme_override_font_sizes/font_size = 12
+text = "技能状态"
+autowrap_mode = 2
 
 [node name="Separator" type="HSeparator" parent="Root/Inspector/Margin/VBox"]
 layout_mode = 2
@@ -347,7 +355,7 @@ theme_override_colors/font_color = Color(0.663, 0.741, 0.831, 0.9)
 theme_override_colors/font_outline_color = Color(0.016, 0.027, 0.043, 0.9)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 14
-text = "点击单位查看 OODA · 空格暂停 · F 变速 · Tab 范围"
+text = "点击单位查看 OODA · 空格暂停 · F 变速 · Tab 范围 · F2 属性"
 horizontal_alignment = 1
 
 [node name="Result" type="Control" parent="Root"]

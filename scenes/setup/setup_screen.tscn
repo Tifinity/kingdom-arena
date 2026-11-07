@@ -193,21 +193,29 @@ button_group = SubResource("filter_group")
 theme_override_font_sizes/font_size = 12
 text = "全部"
 
-[node name="KingdomFilter" type="Button" parent="Root/VBox/Content/Center/RosterHeader/Filters"]
+[node name="HumanFilter" type="Button" parent="Root/VBox/Content/Center/RosterHeader/Filters"]
 custom_minimum_size = Vector2(70, 30)
 layout_mode = 2
 toggle_mode = true
 button_group = SubResource("filter_group")
 theme_override_font_sizes/font_size = 12
-text = "王国"
+text = "人类"
 
-[node name="LegionFilter" type="Button" parent="Root/VBox/Content/Center/RosterHeader/Filters"]
+[node name="WildernessFilter" type="Button" parent="Root/VBox/Content/Center/RosterHeader/Filters"]
 custom_minimum_size = Vector2(70, 30)
 layout_mode = 2
 toggle_mode = true
 button_group = SubResource("filter_group")
 theme_override_font_sizes/font_size = 12
 text = "荒野"
+
+[node name="MonsterFilter" type="Button" parent="Root/VBox/Content/Center/RosterHeader/Filters"]
+custom_minimum_size = Vector2(70, 30)
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("filter_group")
+theme_override_font_sizes/font_size = 12
+text = "怪物"
 
 [node name="RosterScroll" type="ScrollContainer" parent="Root/VBox/Content/Center"]
 layout_mode = 2

@@ -6,7 +6,9 @@ extends Node2D
 var bar_width := 54.0
 var bar_height := 6.0
 var ratio := 1.0
+var shield_ratio := 0.0
 var _shown := 1.0
+var _shown_shield := 0.0
 var _team_color := Color("#58a6ff")
 
 
@@ -20,11 +22,18 @@ func set_ratio(value: float) -> void:
 	ratio = clampf(value, 0.0, 1.0)
 
 
+func set_shield_ratio(value: float) -> void:
+	shield_ratio = clampf(value, 0.0, 1.0)
+	queue_redraw()
+
+
 func _process(delta: float) -> void:
-	if absf(_shown - ratio) < 0.001:
+	if absf(_shown - ratio) < 0.001 and absf(_shown_shield - shield_ratio) < 0.001:
 		_shown = ratio
+		_shown_shield = shield_ratio
 		return
 	_shown = lerpf(_shown, ratio, 1.0 - exp(-14.0 * delta))
+	_shown_shield = lerpf(_shown_shield, shield_ratio, 1.0 - exp(-14.0 * delta))
 	queue_redraw()
 
 
@@ -36,6 +45,8 @@ func _draw() -> void:
 	if fill_width > 0.0:
 		draw_rect(Rect2(left, 0.0, fill_width, bar_height), _team_color.darkened(0.18))
 		draw_rect(Rect2(left, 0.0, fill_width, 2.0), _team_color.lightened(0.35))
+	if _shown_shield > 0.001:
+		draw_rect(Rect2(left, -4.0, bar_width * _shown_shield, 3.0), Color(0.35, 0.85, 1.0, 0.95))
 	# 分段刻度，便于快速读血量。
 	for index in range(1, 4):
 		var x := left + bar_width * (float(index) / 4.0)

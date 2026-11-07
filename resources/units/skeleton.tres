@@ -5,7 +5,7 @@
 [ext_resource type="Texture2D" path="res://assets/portraits/skeleton.png" id="3"]
 [ext_resource type="Resource" path="res://resources/actions/skeleton_basic.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/actions/skeleton_cleave.tres" id="5"]
-[ext_resource type="Resource" path="res://resources/actions/skeleton_summon.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/actions/skeleton_last_stand.tres" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/units/skeleton_visual.tscn" id="7"]
 [ext_resource type="Resource" path="res://resources/behaviors/skeleton.tres" id="8"]
 
@@ -14,7 +14,7 @@ script = ExtResource("1")
 unit_id = &"skeleton"
 display_name = "骷髅"
 title = "枯骨兵"
-faction = 1
+faction = 2
 role = "战士"
 roster_order = 13
 description = "骨架松散却不知疼痛，最廉价的战线填充者。"

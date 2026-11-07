@@ -1,12 +1,11 @@
 class_name ActionEffectDefinition
 extends Resource
 
-## 通用动作效果。当前实现 DAMAGE / PROJECTILE / VISUAL 三类，
-## 其余枚举为位移、护盾、状态、召唤等后续扩展预留。
+## 通用动作效果；DAMAGE / PROJECTILE / GUARD / SHIELD 等由 Unit 统一结算。
 
 enum Kind { DAMAGE, PROJECTILE, VISUAL, HEAL, SHIELD, STATUS, DISPLACE, SUMMON, GUARD }
 enum Shape { SINGLE, CIRCLE, CONE, SELF, RECT }
-enum StatusKind { STUN, SLOW, BLEED }
+enum StatusKind { STUN, SLOW, BLEED, BURN }
 
 @export var kind: int = Kind.DAMAGE
 @export_enum("单体:0", "圆形:1", "扇形:2", "自身:3", "矩形:4") var shape: int = Shape.SINGLE
@@ -34,6 +33,16 @@ enum StatusKind { STUN, SLOW, BLEED }
 @export var status_duration: float = 0.0
 ## 减速为速度倍率；流血为每秒伤害。
 @export var status_power: float = 0.0
+## 状态只作用于本次动作已命中的目标，用于连斩后的流血等效果。
+@export var requires_action_hit := false
+## 伤害效果命中后附加的火焰 DOT；每秒伤害 = 攻击力 × 倍率。
+@export var burn_duration := 0.0
+@export var burn_dps_ratio := 0.0
+
+## 护盾效果：每个本次动作命中的不同敌人提供最大生命值的一定比例。
+## 护盾总量最多叠加到最大生命值 × shield_max_ratio，duration 控制持续秒数。
+@export var shield_per_target_ratio := 0.0
+@export var shield_max_ratio := 0.0
 
 ## 治疗量 = heal_amount + 施法者攻击力 × heal_ratio。
 @export var heal_amount: float = 0.0

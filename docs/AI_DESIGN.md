@@ -3,7 +3,7 @@
 > **当前实现状态（2026-11）**：Attack/Skill 已统一为一个 `Action` 状态。
 > 每个单位持有 `actions: Array[CombatActionDefinition]`；`UnitBrain._select_action()`
 > 选择 `ActionPlan`，由 `UnitActionState` 按动画帧执行 effects。
-> 骑士·火焰斩击（`attack_03`，扇形 AOE，30 蓝耗）已作为第一个技能接入。
+> 骑士·火焰斩击（`attack_03`，扇形 AOE，满蓝释放）已接入统一 Action 系统。
 > 本文保留基础 OODA 与状态机的设计说明，其中旧的 Attack 名称对应现在的 Action。
 
 本文记录 `王国竞技场` MVP 的单位行为设计。目标不是“让单位互殴”，而是把
@@ -61,7 +61,7 @@
 
 ### 2. Judge 判断
 
-对每个敌人计算 0~1 的优先级分数：
+对每个敌人计算基础优先级；评分还考虑队友是否正在集火该目标，以及目标是否贴身威胁己方远程英雄。当前目标与最高分相差不足 0.12 时保持目标，减少反复转身。
 
 ```text
 score = 0.50 × 距离分          # 越近越高
@@ -88,8 +88,8 @@ HUD 展示：
 
 决策分两层：
 
-1. `_judge()` 选出优先目标（沿用距离/残血/威胁/职业权重）；
-2. `_select_action()` 从该单位的 `actions` 中选出当前可执行的动作：
+1. `_judge()` 给出稳定的默认目标，供移动与无技能时使用；
+2. `_select_action()` 联合枚举可用动作与候选目标，技能可以选择不同于默认目标的施法对象：
 
 ```text
 没有敌人               -> 待机
@@ -98,8 +98,8 @@ HUD 展示：
   ├─ 冷却未就绪        -> 跳过
   ├─ 目标不在动作范围   -> 跳过
   ├─ 目标类型不匹配     -> 跳过
-  ├─ 计算 action.priority + AOE 聚集收益
-  └─ 选最高分 ActionPlan(action, target)
+  ├─ 按每个目标的实际伤害、击杀机会、控制/治疗收益评分
+  └─ 选最高分 ActionPlan(action, target, direction)
 没有可用 Action
   ├─ 远程被贴脸        -> KITE
   ├─ 目标在攻击距离内   -> 等待冷却
@@ -110,13 +110,15 @@ HUD 展示：
 
 ```text
 score = action.priority
-      + 伤害 AOE 内敌人数 × 1.5
-      + 定向矩形内敌人数 × 2
+      + 各目标预计有效伤害 / 自身攻击力 × 1.2
+      + 预计击杀数
+      + 目标战术优先级 × 2
+      + 治疗/控制收益
       + 防御动作缺失生命比例 × 25
+      - 满蓝大招对单个残血目标的过量伤害惩罚
 ```
 
-硬条件（冷却、蓝量、距离、目标类型、动作血量阈值）先过滤；分数相同再比较
-`priority`，再按 `actions` 数组顺序稳定决胜。一次只提交一个 ActionPlan，
+硬条件（冷却、蓝量、距离、目标类型、动作血量阈值）先过滤；多段技能先将各帧伤害按目标汇总，再以扣除队友正在执行的单体攻击后的剩余生命封顶，避免只因帧数多而虚高。分数相同时按 `actions` 数组顺序稳定决胜。一次只提交一个 ActionPlan，
 Action 执行期间 Brain 不再改写计划。
 
 当前内核是一个通用的 `ActionPlan`：
@@ -223,7 +225,7 @@ func can_transition(next: StringName) -> bool
 | Idle | 重置动画速度，播 `idle` | 面向目标；读 `brain.intent` | ActionPlan 可用 → Action；推进/后撤 → Move |
 | Move | 播 `move` | 朝个人战斗位移动/后撤；面向移动方向或目标 | 到位/失去目标/意图待机 → Idle；ActionPlan 可用 → Action |
 | Action | 面向目标，播放 `plan.action.animation` | 累计动画时间；按 `trigger_frame` 执行 effects | 动画时长结束 → Idle |
-| Hurt | 强制打断当前动作，播 `hurt` | 累计 0.26s | 时间到 → Idle |
+| Hurt | 强制打断当前动作，播 `hurt`；若带眩晕则保持受击动画 | 无眩晕时累计 0.26s；眩晕时等待 `stun_time` 归零 | 硬直结束 / 眩晕结束 → Idle |
 | Death | 停用大脑、隐藏血条与队伍环、播 `death` | 无（由 Tween 淡出） | 淡出结束 → `queue_free()` |
 
 ### 受击保护
@@ -234,6 +236,17 @@ func can_transition(next: StringName) -> bool
 - 触发后 `_flinch_cooldown = 1.05s`，期间再受伤只掉血、不再硬直。
 
 更小的伤害只触发 0.09s 的红色闪烁，不打断动作。
+
+### 眩晕
+
+`STATUS` 效果中的 `STUN` 走同一条受击通道，但表现和持续时间更明确：
+
+- 立即强制切到 `Hurt`，打断 `Action`、移动、蓄力或冲锋；
+- 播放 `hurt` 动画，并在血条上方显示三颗金色星星（`scenes/fx/stun_stars.tscn`）；
+- `HurtState` 在 `unit.is_stunned()` 期间保持受击动画，眩晕时间归零后立刻回到 `Idle`；
+- 重复眩晕取剩余时间的最大值，不会叠加成无限控制；
+- 技能可要求 `requires_action_hit = true`，只对本次动作真正命中的目标施加眩晕
+  （重甲兽人·裂地盾击即为此配置）。
 
 ### 攻击节奏
 
@@ -254,16 +267,16 @@ duration        = 帧数 / (SpriteFrames FPS × animation_speed)
 
 ## 三、站位与可读性
 
-AI 只决定“打谁”和“推进/后撤”，站位由 `Unit.desired_combat_position()` 统一计算：
+AI 决定“打谁”和“推进/后撤”，站位由 `StandardMovement.desired_position()` 统一计算。槽位阵型点仍是首选参考：
 
 ```gdscript
 stop    = 攻击距离 + 目标半径 + 自身半径 × 0.35 - 18
 lateral = (2 - slot) / 2 × min(50, stop × 0.36)   // 槽位 0~4 → +50..-50
 forward = sqrt(stop² - lateral²) × 0.92
-desired = 目标位置 + (自身阵营方向 × forward, lateral)
+preferred = 目标位置 + (自身阵营方向 × forward, lateral)
 ```
 
-效果：
+再比较首选点、当前点以及周围多个侧向候选点，计入射程误差、移动距离、友军拥挤，以及远程英雄附近的敌人风险。效果：
 
 - 同侧 5 人自动沿目标周围散开，形成半包围，而不是叠在同一点。
 - 远程因为 `stop` 更大，会自然站在后排。
@@ -318,7 +331,7 @@ behavior_profile: resources/behaviors/<id>.tres
   打开后显示基础攻击范围（蓝圈）和技能范围（橙色虚线圈）。
 - **暂停/变速**：`空格`暂停、`F`变速，便于观察 AI 在某一帧的选择。
 - **自动化测试**：
-  - `tests/test_runner.tscn` 172 项检查；
+  - `tests/test_runner.tscn` 288 项检查；
   - `tools/soak_test.tscn` 8 场随机阵容，检查卡死与胜负分布。
 - **可调参数**：
   - `UnitBrain.THINK_INTERVAL`：思考频率；
@@ -335,5 +348,5 @@ behavior_profile: resources/behaviors/<id>.tres
 - 没有视野、寻路、障碍；AI 是“全图感知 + 直线移动”。
 - 目标评分是手调权重，不做学习；对局平衡由数值和阵容决定。
 - 投射物锁定目标，不做弹道预判/闪避。
-- 远程后撤只按空间向量，不做绕柱或侧移；贴边时会停下。
-- 目前只实现火焰斩击与格挡；护盾、位移、召唤等 effect 类型尚未实现。法力仅有基础蓝池、回复与技能消耗。
+- 远程后撤只按空间向量；候选站位会侧移避开近身敌人，但地图没有障碍寻路。
+- 目标和动作评分是确定性的启发式规则，不会学习长期战术；技能效果仍按资源配置执行。

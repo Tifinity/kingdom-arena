@@ -20,6 +20,9 @@ var max_mana := 100.0
 var mana := 100.0
 var mana_regen := 8.0
 var guard_time := 0.0
+var shield := 0.0
+var shield_time := 0.0
+var _action_hit_targets: Dictionary = {}
 var summoned := false
 var last_heal_amount := 0.0
 var stun_time := 0.0
@@ -29,6 +32,10 @@ var bleed_time := 0.0
 var bleed_dps := 0.0
 var bleed_source: Unit
 var _bleed_tick := 0.0
+var burn_time := 0.0
+var burn_dps := 0.0
+var burn_source: Unit
+var _burn_tick := 0.0
 var attack_damage := 10.0
 var attack_interval := 1.0
 var attack_range := 80.0
@@ -67,6 +74,7 @@ var selection_ring: UnitSelectionRing
 var visual: AnimatedSprite2D
 var health_bar: UnitHealthBar
 @onready var visual_host: Node2D = $VisualHost
+@onready var stun_fx: StunStars = $StunFX
 @onready var brain: UnitBrain = $Brain
 @onready var state_machine: UnitStateMachine = $StateMachine
 
@@ -80,8 +88,11 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 
 	max_hp = p_definition.max_hp
 	hp = max_hp
+	shield = 0.0
+	shield_time = 0.0
+	_action_hit_targets.clear()
 	max_mana = p_definition.max_mana
-	mana = max_mana
+	mana = clampf(p_definition.starting_mana, 0.0, max_mana)
 	mana_regen = p_definition.mana_regen
 	attack_damage = p_definition.attack_damage
 	attack_interval = p_definition.attack_interval()
@@ -122,6 +133,11 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 
 	health_bar.setup(p_definition.body_radius * 1.65, GameState.team_color(team))
 	health_bar.set_ratio(1.0)
+	health_bar.set_shield_ratio(0.0)
+	# 三星眩晕特效放在血条上方，跟随单位移动；不同英雄的血条高度不同，这里统一以血条为基准。
+	if stun_fx != null:
+		stun_fx.position = Vector2(0.0, health_bar.position.y - 22.0)
+		stun_fx.stop()
 
 	brain.setup(self)
 	state_machine.setup(self)
@@ -148,6 +164,23 @@ func play_preview_animation(animation: StringName) -> bool:
 	return _current_animation == animation
 
 
+## 召唤物出场：先播放自身 summon 动画，再接入正常 Brain/FSM。
+func play_summon_intro() -> void:
+	if not alive:
+		return
+	brain.enabled = false
+	state_machine.set_physics_process(false)
+	visual.speed_scale = 1.0
+	play_animation(&"summon", true)
+	var duration := _measure_animation(&"summon", 0.45)
+	await get_tree().create_timer(maxf(duration, 0.65) + 0.1, false).timeout
+	if not alive or not is_inside_tree():
+		return
+	state_machine.set_physics_process(true)
+	brain.enabled = true
+	state_machine.transition_to(&"idle", true)
+
+
 func _process(delta: float) -> void:
 	if not alive:
 		return
@@ -157,10 +190,18 @@ func _process(delta: float) -> void:
 			visual.modulate = Color(1.0, 0.58, 0.58, 1.0)
 		elif guard_time > 0.0:
 			visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
+		elif shield > 0.0:
+			visual.modulate = Color(0.72, 0.92, 1.0, 1.0)
+		elif burn_time > 0.0:
+			visual.modulate = Color(1.0, 0.65, 0.35, 1.0)
 		else:
 			visual.modulate = Color.WHITE
 	elif guard_time > 0.0:
 		visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
+	elif shield > 0.0:
+		visual.modulate = Color(0.72, 0.92, 1.0, 1.0)
+	elif burn_time > 0.0:
+		visual.modulate = Color(1.0, 0.65, 0.35, 1.0)
 	else:
 		visual.modulate = Color.WHITE
 
@@ -172,16 +213,40 @@ func _physics_process(delta: float) -> void:
 		action_cooldowns[key] = maxf(0.0, float(action_cooldowns[key]) - delta)
 	mana = minf(max_mana, mana + mana_regen * delta)
 	guard_time = maxf(0.0, guard_time - delta)
+	if shield_time > 0.0:
+		shield_time = maxf(0.0, shield_time - delta)
+		if shield_time <= 0.0:
+			shield = 0.0
+			health_bar.set_shield_ratio(0.0)
+	var was_stunned := stun_time > 0.0
 	stun_time = maxf(0.0, stun_time - delta)
+	if was_stunned and stun_time <= 0.0 and stun_fx != null:
+		stun_fx.stop()
 	slow_time = maxf(0.0, slow_time - delta)
 	if slow_time <= 0.0:
 		slow_factor = 1.0
-	bleed_time = maxf(0.0, bleed_time - delta)
 	if bleed_time > 0.0 and bleed_dps > 0.0:
-		_bleed_tick += delta
+		var valid_bleed_source: Unit = bleed_source if is_instance_valid(bleed_source) else null
+		var bleed_active := minf(delta, bleed_time)
+		bleed_time = maxf(0.0, bleed_time - delta)
+		_bleed_tick += bleed_active
 		while _bleed_tick >= 0.5 and alive:
 			_bleed_tick -= 0.5
-			take_damage(bleed_dps * 0.5, bleed_source, global_position)
+			take_damage(bleed_dps * 0.5, valid_bleed_source, get_hit_point(), false)
+		if bleed_time <= 0.0 and _bleed_tick > 0.0 and alive:
+			take_damage(bleed_dps * _bleed_tick, valid_bleed_source, get_hit_point(), false)
+			_bleed_tick = 0.0
+	if burn_time > 0.0 and burn_dps > 0.0:
+		var valid_burn_source: Unit = burn_source if is_instance_valid(burn_source) else null
+		var active := minf(delta, burn_time)
+		burn_time = maxf(0.0, burn_time - delta)
+		_burn_tick += active
+		while _burn_tick >= 0.5 and alive:
+			_burn_tick -= 0.5
+			take_damage(burn_dps * 0.5, valid_burn_source, get_hit_point(), false)
+		if burn_time <= 0.0 and _burn_tick > 0.0 and alive:
+			take_damage(burn_dps * _burn_tick, valid_burn_source, get_hit_point(), false)
+			_burn_tick = 0.0
 	_flinch_cooldown = maxf(0.0, _flinch_cooldown - delta)
 
 
@@ -293,8 +358,10 @@ func action_aoe_reach(action: CombatActionDefinition) -> float:
 	return reach
 
 
-func is_target_in_action_range(action: CombatActionDefinition, extra := 0.0) -> bool:
+func is_target_in_action_range(action: CombatActionDefinition, extra := 0.0, check_min_range := true) -> bool:
 	if action == null or not has_live_target():
+		return false
+	if check_min_range and distance_to_target() < action.min_range:
 		return false
 	var aoe_reach := action_aoe_reach(action)
 	if aoe_reach > 0.0:
@@ -321,6 +388,47 @@ func spend_mana(action: CombatActionDefinition) -> void:
 	if action == null:
 		return
 	mana = maxf(0.0, mana - action.mana_cost)
+
+
+## 战斗/Hero Lab 调试：把数值直接应用到当前单位，并同步基础攻击 Action/UI。
+func apply_debug_stats(stats: Dictionary) -> void:
+	if not alive:
+		return
+	var old_max_hp := max_hp
+	var old_range := attack_range
+	var old_ratio := hp / max_hp if max_hp > 0.0 else 1.0
+	if stats.has("max_hp"):
+		max_hp = maxf(1.0, float(stats["max_hp"]))
+		hp = clampf(max_hp * old_ratio, 1.0, max_hp)
+		if battle != null and battle.has_method("team_max_hp_total"):
+			battle.team_max_hp_total[team] += max_hp - old_max_hp
+	if stats.has("attack_damage"):
+		attack_damage = maxf(1.0, float(stats["attack_damage"]))
+	if stats.has("attack_speed"):
+		attack_interval = 1.0 / clampf(float(stats["attack_speed"]), 0.05, 20.0)
+	if stats.has("attack_range"):
+		attack_range = clampf(float(stats["attack_range"]), 10.0, 2000.0)
+	if stats.has("armor"):
+		armor = clampf(float(stats["armor"]), 0.0, 0.8)
+	if stats.has("move_speed"):
+		move_speed = clampf(float(stats["move_speed"]), 10.0, 800.0)
+	if stats.has("mana_regen"):
+		mana_regen = clampf(float(stats["mana_regen"]), 0.0, 100.0)
+	if stats.has("max_mana"):
+		max_mana = maxf(0.0, float(stats["max_mana"]))
+		mana = minf(mana, max_mana)
+	for index in actions.size():
+		var action := actions[index]
+		if action == null or action.category != CombatActionDefinition.Category.BASIC:
+			continue
+		var copy: CombatActionDefinition = action.duplicate()
+		copy.cooldown = attack_interval
+		if is_equal_approx(action.action_range, old_range):
+			copy.action_range = attack_range
+		actions[index] = copy
+		action_cooldowns[copy.action_id] = 0.0
+	health_bar.set_ratio(hp / max_hp)
+	selection_ring.set_combat_ranges(attack_range, _max_action_range())
 
 
 func action_cooldown(action: CombatActionDefinition) -> float:
@@ -354,6 +462,8 @@ func can_execute_planned_action() -> bool:
 		return true
 	if planned_action.target_mode == CombatActionDefinition.TargetMode.DIRECTION:
 		return planned_direction.length_squared() > 0.0001
+	if planned_action.charge_to_farthest:
+		return has_live_target()
 	if not has_live_target():
 		return false
 	return is_target_in_action_range(planned_action, 6.0)
@@ -384,6 +494,20 @@ func is_stunned() -> bool:
 	return stun_time > 0.0
 
 
+func is_charging() -> bool:
+	return (state_machine != null and state_machine.current_name == &"action"
+		and planned_action != null
+		and (planned_action.charge_to_farthest or planned_action.advance_distance > 0.0))
+
+
+func begin_action_effects() -> void:
+	_action_hit_targets.clear()
+
+
+func _record_action_hit(victim: Unit) -> void:
+	_action_hit_targets[victim.get_instance_id()] = true
+
+
 func heal(amount: float, healer: Unit = null) -> void:
 	if not alive or amount <= 0.0:
 		return
@@ -401,16 +525,63 @@ func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
 		return
 	match effect.status_kind:
 		ActionEffectDefinition.StatusKind.STUN:
-			stun_time = maxf(stun_time, effect.status_duration)
-			if state_machine != null:
-				state_machine.transition_to(&"idle", true)
+			_enter_stun(effect.status_duration)
 		ActionEffectDefinition.StatusKind.SLOW:
 			slow_time = maxf(slow_time, effect.status_duration)
 			slow_factor = clampf(effect.status_power, 0.1, 1.0)
 		ActionEffectDefinition.StatusKind.BLEED:
+			var was_bleeding := bleed_time > 0.0
 			bleed_time = maxf(bleed_time, effect.status_duration)
-			bleed_dps = maxf(bleed_dps, effect.status_power)
-			bleed_source = source
+			if not was_bleeding or effect.status_power >= bleed_dps:
+				bleed_dps = effect.status_power
+				bleed_source = source
+		ActionEffectDefinition.StatusKind.BURN:
+			apply_burn(effect.status_duration, effect.status_power, source)
+
+
+## 进入眩晕：立刻打断当前动作，切到受击状态并亮起头顶三星。
+## 已经处于眩晕时只刷新时长/特效，不重复打断。
+func _enter_stun(duration: float) -> void:
+	if not alive or duration <= 0.0:
+		return
+	var already_stunned := is_stunned()
+	stun_time = maxf(stun_time, duration)
+	if stun_fx != null:
+		stun_fx.position = Vector2(0.0, health_bar.position.y - 22.0)
+		stun_fx.play()
+	if state_machine != null and state_machine.current_name != &"death":
+		if state_machine.current_name == &"hurt":
+			# 技能伤害可能已经先把单位打进 Hurt；眩晕起手时重播一次受击动画。
+			play_animation(&"hurt", not already_stunned)
+		else:
+			state_machine.transition_to(&"hurt", true)
+	if battle != null:
+		battle.spawn_hit_spark(get_hit_point() + Vector2(0.0, -22.0), Color("#ffd35e"), 1.15)
+
+
+func apply_burn(duration: float, dps: float, source: Unit) -> void:
+	if not alive or duration <= 0.0 or dps <= 0.0:
+		return
+	# 重复命中刷新时长；取较强的火焰，不把多个来源无限叠加。
+	if dps >= burn_dps or burn_time <= 0.0:
+		burn_dps = dps
+		burn_source = source
+	burn_time = duration
+	_burn_tick = 0.0
+
+
+func hit_by_action(victim: Unit, action: CombatActionDefinition, effect: ActionEffectDefinition) -> void:
+	if not is_instance_valid(victim) or not victim.alive:
+		return
+	var impact := victim.get_hit_point()
+	var blocked := victim.is_guarding()
+	_record_action_hit(victim)
+	victim.take_damage(attack_damage * maxf(effect.damage_ratio, 0.0), self, impact,
+		action.category != CombatActionDefinition.Category.BASIC)
+	if victim.alive and not blocked and effect.burn_duration > 0.0:
+		victim.apply_burn(effect.burn_duration, attack_damage * effect.burn_dps_ratio, self)
+	battle.spawn_hit_spark(impact, accent_color, 1.2)
+	battle.action_hits += 1
 
 
 func apply_knockback(origin: Vector2, distance: float) -> void:
@@ -433,24 +604,29 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 		ActionEffectDefinition.Kind.DAMAGE:
 			_resolve_damage_effect(action, effect, damage)
 		ActionEffectDefinition.Kind.PROJECTILE:
-			if has_live_target() and is_target_in_action_range(action, 24.0):
+			if has_live_target() and is_target_in_action_range(action, 24.0, false):
 				battle.spawn_projectile(self, target, damage, effect.projectile_kind, accent_color,
-					action.category != CombatActionDefinition.Category.BASIC)
+					action.category != CombatActionDefinition.Category.BASIC, effect)
 		ActionEffectDefinition.Kind.VISUAL:
 			_spawn_action_visual(effect)
 		ActionEffectDefinition.Kind.GUARD:
 			apply_guard(effect.duration)
+		ActionEffectDefinition.Kind.SHIELD:
+			apply_shield(max_hp * effect.shield_per_target_ratio * _action_hit_targets.size(),
+				effect.duration, max_hp * effect.shield_max_ratio)
 		ActionEffectDefinition.Kind.HEAL:
 			_resolve_heal_effect(effect)
 		ActionEffectDefinition.Kind.STATUS:
 			for victim in _effect_victims(effect):
+				if effect.requires_action_hit and not _action_hit_targets.has(victim.get_instance_id()):
+					continue
 				victim.apply_status(effect, self)
 		ActionEffectDefinition.Kind.DISPLACE:
 			for victim in _effect_victims(effect):
 				victim.apply_knockback(global_position, effect.knockback)
 		ActionEffectDefinition.Kind.SUMMON:
 			if battle != null:
-				battle.spawn_summons(self, effect.summon_unit_id, effect.summon_count)
+				battle.spawn_summons(self, effect.summon_unit_id, effect.summon_count, effect.effect_scene)
 		_:
 			push_warning("ActionEffect kind %d 尚未实现" % effect.kind)
 
@@ -461,11 +637,16 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffectDefinition, damage: float) -> void:
 	match effect.shape:
 		ActionEffectDefinition.Shape.SINGLE:
-			if not has_live_target() or not is_target_in_action_range(action, 24.0):
+			if not has_live_target() or not is_target_in_action_range(action, 24.0, false):
+				return
+			if (action.advance_distance > 0.0 or action.teleport_to_target) and distance_to_target() > target_reach(24.0):
 				return
 			var impact := target.get_hit_point()
 			battle.spawn_slash(impact, accent_color, signf(target.global_position.x - global_position.x))
+			_record_action_hit(target)
 			target.take_damage(damage, self, impact, action.category != CombatActionDefinition.Category.BASIC)
+			if target.alive and effect.knockback > 0.0:
+				target.apply_knockback(global_position, effect.knockback)
 			battle.action_hits += 1
 		ActionEffectDefinition.Shape.CONE:
 			var cone_direction := planned_direction
@@ -475,12 +656,14 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 				self, cone_direction, effect.radius, effect.half_angle
 			)
 			for victim in victims:
+				_record_action_hit(victim)
 				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
 				battle.spawn_hit_spark(victim.get_hit_point(), Color(1.0, 0.55, 0.18), 1.4)
 				battle.action_hits += 1
 		ActionEffectDefinition.Shape.CIRCLE:
 			var center := global_position if effect.center_on_self else (target.global_position if has_live_target() else global_position)
 			for victim in battle.units_in_circle(self, center, effect.radius):
+				_record_action_hit(victim)
 				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
 				battle.action_hits += 1
 		ActionEffectDefinition.Shape.RECT:
@@ -488,6 +671,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 			if direction.length_squared() < 0.0001:
 				direction = Vector2(float(facing), 0.0)
 			for victim in battle.units_in_rect(self, direction, effect.length, effect.width):
+				_record_action_hit(victim)
 				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
 				battle.spawn_hit_spark(victim.get_hit_point(), accent_color, 1.2)
 				battle.action_hits += 1
@@ -528,6 +712,18 @@ func apply_guard(duration: float) -> void:
 	guard_time = maxf(guard_time, duration)
 
 
+func apply_shield(amount: float, duration: float, cap: float) -> void:
+	if not alive or amount <= 0.0 or duration <= 0.0 or cap <= 0.0:
+		return
+	var before := shield
+	shield = minf(shield + amount, cap)
+	shield_time = duration
+	health_bar.set_shield_ratio(shield / max_hp)
+	if battle != null and shield > before:
+		battle.spawn_shield_text(get_hit_point(), shield - before)
+		battle.spawn_hit_spark(get_hit_point(), Color("#59d9ff"), 1.8)
+
+
 func is_guarding() -> bool:
 	return guard_time > 0.0
 
@@ -544,6 +740,16 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 		battle.spawn_block_text(block_at)
 		return
 	var amount := raw_amount * (1.0 - clampf(armor, 0.0, 0.8))
+	if shield > 0.0:
+		var absorbed := minf(shield, amount)
+		shield -= absorbed
+		amount -= absorbed
+		health_bar.set_shield_ratio(shield / max_hp)
+		if shield <= 0.0:
+			shield_time = 0.0
+		if amount <= 0.0:
+			battle.spawn_hit_spark(get_hit_point(), Color(0.35, 0.85, 1.0), 1.2)
+			return
 	hp = maxf(0.0, hp - amount)
 	last_damage_source = source
 	health_bar.set_ratio(hp / max_hp)
@@ -566,6 +772,10 @@ func die(killer: Unit) -> void:
 	alive = false
 	hp = 0.0
 	guard_time = 0.0
+	shield = 0.0
+	shield_time = 0.0
+	health_bar.set_shield_ratio(0.0)
+	burn_time = 0.0
 	target = null
 	brain.enabled = false
 	brain.last_observe_text = "生命归零，已失去感知"
@@ -575,6 +785,8 @@ func die(killer: Unit) -> void:
 	health_bar.hide()
 	team_ring.hide()
 	selection_ring.hide()
+	if stun_fx != null:
+		stun_fx.stop()
 	shadow.modulate = Color(1.0, 1.0, 1.0, 0.4)
 	state_machine.transition_to(&"death", true)
 	died.emit(self, killer)
@@ -650,6 +862,8 @@ func ai_snapshot() -> Dictionary:
 		"skill_range": "%d" % roundi(_max_action_range()) if _max_action_range() > attack_range + 0.5 else "—",
 		"cooldown": "%.2f" % current_action_cooldown(),
 		"guard": "%.1f" % guard_time,
+		"shield": "%d" % roundi(shield),
+		"shield_time": "%.1f" % shield_time,
 		"stun": "%.1f" % stun_time,
 		"slow": "%.1f" % slow_time,
 		"bleed": "%.1f" % bleed_time,
