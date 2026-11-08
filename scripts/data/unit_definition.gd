@@ -40,7 +40,7 @@ const FACTION_NAMES := {
 
 @export_group("资源")
 @export var max_mana := 100.0
-## 新入场单位的初始蓝量；所有现有英雄统一为 0。
+## 新入场单位的初始蓝量；剑士为 50，其余现有英雄为 0。
 @export var starting_mana := 0.0
 @export var mana_regen := 8.0
 
@@ -142,5 +142,5 @@ func skill_description_text() -> String:
 		if action == null or action.category == CombatActionDefinition.Category.BASIC:
 			continue
 		var mana_text := "满蓝" if action.mana_cost >= max_mana - 0.001 else ("蓝 %.0f" % action.mana_cost if action.mana_cost > 0.0 else "0 蓝")
-		lines.append("%s｜%s｜CD %.0f 秒：%s" % [action.display_name, mana_text, action.cooldown, action.detail_text()])
+		lines.append("%s｜%s｜CD %.0f 秒：%s" % [action.display_name, mana_text, action.cooldown, action.detail_text(attack_damage)])
 	return "\n".join(PackedStringArray(lines))

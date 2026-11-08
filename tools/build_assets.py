@@ -3,7 +3,8 @@
 
 The runtime game is node/scene/resource based. This tool only prepares the
 checked-in copies of the source art, portraits, SpriteFrames resources and
-UnitDefinition resources. It is deterministic and can be re-run safely.
+UnitDefinition resources. Existing action/unit resources are preserved unless
+the matching --rebuild-* flag is passed.
 
 Usage: python3 tools/build_assets.py
 """
@@ -34,6 +35,8 @@ PORTRAIT_OUT = ASSETS / "portraits"
 RES_UNITS = ROOT / "resources" / "units"
 RES_VISUALS = ROOT / "resources" / "visuals"
 RES_ACTIONS = ROOT / "resources" / "actions"
+REBUILD_ACTIONS = False
+REBUILD_UNITS = False
 VISUAL_SCENES = ROOT / "scenes" / "units"
 RES_BEHAVIORS = ROOT / "resources" / "behaviors"
 
@@ -75,70 +78,70 @@ ROLE_COLORS = {
 UNITS = [
     Unit("soldier", "士兵", "王庭新兵", 0, "战士", 0,
          "攻守均衡的近战新兵，适合放在前排吸收第一波冲锋。",
-         640, 56, 1.00, 76, 125, 0.05, 0.30, 0, 0, 4.0, 30, source="Soldier"),
+         130, 11, 0.90, 76, 125, 0.06, 0.30, 0, 0, 4.0, 30, source="Soldier"),
     Unit("archer", "弓箭手", "林间猎手", 0, "射手", 1,
          "超远射程的物理射手，脆弱但持续输出稳定。",
-         400, 50, 1.05, 510, 118, 0.02, 0.38, 1, 1, 4.0, 28, source="Archer"),
+         85, 11, 1.00, 510, 118, 0.02, 0.38, 1, 1, 4.0, 28, source="Archer"),
     Unit("knight", "骑士", "铁壁骑士", 0, "坦克", 2,
          "披甲的王国骑士，护甲与生命都很扎实。",
-         940, 64, 1.15, 80, 105, 0.18, 0.32, 0, 0, 4.1, 32, source="Knight"),
+         150, 12, 0.70, 60, 140, 0.15, 0.32, 0, 0, 4.1, 32, source="Knight"),
     Unit("knight_templar", "圣殿骑士", "圣殿守护者", 0, "坦克", 3,
          "圣殿的精锐守护者，全场最可靠的前排之一。",
-         1020, 72, 1.10, 84, 100, 0.22, 0.34, 0, 0, 4.2, 33, source="Knight Templar"),
+         170, 12, 0.70, 84, 100, 0.18, 0.34, 0, 0, 4.2, 33, source="Knight Templar"),
     Unit("armored_axeman", "重甲斧兵", "断岳斧手", 0, "战士", 4,
          "挥动巨斧的重装战士，单次伤害极高。",
-         800, 82, 1.35, 86, 95, 0.12, 0.40, 0, 0, 4.2, 33, source="Armored Axeman"),
+         140, 16, 0.75, 86, 95, 0.10, 0.40, 0, 0, 4.2, 33, source="Armored Axeman"),
     Unit("lancer", "枪兵", "长枪卫兵", 0, "战士", 5,
          "长枪的攻击距离更远，能在敌人近身前先手命中。",
-         660, 68, 1.20, 112, 118, 0.08, 0.30, 0, 0, 4.1, 30, source="Lancer"),
+         125, 13, 0.85, 112, 118, 0.07, 0.30, 0, 0, 4.1, 30, source="Lancer"),
     Unit("swordsman", "剑士", "疾风剑士", 0, "突袭", 6,
          "高速近战刺客，攻速极快但生命偏低。",
-         580, 72, 0.90, 72, 142, 0.04, 0.24, 0, 0, 4.0, 28, source="Swordsman"),
+         120, 15, 0.80, 60, 140, 0.05, 0.24, 0, 0, 4.0, 28, source="Swordsman"),
     Unit("priest", "牧师", "圣光牧师", 0, "辅助", 7,
          "以圣光攻击的远程支援者，MVP 中只使用普攻。",
-         480, 44, 1.25, 465, 110, 0.03, 0.42, 1, 2, 4.0, 28, source="Priest"),
+         95, 8, 0.80, 465, 110, 0.03, 0.42, 1, 2, 4.0, 28, source="Priest"),
     Unit("wizard", "法师", "秘法法师", 0, "法师", 8,
          "秘法飞弹威力惊人，需要队友保护。",
-         380, 96, 1.55, 540, 105, 0.00, 0.50, 1, 2, 4.0, 28, source="Wizard"),
+         80, 15, 0.80, 540, 105, 0.00, 0.50, 1, 2, 4.0, 28, source="Wizard"),
     Unit("orc", "兽人", "荒原兽人", 1, "战士", 9,
          "来自荒原的兽人战士，皮糙肉厚且好战。",
-         720, 70, 1.10, 78, 122, 0.06, 0.30, 0, 0, 4.0, 30, source="Orc"),
+         145, 12, 0.85, 78, 122, 0.08, 0.30, 0, 0, 4.0, 30, source="Orc"),
     Unit("elite_orc", "精锐兽人", "血牙精锐", 1, "战士", 10,
          "血牙氏族的精锐，攻守都强于普通兽人。",
-         880, 86, 1.30, 86, 112, 0.12, 0.36, 0, 0, 4.1, 32, source="Elite Orc"),
+         150, 15, 0.85, 86, 112, 0.10, 0.36, 0, 0, 4.1, 32, source="Elite Orc"),
     Unit("armored_orc", "重甲兽人", "铁颚重甲", 1, "坦克", 11,
          "铁颚重甲兽人，移动缓慢但极难击倒。",
-         1060, 72, 1.50, 84, 92, 0.22, 0.42, 0, 0, 4.2, 34, source="Armored Orc"),
+         180, 12, 0.65, 84, 92, 0.20, 0.42, 0, 0, 4.2, 34, source="Armored Orc"),
     Unit("orc_rider", "兽人骑兵", "荒野壁垒", 1, "坦克", 12,
          "荒野阵营最坚韧的骑兵，突进顶开敌人，环斩时以命中人数凝聚护盾。",
-         1240, 70, 1.00, 104, 125, 0.24, 0.28, 0, 0, 4.4, 36, source="Orc rider"),
+         195, 11, 0.70, 104, 125, 0.21, 0.28, 0, 0, 4.4, 36, source="Orc rider"),
     Unit("skeleton", "骷髅", "枯骨兵", 2, "战士", 13,
          "骨架松散却不知疼痛，最廉价的战线填充者。",
-         420, 48, 1.00, 74, 122, 0.03, 0.28, 0, 0, 3.9, 28, source="Skeleton"),
+         100, 9, 0.85, 74, 122, 0.03, 0.28, 0, 0, 3.9, 28, source="Skeleton"),
     Unit("armored_skeleton", "重甲骷髅", "墓卫骷髅", 2, "坦克", 14,
          "墓园守卫，旧甲提供了可观的防护。",
-         680, 60, 1.30, 80, 108, 0.18, 0.34, 0, 0, 4.0, 30, source="Armored Skeleton"),
+         150, 11, 0.70, 80, 108, 0.16, 0.34, 0, 0, 4.0, 30, source="Armored Skeleton"),
     Unit("greatsword_skeleton", "巨剑骷髅", "断魂巨剑", 2, "战士", 15,
          "拖着巨剑的骸骨，一次挥砍就能重创脆皮。",
-         760, 92, 1.50, 96, 96, 0.10, 0.42, 0, 0, 4.2, 33, source="Greatsword Skeleton"),
+         130, 18, 0.65, 96, 96, 0.08, 0.42, 0, 0, 4.2, 33, source="Greatsword Skeleton"),
     Unit("skeleton_archer", "骷髅弓手", "骸骨射手", 2, "射手", 16,
          "从墓穴中爬出的弓手，远程压制力不俗。",
-         350, 48, 1.10, 495, 118, 0.02, 0.36, 1, 1, 3.9, 28, source="Skeleton Archer"),
+         80, 10, 0.90, 495, 118, 0.02, 0.36, 1, 1, 3.9, 28, source="Skeleton Archer"),
     Unit("necromancer", "死灵法师", "墓穴低语者", 2, "法师", 17,
          "近身以镰刀斩击，远程锁定敌人施放鬼火，并能召唤骷髅。",
-         440, 90, 1.60, 525, 102, 0.02, 0.48, 1, 2, 4.0, 28, source="Necromancer"),
+         90, 12, 0.85, 525, 102, 0.02, 0.48, 1, 2, 4.0, 28, source="Necromancer"),
     Unit("bat", "蝙蝠", "夜翼蝠", 2, "突袭", 18,
          "飞行的夜翼蝠，移速极快，能绕开前排。",
-         300, 36, 0.70, 60, 195, 0.00, 0.20, 0, 0, 3.2, 22, source="Bat"),
+         75, 10, 1.15, 60, 195, 0.00, 0.20, 0, 0, 3.2, 22, source="Bat"),
     Unit("slime", "史莱姆", "沼泽史莱姆", 2, "战士", 19,
          "黏稠的沼泽生物，缓慢但难以彻底打散。",
-         540, 42, 1.25, 66, 88, 0.08, 0.34, 0, 0, 3.3, 25, source="Slime"),
+         145, 9, 0.75, 66, 88, 0.08, 0.34, 0, 0, 3.3, 25, source="Slime"),
     Unit("werebear", "熊人", "裂林熊人", 1, "坦克", 20,
          "巨熊般的体魄，擅长以重击震慑周围敌人。",
-         1150, 98, 1.60, 94, 102, 0.18, 0.46, 0, 0, 4.6, 40, source="Werebear"),
+         190, 15, 0.60, 94, 102, 0.16, 0.46, 0, 0, 4.6, 40, source="Werebear"),
     Unit("werewolf", "狼人", "血月狼人", 1, "突袭", 21,
          "闪现切入后排的单体爆发者，以连续斩击和流血追猎目标。",
-         680, 80, 0.95, 76, 168, 0.05, 0.26, 0, 0, 4.1, 30, source="Werewolf"),
+         115, 15, 0.90, 76, 168, 0.05, 0.26, 0, 0, 4.1, 30, source="Werewolf"),
 ]
 
 # Animation source mapping. Values are source file stems inside the character folder.
@@ -228,6 +231,8 @@ def _write_effect_resource(effect_id: str, effect: dict) -> str:
     ]
     if effect.get("scene_id"):
         lines.append(f'effect_scene = ExtResource("{effect["scene_id"]}")')
+    if effect.get("behavior_id"):
+        lines.append(f'behavior = SubResource("{effect["behavior_id"]}")')
     return "\n".join(lines)
 
 
@@ -258,6 +263,9 @@ def _write_action(
     min_range: float = 0.0,
     preferred_min_range: float = 0.0,
 ) -> None:
+    # 运行中的技能平衡以 .tres 为准；默认只补齐缺失文件。
+    if path.exists() and not REBUILD_ACTIONS:
+        return
     effects = effect if isinstance(effect, list) else [effect]
     lines = [
         '[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]',
@@ -265,6 +273,18 @@ def _write_action(
         '[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]',
         '[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]',
     ]
+    movement_kind = 3 if charge_to_farthest else (2 if teleport_to_target else (1 if advance_speed > 0.0 else 0))
+    if movement_kind:
+        lines.append('[ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="movement_script"]')
+    if charge_to_farthest:
+        lines.append('[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="targeting_script"]')
+    behavior_paths = {
+        3: 'res://scripts/data/effects/heal_effect_behavior.gd',
+        7: 'res://scripts/data/effects/summon_effect_behavior.gd',
+    }
+    used_behaviors = {data['kind']: behavior_paths[data['kind']] for data in effects if data['kind'] in behavior_paths}
+    for kind, behavior_path in used_behaviors.items():
+        lines.append(f'[ext_resource type="Script" path="{behavior_path}" id="behavior_script_{kind}"]')
     scene_paths: list[str] = []
     for effect_data in effects:
         scene_path = effect_data.get("scene_path")
@@ -277,12 +297,37 @@ def _write_action(
             if effect_data.get("scene_path") == scene_path:
                 effect_data["scene_id"] = scene_id
     lines.append('')
+    for kind in used_behaviors:
+        lines += [
+            f'[sub_resource type="Resource" id="behavior_{kind}"]',
+            f'script = ExtResource("behavior_script_{kind}")',
+            '',
+        ]
     effect_refs = []
     for index, effect_data in enumerate(effects):
+        if effect_data['kind'] in used_behaviors:
+            effect_data['behavior_id'] = f'behavior_{effect_data["kind"]}'
         effect_id = f"effect_{index}"
         effect_refs.append(f'SubResource("{effect_id}")')
         lines.append(_write_effect_resource(effect_id, effect_data))
         lines.append('')
+    if movement_kind:
+        lines += [
+            '[sub_resource type="Resource" id="movement"]',
+            'script = ExtResource("movement_script")',
+            f'kind = {movement_kind}',
+            f'speed = {charge_speed if charge_to_farthest else advance_speed:.1f}',
+            f'distance = {advance_distance:.1f}',
+            f'target_gap = {teleport_gap:.1f}',
+            '',
+        ]
+    if charge_to_farthest:
+        lines += [
+            '[sub_resource type="Resource" id="targeting"]',
+            'script = ExtResource("targeting_script")',
+            'selection = 1',
+            '',
+        ]
     lines += [
         '[resource]',
         'script = ExtResource("1")',
@@ -301,12 +346,8 @@ def _write_action(
         f'action_duration = {action_duration:.2f}',
         f'min_self_hp_ratio = {min_self_hp_ratio:.2f}',
         f'max_self_hp_ratio = {max_self_hp_ratio:.2f}',
-        f'advance_speed = {advance_speed:.1f}',
-        f'advance_distance = {advance_distance:.1f}',
-        f'teleport_to_target = {"true" if teleport_to_target else "false"}',
-        f'teleport_gap = {teleport_gap:.1f}',
-        f'charge_to_farthest = {"true" if charge_to_farthest else "false"}',
-        f'charge_speed = {charge_speed:.1f}',
+        *(['movement = SubResource("movement")'] if movement_kind else []),
+        *(['targeting = SubResource("targeting")'] if charge_to_farthest else []),
         f'min_targets = {min_targets}',
         f'requires_wounded_ally = {"true" if requires_wounded_ally else "false"}',
         f'priority = {priority}',
@@ -425,16 +466,18 @@ def _skills_for(unit: Unit) -> list[dict]:
                              14.0, 10, 210.0, rng, mana=100.0,
                              charge_to_farthest=True, charge_speed=900.0))
     elif slug == "swordsman":
-        skills.append(_skill("swordsman_triple", "疾风三连", "attack_02",
-                             [_fx(shape=0, ratio=0.45, frame=frame) for frame in [4, 6, 8]],
-                             7.0, 7, rng, rng))
-        skills.append(_skill("swordsman_flurry", "追魂连刺", "attack_03",
-                             [_fx(shape=0, ratio=0.40, frame=frame) for frame in [3, 5, 7, 9, 11]],
-                             13.0, 10, rng, rng, mana=100.0))
+        skills.append(_skill("swordsman_triple", "突刺斩", "attack_02",
+                             [_fx(shape=0, ratio=1.0, frame=frame) for frame in [4, 6, 8]],
+                             10.0, 7, rng, rng,
+                             description="快速刺出三剑，每一剑造成 {damage_0}单体伤害。"))
+        skills.append(_skill("swordsman_flurry", "利刃华尔兹", "attack_03",
+                             [_fx(shape=0, ratio=1.0, frame=frame) for frame in [3, 5, 7, 9, 11]],
+                             13.0, 10, rng, rng, mana=100.0,
+                             description="以迅雷之势斩击 5 次，每一次造成 {damage_0} 单体伤害。"))
     elif slug == "priest":
         skills.append(_skill("priest_sanctuary", "圣光普照", "heal",
                              [_fx(kind=3, shape=1, frame=2, radius=520.0,
-                                  heal_amount=140.0, heal_ratio=1.0)],
+                                  heal_amount=20.0, heal_ratio=1.0)],
                              15.0, 10, 0.0, 0.0, mana=100.0,
 
                              target_mode=2, requires_wounded_ally=True))
@@ -442,11 +485,11 @@ def _skills_for(unit: Unit) -> list[dict]:
         skills.append(_skill("wizard_fireball", "火球术", "attack_02",
                              [_fx(kind=1, shape=0, ratio=1.5, frame=6, projectile=4,
                                   burn_duration=3.0, burn_dps_ratio=0.25)],
-                             6.0, 7, rng, rng, description="发射火球，命中造成 150% 攻击伤害，并燃烧 3 秒。"))
+                             6.0, 7, rng, rng, description="发射火球，命中造成 {damage_0}单体伤害，并燃烧 3 秒。"))
         skills.append(_skill("wizard_freeze", "冰封术", "attack_01",
                              [_fx(kind=1, shape=0, ratio=2.0, frame=5, projectile=3,
                                   status_kind=0, status_duration=1.5)],
-                             14.0, 10, rng, rng, mana=100.0, description="发射冰封弹，命中造成 200% 攻击伤害并眩晕 1.5 秒。"))
+                             14.0, 10, rng, rng, mana=100.0, description="发射冰封弹，命中造成 {damage_0}单体伤害并眩晕 1.5 秒。"))
     elif slug == "orc":
         skills.append(_skill("orc_rage_cleave", "狂暴斩", "attack_02",
                              [_fx(shape=2, ratio=1.9, frame=4, radius=rng + 10.0, half=65.0)],
@@ -460,7 +503,7 @@ def _skills_for(unit: Unit) -> list[dict]:
         skills.append(_skill("elite_orc_bloodmoon", "血月狂斩", "attack_03",
                              [_fx(shape=0, ratio=3.5, frame=5)],
                              14.0, 10, rng, rng, mana=100.0,
-                             description="对单个敌人发动重斩，造成 350% 攻击伤害。"))
+                             description="对单个敌人发动重斩，造成 {damage_0}单体伤害。"))
     elif slug == "armored_orc":
         skills.append(_skill("armored_orc_bash", "贯甲突刺", "attack_02",
                              [_fx(shape=1, ratio=1.2, frame=5, radius=110.0, center_self=True),
@@ -480,7 +523,7 @@ def _skills_for(unit: Unit) -> list[dict]:
                              [_fx(shape=0, ratio=1.45, frame=4, knockback=70.0)],
                              7.0, 8, 245.0, rng, advance=600.0,
                              advance_distance=180.0, min_range=135.0,
-                             description="向目标突进最多 180 像素，命中后造成 145% 攻击伤害并击退 70 像素。"))
+                             description="向目标突进最多 180 像素，命中后造成 {damage_0}单体伤害并击退 70 像素。"))
         skills.append(_skill("orc_rider_block", "骑盾格挡", "block",
                              [_fx(kind=8, shape=3, frame=0, duration=1.2)],
                              11.0, 7, 0.0, 0.0, category=2, target_mode=2,
@@ -508,7 +551,7 @@ def _skills_for(unit: Unit) -> list[dict]:
                               _fx(kind=5, shape=1, frame=4, radius=110.0,
                                   center_self=True, status_kind=0, status_duration=0.8)],
                              16.0, 10, 0.0, rng, mana=100.0, target_mode=2,
-                             description="震击周围敌人，造成 180% 攻击伤害并眩晕 0.8 秒。"))
+                             description="震击周围敌人，造成 {damage_0}范围伤害并眩晕 0.8 秒。"))
     elif slug == "greatsword_skeleton":
         skills.append(_skill("greatsword_skeleton_cleave", "断魂斩", "attack_02",
                              [_fx(shape=2, ratio=1.4, frame=7, radius=rng + 14.0, half=62.0)],
@@ -522,11 +565,11 @@ def _skills_for(unit: Unit) -> list[dict]:
                               _fx(kind=1, shape=0, ratio=0.75, frame=4, projectile=1),
                               _fx(kind=1, shape=0, ratio=0.75, frame=6, projectile=1)],
                              16.0, 10, rng, rng, mana=100.0,
-                             description="对同一目标连射 3 箭，每箭造成 75% 攻击伤害。"))
+                             description="对同一目标连射 3 箭，每箭造成 {damage_0}单体伤害。"))
     elif slug == "necromancer":
         skills.append(_skill("necromancer_ghostfire", "鬼火", "attack_02",
                              [_fx(shape=0, ratio=1.0, frame=6, scene_path="res://scenes/fx/necromancer_ghostfire.tscn")],
-                             0.95, 1, 525.0, rng, min_range=100.0, category=0,
+                             1.18, 1, 525.0, rng, min_range=100.0, category=0,
                              description="锁定远处敌人，在目标位置直接生成鬼火。"))
         skills.append(_skill("necromancer_summon", "亡者召唤", "summon",
                              [_fx(kind=7, frame=2, summon_id="skeleton", summon_count=1,
@@ -562,11 +605,11 @@ def _skills_for(unit: Unit) -> list[dict]:
                               _fx(shape=0, ratio=1.15, frame=9),
                               _fx(shape=0, ratio=1.35, frame=11),
                               _fx(kind=5, shape=0, frame=11, status_kind=2,
-                                  status_duration=4.0, status_power=20.0,
+                                  status_duration=4.0, status_power=3.0,
                                   requires_action_hit=True)],
                              14.0, 10, 300.0, rng, mana=100.0,
                              preferred_min_range=130.0, teleport_to_target=True,
-                             description="优先闪现至中距离目标身前连续斩击 3 次，共造成 350% 攻击伤害，并使其流血 4 秒。"))
+                             description="优先闪现至中距离目标身前连续斩击 3 次，共造成 {total_damage}单体伤害，并使其流血 4 秒。"))
 
     # 所有以自身为原点的扇形/矩形技能，action_range 与实际伤害形状完全一致。
     for spec in skills:
@@ -935,7 +978,7 @@ attack_damage = {unit.attack_damage:.1f}
 attack_speed = {unit.attack_speed:.2f}
 attack_range = {unit.attack_range:.1f}
 max_mana = 100.0
-starting_mana = 0.0
+starting_mana = {50.0 if unit.slug == "swordsman" else 0.0:.1f}
 mana_regen = 8.0
 move_speed = {unit.move_speed:.1f}
 armor = {unit.armor:.2f}
@@ -953,7 +996,9 @@ visual_scene = ExtResource("{visual_id}")
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")
 '''
-    (RES_UNITS / f"{unit.slug}.tres").write_text(content, encoding="utf-8")
+    unit_resource = RES_UNITS / f"{unit.slug}.tres"
+    if REBUILD_UNITS or not unit_resource.exists():
+        unit_resource.write_text(content, encoding="utf-8")
     return unit.foot_offset, visual_path.name
 
 
@@ -1030,6 +1075,14 @@ def build_fonts() -> None:
 
 
 def main() -> None:
+    global REBUILD_ACTIONS, REBUILD_UNITS
+    import argparse
+    parser = argparse.ArgumentParser(description="生成王国竞技场素材与资源")
+    parser.add_argument("--rebuild-actions", action="store_true", help="强制重建动作资源，会覆盖手工调整的技能数值")
+    parser.add_argument("--rebuild-units", action="store_true", help="强制重建英雄资源，会覆盖手工调整的基础数值")
+    args = parser.parse_args()
+    REBUILD_ACTIONS = args.rebuild_actions
+    REBUILD_UNITS = args.rebuild_units
     RES_UNITS.mkdir(parents=True, exist_ok=True)
     RES_VISUALS.mkdir(parents=True, exist_ok=True)
     RES_ACTIONS.mkdir(parents=True, exist_ok=True)

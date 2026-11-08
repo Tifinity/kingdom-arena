@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="movement_script"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -29,11 +30,18 @@ knockback = 70.0
 projectile_kind = 0
 duration = 0.00
 
+[sub_resource type="Resource" id="movement"]
+script = ExtResource("movement_script")
+kind = 1
+speed = 600.0
+distance = 180.0
+target_gap = 10.0
+
 [resource]
 script = ExtResource("1")
 action_id = &"orc_rider_ram"
 display_name = "裂阵冲撞"
-description = "向目标突进最多 180 像素，命中后造成 145% 攻击伤害并击退 70 像素。"
+description = "向目标突进最多 180 像素，命中后造成 {damage_0}单体伤害并击退 70 像素。"
 category = 1
 target_mode = 0
 animation = &"attack_01"
@@ -45,11 +53,8 @@ mana_cost = 0.0
 action_duration = 0.00
 min_self_hp_ratio = 0.00
 max_self_hp_ratio = 1.00
-advance_speed = 600.0
-advance_distance = 180.0
-charge_to_farthest = false
-charge_speed = 0.0
 min_targets = 1
 requires_wounded_ally = false
 priority = 8
+movement = SubResource("movement")
 effects = [SubResource("effect_0")]

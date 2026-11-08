@@ -196,6 +196,20 @@ scenes/units/armored_axeman_visual.tscn
 `tools/build_assets.py` 只会在视觉场景**不存在**时生成它，**不会覆盖手工调整**。
 需要重置某个英雄时，删除对应 `_visual.tscn` 后重新运行构建脚本即可。
 
+### 技能数值在哪里调
+
+打开 `resources/units/<英雄 id>.tres`，在 `actions` 中找到技能引用，再打开对应的
+`resources/actions/<动作 id>.tres`。冷却、蓝耗、施放距离、AI 优先级在动作资源的
+`[resource]` 中；伤害倍率、治疗量、状态持续时间和触发帧在该文件的 `effect_*`
+子资源中；冲锋、闪现、推进的速度和距离在 `movement` 子资源中。
+
+英雄基础攻击力、攻速、最大蓝量与回蓝速度在 `resources/units/<英雄 id>.tres`，
+持续状态的叠层和默认持续时间在 `resources/status/<状态 id>.tres`。
+字段、计算方式与完整修改示例见 [技能数值与架构说明](docs/SKILL_SYSTEM.md)。
+
+现在 `tools/build_assets.py` 默认保留已有英雄和动作 `.tres`。只有显式使用
+`--rebuild-actions` 或 `--rebuild-units` 才会覆盖对应手调数值。
+
 ### 索敌/移动怎么调
 
 每个英雄一份：
@@ -364,12 +378,12 @@ score = 距离权重 0.50 × (1 - clamp(距离 / 1000))
 | **待机** `idle` | `scripts/ai/states/idle_state.gd` | 播放 idle、面向目标，读取 Brain 的行动计划 |
 | **移动** `move` | `move_state.gd` | 走向目标周围的个人战斗位（按槽位错开 Y 轴）；远程被贴脸时后撤 |
 | **行动** `action` | `action_state.gd` | 执行选中的 `CombatActionDefinition`：动画、命中帧、伤害/投射物/AOE、冷却；普攻与技能共用 |
-| **受击** `hurt` | `hurt_state.gd` | 被较大伤害打断当前动作，短暂僵直，然后恢复 |
+| **受击** `hurt` | `hurt_state.gd` | 眩晕等控制效果打断当前动作；普通伤害只播放闪烁，不切换状态 |
 | **死亡** `death` | `death_state.gd` | 播放死亡动画，尸体停留后淡出并释放，通知 Battle 判定胜负 |
 
 状态由 `UnitStateMachine` 统一切换，状态节点是 `unit.tscn` 里真实存在的子节点，可以单独在
-编辑器里看到和调整。`Unit.take_damage()` 只在“大伤害 + 受击冷却就绪”时强制切到 `hurt`，
-避免 5v5 混战里被永久锁死。
+编辑器里看到和调整。`Unit.take_damage()` 不会切到 `hurt`；眩晕由控制状态明确打断动作，
+避免普通伤害在 5v5 混战里反复中断施法。
 
 ### 为什么用“目标周围的战斗位”
 
@@ -416,7 +430,7 @@ UnitActionState（唯一行动状态）
 - 每个英雄自动生成 `basic_attack`，并按动画资源配置普通技能/大招；
 - 普通技能 `mana_cost = 0`，只受 CD；大招 `mana_cost = 100`，释放后清空蓝量；
 - 已有 `block` / `heal` / `summon` 动画的英雄会分别接入格挡、治疗、召唤；
-- 普通攻击不触发受击硬直、不产生击退；技能伤害仍然可以打断；
+- 普攻、技能、投射物和持续伤害都不会仅凭伤害打断动作；眩晕仍会打断，技能配置的击退仍会位移；
 - Hero Lab 右侧可直接调整生命、攻击、攻速、射程、护甲、移速、最大蓝量、入场蓝量与回蓝并刷新预览；修改会自动保存到 `user://hero_stat_overrides.cfg`，重启游戏后仍生效；战斗内按 `F2` 可调整当前选中单位并立即生效；
 - 效果类型覆盖：`DAMAGE`（单体/扇形/矩形/圆形）、`PROJECTILE`、`GUARD`、`HEAL`、`SUMMON`、`STATUS`（眩晕/减速/流血/燃烧/中毒）、`DISPLACE`（击退）。
 
@@ -473,7 +487,7 @@ godot --headless --path . res://tests/test_runner.tscn
 - 部署/移除/筛选的真实信号链路；
 - 英雄试炼场生成 22 张英雄卡、预览单位、动作按钮，切换英雄与手动播放动画正常；
 - 默认阵容与随机阵容各打一场完整战斗；
-- 败方全员阵亡、FSM 确实进入过行动/受击/移动/死亡；
+- 败方全员阵亡、FSM 确实进入过行动/移动/死亡；眩晕场景单独验证受击状态；
 - 双方都造成过伤害、远程单位确实发射过投射物；
 - OODA 快照的观察、判断、决策、行动文本已更新；
 - 骑士火焰斩击 Action 数据、决策层选择、扇形内多人掉血、身后敌人不受影响；

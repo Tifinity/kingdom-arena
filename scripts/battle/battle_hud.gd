@@ -352,10 +352,13 @@ func _update_inspector() -> void:
 		if action == null or action.category == CombatActionDefinition.Category.BASIC:
 			continue
 		var remaining := selected_unit.action_cooldown(action)
-		var state := "CD %.1fs" % remaining if remaining > 0.01 else ("缺蓝" if not selected_unit.has_mana(action) else "可释放")
-		skill_lines.append("%s · %s · 蓝 %.0f/%.0f · %s" % [
+		var cast_target := selected_unit.action_target(action)
+		var reason := ActionActivation.reason(selected_unit, action, cast_target, selected_unit.planned_direction, selected_unit.planned_point, selected_unit.planned_has_point)
+		var state := "CD %.1fs" % remaining if remaining > 0.01 else ("可释放" if reason.is_empty() else reason)
+		skill_lines.append("%s · %s · 蓝 %.0f/%.0f · %s\n%s" % [
 			action.display_name, state, selected_unit.mana, action.mana_cost,
 			"满蓝" if action.mana_cost >= selected_unit.max_mana - 0.001 else "技能",
+			action.detail_text(selected_unit.attack_damage),
 		])
 	skill_status.text = "\n".join(PackedStringArray(skill_lines))
 	inspector_state.text = snapshot.state

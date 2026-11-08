@@ -24,7 +24,10 @@ var intent: int = Intent.IDLE
 var intent_reason := ""
 var target: Unit
 var planned_action: CombatActionDefinition
+var planned_target: Unit
 var planned_direction := Vector2.ZERO
+var planned_point := Vector2.ZERO
+var planned_has_point := false
 var planned_target_count := 0
 var plan_score := 0.0
 var plan_reason := ""
@@ -210,7 +213,10 @@ func _decide() -> void:
 	intent = Intent.IDLE
 	intent_reason = "等待战机"
 	planned_action = null
+	planned_target = null
 	planned_direction = Vector2.ZERO
+	planned_point = Vector2.ZERO
+	planned_has_point = false
 	planned_target_count = 0
 	plan_score = 0.0
 	plan_reason = ""
@@ -224,6 +230,9 @@ func _decide() -> void:
 	var plan := _select_action()
 	if plan != null:
 		planned_action = plan.action
+		planned_target = plan.target
+		planned_point = plan.point
+		planned_has_point = plan.has_point
 		if planned_action.target_mode == CombatActionDefinition.TargetMode.ENEMY:
 			target = plan.target
 		intent = Intent.ACTION
@@ -248,17 +257,13 @@ func _select_action() -> ActionPlan:
 	for action in unit.actions:
 		if action == null:
 			continue
-		if action.category != CombatActionDefinition.Category.BASIC and not unit.can_use_skill():
-			continue
-		if not unit.is_action_ready(action) or not unit.has_mana(action):
-			continue
 		if unit.summoned and _contains_summon(action):
 			continue
 		var candidates: Array[Unit] = []
 		var direction := Vector2.ZERO
 		match action.target_mode:
 			CombatActionDefinition.TargetMode.ENEMY:
-				if action.charge_to_farthest:
+				if action.select_farthest():
 					var farthest: Unit = null
 					for enemy in enemies:
 						if farthest == null or unit.global_position.distance_squared_to(enemy.global_position) > unit.global_position.distance_squared_to(farthest.global_position):
@@ -269,12 +274,18 @@ func _select_action() -> ActionPlan:
 					for enemy in enemies:
 						candidates.append(enemy)
 			CombatActionDefinition.TargetMode.SELF:
-				if unit.hp_ratio() < action.min_self_hp_ratio or unit.hp_ratio() > action.max_self_hp_ratio:
-					continue
-				if action.requires_wounded_ally and not _has_wounded_ally():
-					continue
 				if not _self_area_has_enemy(action):
 					continue
+				candidates.append(unit)
+			CombatActionDefinition.TargetMode.ALLY:
+				for ally in observation.get("allies", []):
+					candidates.append(ally)
+				candidates.append(unit)
+			CombatActionDefinition.TargetMode.POINT:
+				for enemy in enemies:
+					candidates.append(enemy)
+				for ally in observation.get("allies", []):
+					candidates.append(ally)
 				candidates.append(unit)
 			CombatActionDefinition.TargetMode.DIRECTION:
 				var best_dir := _best_direction_for(action)
@@ -287,28 +298,24 @@ func _select_action() -> ActionPlan:
 		for candidate in candidates:
 			if candidate == null or not is_instance_valid(candidate) or not candidate.alive:
 				continue
-			unit.target = candidate
-			if action.target_mode == CombatActionDefinition.TargetMode.ENEMY and not action.charge_to_farthest and not unit.is_target_in_action_range(action, 4.0):
-				unit.target = target
-				continue
-			if action.target_mode == CombatActionDefinition.TargetMode.ENEMY and unit.distance_to_target() < action.min_range:
-				unit.target = target
-				continue
-			# 范围检查需要临时目标；评分时恢复已锁定目标，避免每个候选都得到粘性加分。
-			unit.target = target
 			var candidate_direction := direction
-			if action.charge_to_farthest:
+			if action.select_farthest():
 				candidate_direction = (candidate.global_position - unit.global_position).normalized()
+			var candidate_point := candidate.global_position if action.target_mode == CombatActionDefinition.TargetMode.POINT else Vector2.ZERO
+			var candidate_has_point := action.target_mode == CombatActionDefinition.TargetMode.POINT
+			if not ActionActivation.reason(unit, action, candidate, candidate_direction, candidate_point, candidate_has_point).is_empty():
+				continue
 			var evaluation := _evaluate_plan(action, candidate, candidate_direction)
 			var score: float = evaluation.score
 			if score > best_score + 0.001:
 				best_score = score
 				planned_direction = candidate_direction
+				planned_point = candidate_point
+				planned_has_point = candidate_has_point
 				planned_target_count = int(evaluation.hits)
 				plan_score = score
 				plan_reason = evaluation.reason
-				best_plan = ActionPlan.create(action, candidate, candidate_direction)
-	unit.target = target
+				best_plan = ActionPlan.create(action, candidate, candidate_direction, candidate_point, candidate_has_point)
 	return best_plan
 
 
@@ -323,9 +330,8 @@ func _evaluate_plan(action: CombatActionDefinition, candidate: Unit, direction: 
 				victims_by_id[key] = victim
 				damage_by_target[key] = float(damage_by_target.get(key, 0.0)) + unit.attack_damage * maxf(effect.damage_ratio, 0.0)
 		elif effect.kind == ActionEffectDefinition.Kind.HEAL:
-			for ally in observation.get("allies", []):
-				if effect.radius <= 0.0 or ally.global_position.distance_to(unit.global_position) <= effect.radius + ally.body_radius:
-					support += minf(ally.max_hp - ally.hp, effect.heal_amount + unit.attack_damage * effect.heal_ratio) / maxf(unit.attack_damage, 1.0)
+			for ally in ActionTargetQuery.allies(unit, effect, candidate, direction):
+				support += minf(ally.max_hp - ally.hp, effect.heal_amount + unit.attack_damage * effect.heal_ratio) / maxf(unit.attack_damage, 1.0)
 		elif effect.kind == ActionEffectDefinition.Kind.STATUS:
 			var status_definition := StatusCatalog.definition_for_effect(effect)
 			if status_definition != null:
@@ -350,7 +356,7 @@ func _evaluate_plan(action: CombatActionDefinition, candidate: Unit, direction: 
 	var score := float(action.priority) + expected_damage * 1.2 + float(kills) * 1.0 + support * 1.5
 	if candidate != unit:
 		score += _score_target(candidate, unit.global_position.distance_to(candidate.global_position)) * 2.0
-		if action.teleport_to_target and action.preferred_min_range > 0.0:
+		if action.movement_kind() == ActionMovementDefinition.Kind.TELEPORT and action.preferred_min_range > 0.0:
 			if unit.global_position.distance_to(candidate.global_position) >= action.preferred_min_range:
 				score += 3.0
 	if action.category == CombatActionDefinition.Category.DEFENSE:
@@ -377,19 +383,13 @@ func _committed_ally_damage(victim: Unit) -> float:
 
 
 func _plan_victims(action: CombatActionDefinition, effect: ActionEffectDefinition, candidate: Unit, direction: Vector2) -> Array[Unit]:
-	if action.charge_to_farthest:
-		return unit.battle.units_in_rect(unit, direction, unit.global_position.distance_to(candidate.global_position), effect.width)
-	match effect.shape:
-		ActionEffectDefinition.Shape.SINGLE:
-			return [candidate]
-		ActionEffectDefinition.Shape.CIRCLE:
-			return unit.battle.units_in_circle(unit, unit.global_position if effect.center_on_self else candidate.global_position, effect.radius)
-		ActionEffectDefinition.Shape.CONE:
-			return unit.battle.units_in_cone(unit, (candidate.global_position - unit.global_position).normalized(), effect.radius, effect.half_angle)
-		ActionEffectDefinition.Shape.RECT:
-			var aim := direction if direction.length_squared() > 0.0001 else (candidate.global_position - unit.global_position).normalized()
-			return unit.battle.units_in_rect(unit, aim, effect.length, effect.width)
-	return []
+	if action.movement_kind() == ActionMovementDefinition.Kind.CHARGE:
+		var path_effect := effect.duplicate() as ActionEffectDefinition
+		path_effect.length = unit.global_position.distance_to(candidate.global_position)
+		return ActionTargetQuery.enemies(unit, path_effect, candidate, direction)
+	return ActionTargetQuery.enemies(unit, effect, candidate, direction,
+		candidate.global_position if action.target_mode == CombatActionDefinition.TargetMode.POINT else Vector2.ZERO,
+		action.target_mode == CombatActionDefinition.TargetMode.POINT)
 
 
 ## 在 360° 方向上搜索直线矩形内敌人数最多的方向。
@@ -420,9 +420,7 @@ func _best_direction_for(action: CombatActionDefinition) -> Dictionary:
 	for direction in directions:
 		if direction.length_squared() < 0.0001:
 			continue
-		var count: int = unit.battle.units_in_rect(
-			unit, direction, rect_effect.length, rect_effect.width
-		).size()
+		var count: int = ActionTargetQuery.enemies(unit, rect_effect, target, direction).size()
 		if count > best_count:
 			best_count = count
 			best_direction = direction
@@ -438,17 +436,8 @@ func _self_area_has_enemy(action: CombatActionDefinition) -> bool:
 		if (effect.kind == ActionEffectDefinition.Kind.DAMAGE
 				or effect.kind == ActionEffectDefinition.Kind.STATUS
 				or effect.kind == ActionEffectDefinition.Kind.DISPLACE):
-			return not unit.battle.units_in_circle(unit, unit.global_position, effect.radius).is_empty()
+			return not ActionTargetQuery.enemies(unit, effect, unit, Vector2.ZERO).is_empty()
 	return true
-
-
-func _has_wounded_ally() -> bool:
-	if unit.battle == null:
-		return false
-	for ally in unit.battle.living_units():
-		if ally.team == unit.team and ally.hp < ally.max_hp - 0.5:
-			return true
-	return false
 
 
 func _count_targets_in_effect(_action: CombatActionDefinition, effect: ActionEffectDefinition) -> int:
@@ -472,7 +461,10 @@ func _act() -> void:
 	unit.intent = intent
 	unit.intent_reason = intent_reason
 	unit.planned_action = planned_action
+	unit.planned_target = planned_target
 	unit.planned_direction = planned_direction
+	unit.planned_point = planned_point
+	unit.planned_has_point = planned_has_point
 
 	var valid_target := target != null and is_instance_valid(target) and target.alive
 	var target_name: String = target.definition.display_name if valid_target else "无"
