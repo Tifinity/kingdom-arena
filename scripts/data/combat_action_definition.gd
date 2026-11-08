@@ -21,6 +21,8 @@ enum TargetMode { ENEMY, ALLY, SELF, POINT, DIRECTION }
 @export var preferred_min_range := 0.0
 @export var cooldown := 1.0
 @export var mana_cost := 0.0
+## 技能伤害是否允许触发目标的受击硬直；普攻始终不打断。
+@export var interrupts_target := true
 ## 动作固定持续时间；大于动画时长时会保持动作状态。
 @export var action_duration := 0.0
 ## 可选的自施法血量条件（比例 0~1），用于防御动作。

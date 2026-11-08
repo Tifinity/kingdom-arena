@@ -544,6 +544,10 @@ func apply_burn(duration: float, dps: float, source: Unit) -> void:
 	status_controller.apply(definition, source, {"duration": duration, "power": dps})
 
 
+func action_can_interrupt(action: CombatActionDefinition) -> bool:
+	return action != null and action.category != CombatActionDefinition.Category.BASIC and action.interrupts_target
+
+
 func hit_by_action(victim: Unit, action: CombatActionDefinition, effect: ActionEffectDefinition) -> void:
 	if not is_instance_valid(victim) or not victim.alive:
 		return
@@ -551,7 +555,7 @@ func hit_by_action(victim: Unit, action: CombatActionDefinition, effect: ActionE
 	var blocked := victim.is_guarding()
 	_record_action_hit(victim)
 	victim.take_damage(attack_damage * maxf(effect.damage_ratio, 0.0), self, impact,
-		action.category != CombatActionDefinition.Category.BASIC)
+		action_can_interrupt(action))
 	if victim.alive and not blocked and effect.burn_duration > 0.0:
 		victim.apply_burn(effect.burn_duration, attack_damage * effect.burn_dps_ratio, self)
 	battle.spawn_hit_spark(impact, accent_color, 1.2)
@@ -580,7 +584,7 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 		ActionEffectDefinition.Kind.PROJECTILE:
 			if has_live_target() and is_target_in_action_range(action, 24.0, false):
 				battle.spawn_projectile(self, target, damage, effect.projectile_kind, accent_color,
-					action.category != CombatActionDefinition.Category.BASIC, effect)
+					action_can_interrupt(action), effect)
 		ActionEffectDefinition.Kind.VISUAL:
 			_spawn_action_visual(effect)
 		ActionEffectDefinition.Kind.GUARD:
@@ -618,7 +622,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 			var impact := target.get_hit_point()
 			battle.spawn_slash(impact, accent_color, signf(target.global_position.x - global_position.x))
 			_record_action_hit(target)
-			target.take_damage(damage, self, impact, action.category != CombatActionDefinition.Category.BASIC)
+			target.take_damage(damage, self, impact, action_can_interrupt(action))
 			if target.alive and effect.knockback > 0.0:
 				target.apply_knockback(global_position, effect.knockback)
 			battle.action_hits += 1
@@ -631,14 +635,14 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 			)
 			for victim in victims:
 				_record_action_hit(victim)
-				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
+				victim.take_damage(damage, self, victim.get_hit_point(), action_can_interrupt(action))
 				battle.spawn_hit_spark(victim.get_hit_point(), Color(1.0, 0.55, 0.18), 1.4)
 				battle.action_hits += 1
 		ActionEffectDefinition.Shape.CIRCLE:
 			var center := global_position if effect.center_on_self else (target.global_position if has_live_target() else global_position)
 			for victim in battle.units_in_circle(self, center, effect.radius):
 				_record_action_hit(victim)
-				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
+				victim.take_damage(damage, self, victim.get_hit_point(), action_can_interrupt(action))
 				battle.action_hits += 1
 		ActionEffectDefinition.Shape.RECT:
 			var direction := planned_direction
@@ -646,7 +650,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 				direction = Vector2(float(facing), 0.0)
 			for victim in battle.units_in_rect(self, direction, effect.length, effect.width):
 				_record_action_hit(victim)
-				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
+				victim.take_damage(damage, self, victim.get_hit_point(), action_can_interrupt(action))
 				battle.spawn_hit_spark(victim.get_hit_point(), accent_color, 1.2)
 				battle.action_hits += 1
 		_:
