@@ -47,6 +47,21 @@ knockback = 0.0
 projectile_kind = 0
 duration = 0.00
 
+[sub_resource type="Resource" id="effect_2"]
+script = ExtResource("2")
+kind = 5
+shape = 1
+trigger_frame = 8
+damage_ratio = 0.00
+radius = 120.0
+center_on_self = false
+status_kind = 0
+status_id = &"poison"
+status_duration = 4.00
+status_power = 0.02
+status_stacks = 1
+requires_action_hit = true
+
 [resource]
 script = ExtResource("1")
 action_id = &"slime_acid"
@@ -66,4 +81,4 @@ advance_speed = 0.0
 min_targets = 1
 requires_wounded_ally = false
 priority = 10
-effects = [SubResource("effect_0"), SubResource("effect_1")]
+effects = [SubResource("effect_0"), SubResource("effect_1"), SubResource("effect_2")]

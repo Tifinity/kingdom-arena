@@ -22,6 +22,7 @@ config/icon="res://icon.svg"
 
 UnitCatalog="*res://scripts/autoload/unit_catalog.gd"
 GameState="*res://scripts/autoload/game_state.gd"
+StatusCatalog="*res://scripts/autoload/status_catalog.gd"
 
 [display]
 

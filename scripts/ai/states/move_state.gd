@@ -14,6 +14,9 @@ func update(delta: float) -> void:
 	if unit.is_stunned():
 		machine.transition_to(&"hurt")
 		return
+	if not unit.can_move():
+		machine.transition_to(&"idle")
+		return
 	if not unit.battle_active() or not unit.has_live_target():
 		machine.transition_to(&"idle")
 		return

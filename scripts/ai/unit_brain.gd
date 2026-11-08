@@ -70,7 +70,7 @@ func think() -> void:
 	# 动作/受击/死亡期间不再改写计划，避免 OODA 文本和实际执行的动作不一致。
 	if unit.state_machine != null and unit.state_machine.current_name in [&"action", &"hurt", &"death"]:
 		return
-	if unit.is_stunned():
+	if not unit.can_act():
 		return
 	_observe()
 	_judge()
@@ -248,6 +248,8 @@ func _select_action() -> ActionPlan:
 	for action in unit.actions:
 		if action == null:
 			continue
+		if action.category != CombatActionDefinition.Category.BASIC and not unit.can_use_skill():
+			continue
 		if not unit.is_action_ready(action) or not unit.has_mana(action):
 			continue
 		if unit.summoned and _contains_summon(action):
@@ -324,8 +326,13 @@ func _evaluate_plan(action: CombatActionDefinition, candidate: Unit, direction: 
 			for ally in observation.get("allies", []):
 				if effect.radius <= 0.0 or ally.global_position.distance_to(unit.global_position) <= effect.radius + ally.body_radius:
 					support += minf(ally.max_hp - ally.hp, effect.heal_amount + unit.attack_damage * effect.heal_ratio) / maxf(unit.attack_damage, 1.0)
-		elif effect.kind == ActionEffectDefinition.Kind.STATUS and effect.status_kind == ActionEffectDefinition.StatusKind.STUN:
-			support += 1.0
+		elif effect.kind == ActionEffectDefinition.Kind.STATUS:
+			var status_definition := StatusCatalog.definition_for_effect(effect)
+			if status_definition != null:
+				if status_definition.has_tag(&"control"):
+					support += 1.0
+				elif status_definition.has_tag(&"dot"):
+					support += 0.35
 		elif effect.kind == ActionEffectDefinition.Kind.SHIELD:
 			var nearby: int = unit.battle.units_in_circle(unit, unit.global_position, effect.radius).size()
 			var shield_gain: float = minf(unit.max_hp * effect.shield_per_target_ratio * nearby,
