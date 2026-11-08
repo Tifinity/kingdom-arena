@@ -257,6 +257,9 @@ func _test_hero_lab() -> void:
 	await get_tree().process_frame
 	_check(lab.preview_unit.definition.unit_id == &"wizard", "切换到法师后预览单位同步更新")
 	_check(lab.detail_name.text == "法师", "右侧详情同步更新")
+	_check(is_equal_approx(lab.stat_max_mana.value, wizard.max_mana)
+		and is_equal_approx(lab.stat_starting_mana.value, wizard.starting_mana),
+		"属性面板包含最大蓝量与入场蓝量")
 	lab._play_animation(&"attack_01")
 	_check(lab.current_anim.text.begins_with("普攻1"), "手动播放普攻动画并更新状态标签")
 	_check(lab.preview_unit.current_animation() == &"attack_01", "预览单位实际切到 attack_01")
@@ -266,6 +269,19 @@ func _test_hero_lab() -> void:
 	_check(is_equal_approx(wizard.attack_damage, 77.0) and is_equal_approx(lab.preview_unit.attack_damage, 77.0),
 		"在属性展示 SpinBox 上修改立即生效")
 	lab.stat_atk.value = original_attack
+	await get_tree().process_frame
+	var original_max_mana := wizard.max_mana
+	var original_starting_mana := wizard.starting_mana
+	lab.stat_max_mana.value = 150.0
+	lab.stat_starting_mana.value = 50.0
+	_check(is_equal_approx(wizard.max_mana, 150.0)
+		and is_equal_approx(wizard.starting_mana, 50.0)
+		and is_equal_approx(lab.preview_unit.max_mana, 150.0)
+		and is_equal_approx(lab.preview_unit.mana, 50.0),
+		"修改最大蓝量/入场蓝量立即生效")
+	await get_tree().process_frame
+	lab.stat_max_mana.value = original_max_mana
+	lab.stat_starting_mana.value = original_starting_mana
 	await get_tree().process_frame
 	lab.queue_free()
 	await get_tree().process_frame
