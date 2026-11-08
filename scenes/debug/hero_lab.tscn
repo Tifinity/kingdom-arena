@@ -235,7 +235,9 @@ min_value = 0.0
 max_value = 80.0
 step = 1.0
 allow_greater = true
+suffix = "%"
 alignment = 2
+tooltip_text = "内部按 0.00~0.80 的减伤比例存储，界面按百分比显示"
 
 [node name="SpeedCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2

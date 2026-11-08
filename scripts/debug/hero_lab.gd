@@ -116,6 +116,7 @@ func _update_details(definition: UnitDefinition) -> void:
 	stat_atk.set_value_no_signal(definition.attack_damage)
 	stat_aspd.set_value_no_signal(definition.attack_speed)
 	stat_range.set_value_no_signal(definition.attack_range)
+	# armor 内部是 0.00~0.80 的减伤比例；属性面板按 0~80 的百分数显示和编辑。
 	stat_armor.set_value_no_signal(definition.armor * 100.0)
 	stat_speed.set_value_no_signal(definition.move_speed)
 	stat_regen.set_value_no_signal(definition.mana_regen)
