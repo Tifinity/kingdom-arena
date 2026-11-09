@@ -57,6 +57,7 @@ var _opponents: Array[UnitDefinition] = []
 @onready var back_button: Button = $HUD/Root/TopBar/HBox/BackButton
 @onready var animation_buttons: HFlowContainer = $HUD/Root/AnimPanel/VBox/Buttons
 @onready var current_anim: Label = $HUD/Root/AnimPanel/VBox/Header/CurrentAnim
+@onready var stat_save_status: Label = $HUD/Root/RightPanel/VBox/StatSaveStatus
 
 
 func _ready() -> void:
@@ -233,6 +234,16 @@ func _on_stat_value_changed(_value: float) -> void:
 		if not is_equal_approx(previous_starting_mana, selected_definition.starting_mana):
 			preview_unit.mana = selected_definition.starting_mana
 	_update_details(selected_definition)
+	var save_error := UnitCatalog.save_stat_override(selected_definition.unit_id, stats)
+	if save_error == OK:
+		stat_save_status.text = "已保存 · 重启游戏后仍生效"
+		stat_save_status.add_theme_color_override("font_color", Color("#8fe3a8"))
+	elif save_error == ERR_UNAVAILABLE:
+		stat_save_status.text = "当前为无界面测试模式，未写入用户配置"
+		stat_save_status.add_theme_color_override("font_color", Color("#93a0b4"))
+	else:
+		stat_save_status.text = "保存失败：%s" % error_string(save_error)
+		stat_save_status.add_theme_color_override("font_color", Color("#ff9a8a"))
 
 
 func _start_1v1() -> void:
