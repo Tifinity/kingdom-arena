@@ -26,16 +26,15 @@ enum TargetMode { ENEMY, ALLY, SELF, POINT, DIRECTION }
 ## 可选的自施法血量条件（比例 0~1），用于防御动作。
 @export var min_self_hp_ratio := 0.0
 @export var max_self_hp_ratio := 1.0
-## 动作期间沿选定方向前进的速度；0 表示原地。
+@export_group("旧版位移兼容")
+## 旧动作资源使用的字段；新动作请配置下方 movement/targeting。
 @export var advance_speed := 0.0
-## 动作期间最多前进的距离；0 表示沿用完整动画时长。
 @export var advance_distance := 0.0
-## 瞬移到所选敌人身前的近战位置，入场时执行。
 @export var teleport_to_target := false
 @export var teleport_gap := 10.0
-## 冲锋：选最远敌人，沿起点到目标位置的线段移动并逐个命中。
 @export var charge_to_farthest := false
 @export var charge_speed := 0.0
+@export_group("使用条件")
 ## DIRECTION/AOE 动作至少需要命中的敌人数，0/1 表示无额外限制。
 @export var min_targets := 1
 ## 治疗/辅助动作只在存在受伤队友时参与决策。
@@ -43,7 +42,47 @@ enum TargetMode { ENEMY, ALLY, SELF, POINT, DIRECTION }
 ## 多个动作同时可用时，决策层的偏好权重。
 @export var priority := 0
 
+@export_group("目标与位移")
+@export var targeting: ActionTargetingDefinition
+@export var movement: ActionMovementDefinition
+
 @export var effects: Array[ActionEffectDefinition] = []
+
+
+func movement_kind() -> int:
+	if movement != null:
+		return movement.kind
+	if charge_to_farthest:
+		return ActionMovementDefinition.Kind.CHARGE
+	if teleport_to_target:
+		return ActionMovementDefinition.Kind.TELEPORT
+	if advance_speed > 0.0:
+		return ActionMovementDefinition.Kind.ADVANCE
+	return ActionMovementDefinition.Kind.NONE
+
+
+func movement_speed() -> float:
+	if movement != null:
+		return movement.speed
+	return charge_speed if charge_to_farthest else advance_speed
+
+
+func movement_distance() -> float:
+	return movement.distance if movement != null else advance_distance
+
+
+func movement_gap() -> float:
+	return movement.target_gap if movement != null else teleport_gap
+
+
+func select_farthest() -> bool:
+	if targeting != null:
+		return targeting.selection == ActionTargetingDefinition.Selection.FARTHEST
+	return charge_to_farthest
+
+
+func select_densest_cluster() -> bool:
+	return targeting != null and targeting.selection == ActionTargetingDefinition.Selection.DENSEST_CLUSTER
 
 
 func category_label() -> String:
@@ -64,11 +103,13 @@ func is_enemy_targeted() -> bool:
 	return target_mode == TargetMode.ENEMY
 
 
-func detail_text() -> String:
-	if not description.is_empty():
-		return description
+func detail_text(attack_damage: float = -1.0) -> String:
 	var parts: Array[String] = []
 	var damage_counts: Dictionary = {}
+	var damage_parts: Array[String] = []
+	var rendered_description := description
+	var has_damage_placeholder := false
+	var damage_index := 0
 	for effect in effects:
 		match effect.kind:
 			ActionEffectDefinition.Kind.DAMAGE, ActionEffectDefinition.Kind.PROJECTILE:
@@ -77,9 +118,16 @@ func detail_text() -> String:
 					ActionEffectDefinition.Shape.CIRCLE: shape = "范围"
 					ActionEffectDefinition.Shape.CONE: shape = "扇形"
 					ActionEffectDefinition.Shape.RECT: shape = "直线"
-				var damage_text := "%s%.0f%%攻击伤害" % [shape, effect.damage_ratio * 100.0]
+				var formula := _damage_formula(effect.damage_ratio, attack_damage)
+				var placeholder := "{damage_%d}" % damage_index
+				if rendered_description.contains(placeholder):
+					rendered_description = rendered_description.replace(placeholder, formula)
+					has_damage_placeholder = true
+				damage_index += 1
+				var damage_text := "%s%s伤害" % [shape, formula]
 				if not damage_counts.has(damage_text):
 					parts.append(damage_text)
+					damage_parts.append(damage_text)
 					damage_counts[damage_text] = 0
 				damage_counts[damage_text] += 1
 			ActionEffectDefinition.Kind.HEAL:
@@ -89,24 +137,61 @@ func detail_text() -> String:
 					effect.shield_per_target_ratio * 100.0, effect.shield_max_ratio * 100.0, effect.duration])
 			ActionEffectDefinition.Kind.GUARD:
 				parts.append("格挡 %.1f 秒" % effect.duration)
+				rendered_description = rendered_description.replace("{guard_duration}", _number_text(effect.duration))
+				rendered_description = rendered_description.replace("{guard_reward_shield_percent}", _number_text(effect.guard_reward_shield_ratio * 100.0))
+				rendered_description = rendered_description.replace("{guard_reward_shield_duration}", _number_text(effect.guard_reward_shield_duration))
+				if effect.guard_reward_shield_ratio > 0.0:
+					parts.append("成功格挡后获得 %.0f%% 最大生命护盾，持续 %.1f 秒" % [effect.guard_reward_shield_ratio * 100.0, effect.guard_reward_shield_duration])
 			ActionEffectDefinition.Kind.SUMMON:
 				parts.append("召唤 %d 名单位" % effect.summon_count)
 			ActionEffectDefinition.Kind.STATUS:
 				var status_definition := StatusCatalog.definition_for_effect(effect)
 				var status_name := status_definition.display_name if status_definition != null else "状态"
 				var status_text := "附加%s %.1f 秒" % [status_name, effect.status_duration]
+				if effect.shape == ActionEffectDefinition.Shape.CIRCLE and effect.center_on_self:
+					status_text = "周围 %.0fpx %s" % [effect.radius, status_text]
 				if effect.status_stacks > 1:
 					status_text += " ×%d" % effect.status_stacks
 				parts.append(status_text)
 			ActionEffectDefinition.Kind.DISPLACE:
 				parts.append("击退 %.0f 像素" % effect.knockback)
-	if advance_speed > 0.0:
-		parts.push_front("突进 %.0f 像素" % advance_distance if advance_distance > 0.0 else "边移动边攻击")
-	if charge_to_farthest:
+	if movement_kind() == ActionMovementDefinition.Kind.ADVANCE:
+		parts.push_front("突进 %.0f 像素" % movement_distance() if movement_distance() > 0.0 else "边移动边攻击")
+	if movement_kind() == ActionMovementDefinition.Kind.CHARGE:
 		parts.push_front("冲向最远敌人")
-	if teleport_to_target:
+	if movement_kind() == ActionMovementDefinition.Kind.TELEPORT:
 		parts.push_front("闪现到目标身前")
+	if movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT:
+		parts.push_front("冲向敌群密集处")
 	for index in parts.size():
 		if damage_counts.has(parts[index]) and damage_counts[parts[index]] > 1:
 			parts[index] += " ×%d" % damage_counts[parts[index]]
+	for index in damage_parts.size():
+		if damage_counts[damage_parts[index]] > 1:
+			damage_parts[index] += " ×%d" % damage_counts[damage_parts[index]]
+	if not description.is_empty():
+		if rendered_description.contains("{total_damage}"):
+			var total_ratio := 0.0
+			for effect in effects:
+				if effect.kind == ActionEffectDefinition.Kind.DAMAGE or effect.kind == ActionEffectDefinition.Kind.PROJECTILE:
+					total_ratio += effect.damage_ratio
+			rendered_description = rendered_description.replace("{total_damage}", _damage_formula(total_ratio, attack_damage))
+			has_damage_placeholder = true
+		if attack_damage >= 0.0 and not has_damage_placeholder and not damage_parts.is_empty():
+			rendered_description += " 基础伤害：%s。" % "、".join(PackedStringArray(damage_parts))
+		return rendered_description
 	return "、".join(PackedStringArray(parts)) if not parts.is_empty() else category_label()
+
+
+func _damage_formula(damage_ratio: float, attack_damage: float) -> String:
+	if attack_damage < 0.0:
+		return "%.0f%%攻击" % (damage_ratio * 100.0)
+	var damage := attack_damage * maxf(damage_ratio, 0.0)
+	var rounded := snappedf(damage, 0.001)
+	var value := str(roundi(rounded)) if is_equal_approx(rounded, float(roundi(rounded))) else str(rounded)
+	return "%s（AD × %s）" % [value, str(damage_ratio)]
+
+
+func _number_text(value: float) -> String:
+	var rounded := snappedf(value, 0.001)
+	return str(roundi(rounded)) if is_equal_approx(rounded, float(roundi(rounded))) else str(rounded)

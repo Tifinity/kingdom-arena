@@ -164,6 +164,15 @@ func has_status(status_id: StringName) -> bool:
 	return false
 
 
+func forced_target() -> Unit:
+	for instance in _instances:
+		if not instance.definition.has_tag(&"taunt"):
+			continue
+		if is_instance_valid(instance.source) and instance.source.alive and instance.source != unit:
+			return instance.source
+	return null
+
+
 func remaining(status_id: StringName) -> float:
 	for instance in _instances:
 		if instance.definition.id == status_id:

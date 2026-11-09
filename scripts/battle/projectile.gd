@@ -15,7 +15,6 @@ var battle: Node
 var damage := 0.0
 var kind := 0
 var tint := Color.WHITE
-var can_interrupt := true
 var effect: ActionEffectDefinition
 var speed := 900.0
 var life := 2.6
@@ -29,7 +28,7 @@ var _impact_elapsed := -1.0
 @onready var sprite: Sprite2D = $Sprite
 
 
-func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color: Color, p_can_interrupt := true, p_effect: ActionEffectDefinition = null) -> void:
+func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color: Color, p_effect: ActionEffectDefinition = null) -> void:
 	source = p_source
 	target = p_target
 	battle = p_source.battle if p_source != null else null
@@ -40,7 +39,6 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 			Color("#8be38b") if p_kind == UnitDefinition.ProjectileKind.GHOSTFIRE else p_color
 		)
 	)
-	can_interrupt = p_can_interrupt
 	effect = p_effect
 	global_position = p_source.get_muzzle_point()
 
@@ -120,12 +118,8 @@ func _hit() -> void:
 	if target != null and is_instance_valid(target) and target.alive:
 		var shooter: Unit = source if is_instance_valid(source) else null
 		var blocked := target.is_guarding()
-		target.take_damage(damage, shooter, global_position, can_interrupt)
-		if not blocked and target.alive and effect != null:
-			if effect.burn_duration > 0.0:
-				target.apply_burn(effect.burn_duration, shooter.attack_damage * effect.burn_dps_ratio if shooter != null else 0.0, shooter)
-			if effect.status_duration > 0.0:
-				target.apply_status(effect, shooter)
+		target.take_damage(damage, shooter, global_position)
+		ActionImpact.apply_on_hit(effect, shooter, target, blocked)
 	if battle != null and is_instance_valid(battle):
 		var spark_color := Color("#87d9ff") if kind == UnitDefinition.ProjectileKind.ICE else (
 			Color("#ff9d42") if kind == UnitDefinition.ProjectileKind.FIREBALL else (

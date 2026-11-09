@@ -7,7 +7,7 @@ enum Kind { DAMAGE, PROJECTILE, VISUAL, HEAL, SHIELD, STATUS, DISPLACE, SUMMON, 
 enum Shape { SINGLE, CIRCLE, CONE, SELF, RECT }
 enum StatusKind { STUN, SLOW, BLEED, BURN }
 
-@export var kind: int = Kind.DAMAGE
+@export_enum("伤害:0", "投射物:1", "视觉:2", "治疗:3", "护盾:4", "状态:5", "击退:6", "召唤:7", "格挡:8") var kind: int = Kind.DAMAGE
 @export_enum("单体:0", "圆形:1", "扇形:2", "自身:3", "矩形:4") var shape: int = Shape.SINGLE
 
 ## 在动作动画的第几帧触发（0 为第一帧）。
@@ -48,6 +48,10 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 @export var shield_per_target_ratio := 0.0
 @export var shield_max_ratio := 0.0
 
+## 格挡成功后的奖励护盾：按最大生命计算，在格挡结束时获得。
+@export var guard_reward_shield_ratio := 0.0
+@export var guard_reward_shield_duration := 0.0
+
 ## 治疗量 = heal_amount + 施法者攻击力 × heal_ratio。
 @export var heal_amount: float = 0.0
 @export var heal_ratio: float = 0.0
@@ -66,3 +70,6 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 
 ## 投射物、AOE、治疗等视觉场景；可选。
 @export var effect_scene: PackedScene
+
+## 新效果优先使用独立 Behavior；为空时兼容旧 kind 结算。
+@export var behavior: ActionEffectBehavior

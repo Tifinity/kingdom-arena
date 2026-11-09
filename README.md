@@ -21,22 +21,34 @@
 | **OODA 观察镜 / 投射物** | **结算** |
 | ![OODA](artifacts/battle_projectile.png) | ![结算](artifacts/result.png) |
 
-### 火焰斩击 · 统一 Action 系统
+### 烈焰剑 · 统一 Action 系统
 
-![火焰斩击](artifacts/flame_slash.png)
+![烈焰剑](artifacts/flame_slash.png)
 
-骑士使用 `attack_03` 的火焰帧释放扇形 AOE；技能与普攻共用同一个 `ActionState`，
+骑士使用 `attack_03` 的火焰帧释放 1.5 AD 扇形 AOE；技能与普攻共用同一个 `ActionState`，
 由决策层在多个 `CombatActionDefinition` 中选出当前动作。
 
 实际战斗默认不绘制范围环；点击右下角「范围」或按 `Tab` 打开选中单位的攻击/技能范围：
 [范围调试对照](artifacts/flame_slash_ranges.png)。
+
+### 圣光裁决 · 金色冲击波
+
+![圣殿骑士圣光裁决的扩散冲击波](artifacts/templar_judgement_wave.png)
+
+圣殿骑士在 `attack_03` 斩击命中帧释放金色冲击波，从自身沿 190px、±55° 扇形扩散。
+波纹读取伤害效果的范围与方向，只负责表现；伤害仍由原动作效果结算。
+「圣光裁决」现为 0 蓝普通技能（CD12、1.5 AD）。满蓝大招「圣盾守护」播放 `move_02`，
+冲向敌人最密集的可达位置，嘲讽周围敌人并按人数获得护盾；数值见
+[技能追踪表](docs/SKILL_ROSTER.md)。
+
+![圣盾守护落地范围与嘲讽标记](artifacts/templar_taunt.png)
 
 ### 格挡
 
 ![格挡](artifacts/block.png)
 
 骑士低血量时会优先使用格挡：播放 `block` 动画，获得 1 秒 `GUARD` 状态，
-期间所有伤害归零、不进入受击硬直；格挡结束后恢复正常受伤。
+期间所有伤害归零、不进入受击硬直；成功挡住攻击后，格挡结束时获得最大生命 8% 的护盾，持续 3 秒。
 
 ### 眩晕
 
@@ -196,6 +208,20 @@ scenes/units/armored_axeman_visual.tscn
 `tools/build_assets.py` 只会在视觉场景**不存在**时生成它，**不会覆盖手工调整**。
 需要重置某个英雄时，删除对应 `_visual.tscn` 后重新运行构建脚本即可。
 
+### 技能数值在哪里调
+
+打开 `resources/units/<英雄 id>.tres`，在 `actions` 中找到技能引用，再打开对应的
+`resources/actions/<动作 id>.tres`。冷却、蓝耗、施放距离、AI 优先级在动作资源的
+`[resource]` 中；伤害倍率、治疗量、状态持续时间和触发帧在该文件的 `effect_*`
+子资源中；冲锋、闪现、推进的速度和距离在 `movement` 子资源中。
+
+英雄基础攻击力、攻速、最大蓝量与回蓝速度在 `resources/units/<英雄 id>.tres`，
+持续状态的叠层和默认持续时间在 `resources/status/<状态 id>.tres`。
+字段、计算方式与完整修改示例见 [技能数值与架构说明](docs/SKILL_SYSTEM.md)。
+
+现在 `tools/build_assets.py` 默认保留已有英雄和动作 `.tres`。只有显式使用
+`--rebuild-actions` 或 `--rebuild-units` 才会覆盖对应手调数值。
+
 ### 索敌/移动怎么调
 
 每个英雄一份：
@@ -248,16 +274,17 @@ godot --path . res://scenes/debug/hero_lab.tscn
 | 自动战斗 | 索敌、推进、走位分离、近战/远程普攻、投射物、受击、死亡、胜负 |
 | OODA AI | 观察、评分判断、多 Action 选择、行动四段式；可暂停/变速观察 |
 | 统一 Action | `actions` 列表 + `CombatActionDefinition` + `ActionEffectDefinition` + 单一 `ActionState` |
-| 技能 | 22 名英雄均有普通技能 + 满蓝大招；所有现有 `attack02/03` 动画均已使用。普通技能 0 蓝、只受 CD；大招满蓝 100 并清空；完整技能表见 [docs/SKILL_ROSTER.md](docs/SKILL_ROSTER.md) |
+| 技能 | 22 名英雄均有普攻和满蓝大招，当前共接入 39 个主动技能和骑士的 1 个被动；目标为每人 3 主动 + 1 被动，设计与完成状态见 [docs/SKILL_ROSTER.md](docs/SKILL_ROSTER.md) |
 | 战斗 HUD | 顶部双方名称/剩余人数/时间，无总血量；OODA 观察镜始终显示生命/蓝量/攻击范围/技能范围/冷却；暂停时仍可点击单位切换观察镜；选中单位的范围环由「范围」按钮或 `Tab` 开关，默认关闭；右下角控制按钮 |
 | 竞技场 | 地面/背墙扩展至接近镜头高度，单位阵型纵向展开 |
 | FSM | 待机、移动、行动、受击、死亡五个状态节点 |
 | 表现 | 像素动画、血条、队伍光环、选中圈、飘字、挥砍弧光、箭矢/法术弹、粒子火花、三星眩晕、状态图标、结算面板、OODA 观察镜 |
 | 分辨率自适应 | 窗口自由缩放；`canvas_items` + `expand`；背景/战场/站位按逻辑视口重算，布阵内容居中 |
-| 自动化测试 | 307 项无界面检查 + 8 场随机阵容压力测试 |
+| 自动化测试 | 无界面固定场景检查 + 8 场随机阵容压力测试 |
 
-**当前范围**：22 名英雄的完整基础技能组。普通攻击/普通技能只受 CD；每名英雄有一个满蓝 100 的大招；
-已经实现伤害、格挡、治疗、召唤、眩晕、减速、流血、燃烧、中毒和击退。装备、升级、经济与商店、羁绊、存档、音效、寻路避障暂不包含。
+**当前范围**：22 名英雄都有普攻和满蓝 100 的大招，部分单位已有额外普通技能；骑士已接入开战被动「斗志昂扬」。
+普通攻击/普通技能只受 CD；
+已经实现伤害、格挡、嘲讽、治疗、召唤、眩晕、减速、流血、燃烧、中毒和击退。装备、升级、经济与商店、羁绊、存档、音效、寻路避障暂不包含。
 后续新效果继续用同一套 Action + Effect 扩展，不需要新增单位场景或状态机（见
 [AI 设计文档](docs/AI_DESIGN.md) 与 [技能与行为扩展方案](docs/SKILLS_BEHAVIOR_PLAN.md)）。
 
@@ -364,12 +391,12 @@ score = 距离权重 0.50 × (1 - clamp(距离 / 1000))
 | **待机** `idle` | `scripts/ai/states/idle_state.gd` | 播放 idle、面向目标，读取 Brain 的行动计划 |
 | **移动** `move` | `move_state.gd` | 走向目标周围的个人战斗位（按槽位错开 Y 轴）；远程被贴脸时后撤 |
 | **行动** `action` | `action_state.gd` | 执行选中的 `CombatActionDefinition`：动画、命中帧、伤害/投射物/AOE、冷却；普攻与技能共用 |
-| **受击** `hurt` | `hurt_state.gd` | 被较大伤害打断当前动作，短暂僵直，然后恢复 |
+| **受击** `hurt` | `hurt_state.gd` | 眩晕等控制效果打断当前动作；普通伤害只播放闪烁，不切换状态 |
 | **死亡** `death` | `death_state.gd` | 播放死亡动画，尸体停留后淡出并释放，通知 Battle 判定胜负 |
 
 状态由 `UnitStateMachine` 统一切换，状态节点是 `unit.tscn` 里真实存在的子节点，可以单独在
-编辑器里看到和调整。`Unit.take_damage()` 只在“大伤害 + 受击冷却就绪”时强制切到 `hurt`，
-避免 5v5 混战里被永久锁死。
+编辑器里看到和调整。`Unit.take_damage()` 不会切到 `hurt`；眩晕由控制状态明确打断动作，
+避免普通伤害在 5v5 混战里反复中断施法。
 
 ### 为什么用“目标周围的战斗位”
 
@@ -410,14 +437,14 @@ UnitActionState（唯一行动状态）
 - `ActionEffectDefinition`：伤害、投射物、视觉等效果类型，支持命中帧/形状/半径/半角/倍率；
 - `UnitActionState`：普攻和技能共用的统一行动状态；
 - `UnitBrain._select_action()`：从多个 Action 中按优先级、AOE 数量、防御紧迫度选动作；
-- 骑士 `knight_flame_slash`：`attack_03` 火焰动画，第 7 帧触发 170px / ±65° 扇形 AOE；
-- 22 名英雄的技能组：`docs/SKILL_ROSTER.md`；
+- 骑士 `knight_flame_slash`（烈焰剑）：`attack_03` 火焰动画，第 7 帧触发 170px / ±65° 扇形 1.5 AD AOE；
+- 22 名英雄的技能设计与完成状态：`docs/SKILL_ROSTER.md`；
 - 所有扇形/矩形技能的 `action_range` 与实际伤害形状半径/长度完全一致；选择距离额外保留 12% 施法缓冲，扇形朝向使用完整 2D 方向；
 - 每个英雄自动生成 `basic_attack`，并按动画资源配置普通技能/大招；
 - 普通技能 `mana_cost = 0`，只受 CD；大招 `mana_cost = 100`，释放后清空蓝量；
 - 已有 `block` / `heal` / `summon` 动画的英雄会分别接入格挡、治疗、召唤；
-- 普通攻击不触发受击硬直、不产生击退；技能伤害仍然可以打断；
-- Hero Lab 右侧可直接调整生命、攻击、攻速、射程、护甲、移速、最大蓝量、入场蓝量与回蓝并刷新预览；战斗内按 `F2` 可调整当前选中单位并立即生效；
+- 普攻、技能、投射物和持续伤害都不会仅凭伤害打断动作；眩晕仍会打断，技能配置的击退仍会位移；
+- Hero Lab 右侧可直接调整生命、攻击、攻速、射程、护甲、移速、最大蓝量、入场蓝量与回蓝并刷新预览；修改会自动保存到 `user://hero_stat_overrides.cfg`，重启游戏后仍生效；战斗内按 `F2` 可调整当前选中单位并立即生效；
 - 效果类型覆盖：`DAMAGE`（单体/扇形/矩形/圆形）、`PROJECTILE`、`GUARD`、`HEAL`、`SUMMON`、`STATUS`（眩晕/减速/流血/燃烧/中毒）、`DISPLACE`（击退）。
 
 ### 多个 Action 同时可用时怎么选
@@ -473,7 +500,7 @@ godot --headless --path . res://tests/test_runner.tscn
 - 部署/移除/筛选的真实信号链路；
 - 英雄试炼场生成 22 张英雄卡、预览单位、动作按钮，切换英雄与手动播放动画正常；
 - 默认阵容与随机阵容各打一场完整战斗；
-- 败方全员阵亡、FSM 确实进入过行动/受击/移动/死亡；
+- 败方全员阵亡、FSM 确实进入过行动/移动/死亡；眩晕场景单独验证受击状态；
 - 双方都造成过伤害、远程单位确实发射过投射物；
 - OODA 快照的观察、判断、决策、行动文本已更新；
 - 骑士火焰斩击 Action 数据、决策层选择、扇形内多人掉血、身后敌人不受影响；

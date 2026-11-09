@@ -337,6 +337,13 @@ custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 text = "开始 1v1"
 
+[node name="StatSaveStatus" type="Label" parent="HUD/Root/RightPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.478, 0.569, 1)
+theme_override_font_sizes/font_size = 10
+text = "属性修改自动保存到用户配置，重启后仍生效"
+autowrap_mode = 2
+
 [node name="Hint" type="Label" parent="HUD/Root/RightPanel/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.478, 0.569, 1)

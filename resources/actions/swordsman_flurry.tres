@@ -1,135 +1,37 @@
-[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3 uid="uid://bwqx6n1ittti8"]
 
-[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" uid="uid://hq4wq54ylw3j" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://baxat1yr4f3hd" path="res://scripts/data/action_effect_definition.gd" id="2"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
-kind = 0
-shape = 0
 trigger_frame = 3
-damage_ratio = 0.40
-radius = 0.0
-half_angle = 0.0
-length = 0.0
-width = 0.0
-center_on_self = false
-status_kind = 0
-status_duration = 0.00
-status_power = 0.00
-heal_amount = 0.0
-heal_ratio = 0.00
-summon_unit_id = &""
-summon_count = 1
-knockback = 0.0
-projectile_kind = 0
-duration = 0.00
 
 [sub_resource type="Resource" id="effect_1"]
 script = ExtResource("2")
-kind = 0
-shape = 0
 trigger_frame = 5
-damage_ratio = 0.40
-radius = 0.0
-half_angle = 0.0
-length = 0.0
-width = 0.0
-center_on_self = false
-status_kind = 0
-status_duration = 0.00
-status_power = 0.00
-heal_amount = 0.0
-heal_ratio = 0.00
-summon_unit_id = &""
-summon_count = 1
-knockback = 0.0
-projectile_kind = 0
-duration = 0.00
 
 [sub_resource type="Resource" id="effect_2"]
 script = ExtResource("2")
-kind = 0
-shape = 0
 trigger_frame = 7
-damage_ratio = 0.40
-radius = 0.0
-half_angle = 0.0
-length = 0.0
-width = 0.0
-center_on_self = false
-status_kind = 0
-status_duration = 0.00
-status_power = 0.00
-heal_amount = 0.0
-heal_ratio = 0.00
-summon_unit_id = &""
-summon_count = 1
-knockback = 0.0
-projectile_kind = 0
-duration = 0.00
 
 [sub_resource type="Resource" id="effect_3"]
 script = ExtResource("2")
-kind = 0
-shape = 0
 trigger_frame = 9
-damage_ratio = 0.40
-radius = 0.0
-half_angle = 0.0
-length = 0.0
-width = 0.0
-center_on_self = false
-status_kind = 0
-status_duration = 0.00
-status_power = 0.00
-heal_amount = 0.0
-heal_ratio = 0.00
-summon_unit_id = &""
-summon_count = 1
-knockback = 0.0
-projectile_kind = 0
-duration = 0.00
 
 [sub_resource type="Resource" id="effect_4"]
 script = ExtResource("2")
-kind = 0
-shape = 0
 trigger_frame = 11
-damage_ratio = 0.40
-radius = 0.0
-half_angle = 0.0
-length = 0.0
-width = 0.0
-center_on_self = false
-status_kind = 0
-status_duration = 0.00
-status_power = 0.00
-heal_amount = 0.0
-heal_ratio = 0.00
-summon_unit_id = &""
-summon_count = 1
-knockback = 0.0
-projectile_kind = 0
-duration = 0.00
 
 [resource]
 script = ExtResource("1")
 action_id = &"swordsman_flurry"
-display_name = "追魂连刺"
+display_name = "利刃华尔兹"
+description = "以迅雷之势斩击 5 次，每一次造成 {damage_0} 单体伤害。"
 category = 1
-target_mode = 0
 animation = &"attack_03"
-animation_speed = 1.0
 action_range = 72.0
-min_range = 0.0
-cooldown = 13.00
+cooldown = 13.0
 mana_cost = 100.0
-action_duration = 0.00
-min_self_hp_ratio = 0.00
-max_self_hp_ratio = 1.00
-advance_speed = 0.0
-min_targets = 1
-requires_wounded_ally = false
 priority = 10
-effects = [SubResource("effect_0"), SubResource("effect_1"), SubResource("effect_2"), SubResource("effect_3"), SubResource("effect_4")]
+effects = Array[ExtResource("2")]([SubResource("effect_0"), SubResource("effect_1"), SubResource("effect_2"), SubResource("effect_3"), SubResource("effect_4")])

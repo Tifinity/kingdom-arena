@@ -2,13 +2,14 @@
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/fx/templar_judgement_wave.tscn" id="3"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
 kind = 0
 shape = 2
 trigger_frame = 6
-damage_ratio = 2.00
+damage_ratio = 1.50
 radius = 190.0
 half_angle = 55.0
 length = 0.0
@@ -24,19 +25,21 @@ summon_count = 1
 knockback = 0.0
 projectile_kind = 0
 duration = 0.00
+effect_scene = ExtResource("3")
 
 [resource]
 script = ExtResource("1")
 action_id = &"knight_templar_judgement"
 display_name = "圣光裁决"
+description = "斩击时金色冲击波向前扩散，对扇形敌人造成 {damage_0} 伤害。"
 category = 1
 target_mode = 0
 animation = &"attack_03"
 animation_speed = 1.0
 action_range = 190.0
 min_range = 0.0
-cooldown = 15.00
-mana_cost = 100.0
+cooldown = 12.00
+mana_cost = 0.0
 action_duration = 0.00
 min_self_hp_ratio = 0.00
 max_self_hp_ratio = 1.00

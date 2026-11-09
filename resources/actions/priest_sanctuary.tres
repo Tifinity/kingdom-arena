@@ -2,6 +2,10 @@
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/effects/heal_effect_behavior.gd" id="heal_behavior_script"]
+
+[sub_resource type="Resource" id="heal_behavior"]
+script = ExtResource("heal_behavior_script")
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -17,8 +21,9 @@ center_on_self = false
 status_kind = 0
 status_duration = 0.00
 status_power = 0.00
-heal_amount = 140.0
+heal_amount = 20.0
 heal_ratio = 1.00
+behavior = SubResource("heal_behavior")
 summon_unit_id = &""
 summon_count = 1
 knockback = 0.0
