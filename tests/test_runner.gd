@@ -35,6 +35,7 @@ func _run_all() -> void:
 	await _test_knight_kit()
 	await _test_flame_slash()
 	await _test_templar_judgement_wave()
+	await _test_templar_guardian_ultimate()
 	await _test_smart_knight()
 	await _test_wizard_and_elite_orc()
 	await _test_lancer_charge()
@@ -599,10 +600,11 @@ func _test_templar_judgement_wave() -> void:
 	_check(effect.shape == ActionEffectDefinition.Shape.CONE
 		and is_equal_approx(effect.radius, 190.0)
 		and is_equal_approx(effect.half_angle, 55.0)
-		and is_equal_approx(effect.damage_ratio, 2.0),
-		"圣光裁决保留原扇形范围与伤害")
+		and is_equal_approx(effect.damage_ratio, 1.5)
+		and is_equal_approx(judgement.mana_cost, 0.0),
+		"圣光裁决转为 0 蓝普通技能并保留扇形范围")
 	_check(judgement.detail_text(definition.attack_damage).contains("金色冲击波")
-		and judgement.detail_text(definition.attack_damage).contains("AD × 2"),
+		and judgement.detail_text(definition.attack_damage).contains("AD × 1.5"),
 		"圣光裁决描述同时展示冲击波与当前伤害倍率")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
@@ -647,11 +649,163 @@ func _test_templar_judgement_wave() -> void:
 		and wave.global_position.distance_to(templar.global_position) < 1.0
 		and absf(wave.rotation) < 0.05,
 		"斩击触发时冲击波以骑士为中心、朝目标方向展开")
-	_check(is_equal_approx(enemies[0].hp, front_hp - templar.current_attack_damage() * 2.0 * (1.0 - enemies[0].current_armor()))
+	_check(is_equal_approx(enemies[0].hp, front_hp - templar.current_attack_damage() * 1.5 * (1.0 - enemies[0].current_armor()))
 		and is_equal_approx(enemies[1].hp, rear_hp),
 		"冲击波仅作表现，扇形前方受伤而身后不受伤")
 	await get_tree().create_timer(0.45).timeout
 	_check(not is_instance_valid(wave), "冲击波播放后自动清理")
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _test_templar_guardian_ultimate() -> void:
+	print("\n[4c] 圣殿骑士冲阵嘲讽大招")
+	var definition := UnitCatalog.get_definition(&"knight_templar")
+	var ultimate: CombatActionDefinition = definition.actions[3]
+	_check(ultimate.action_id == &"knight_templar_block" and ultimate.mana_cost == definition.max_mana
+		and ultimate.animation == &"move_02"
+		and ultimate.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT
+		and ultimate.select_densest_cluster()
+		and ultimate.effects.size() == 2,
+		"原格挡改为使用移动2的满蓝敌群嘲讽大招")
+	_check(ultimate.effects[0].status_id == &"taunt"
+		and ultimate.effects[0].shape == ActionEffectDefinition.Shape.CIRCLE
+		and is_equal_approx(ultimate.effects[0].radius, 160.0)
+		and ultimate.effects[1].kind == ActionEffectDefinition.Kind.SHIELD
+		and is_equal_approx(ultimate.effects[1].shield_per_target_ratio, 0.12),
+		"大招在 160px 圆形内嘲讽，并按每名敌人 12% 最大生命获盾")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight_templar")
+	GameState.set_slot(0, 1, &"archer")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"armored_orc")
+	GameState.set_slot(1, 2, &"skeleton")
+	GameState.set_slot(1, 3, &"skeleton_archer")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var templar: Unit = null
+	var ally: Unit = null
+	var enemies: Array[Unit] = []
+	for unit in battle.units:
+		if unit.team == 0:
+			if unit.definition.unit_id == &"knight_templar":
+				templar = unit
+			else:
+				ally = unit
+		else:
+			enemies.append(unit)
+	if templar == null or ally == null or enemies.size() != 4:
+		_check(false, "圣盾守护固定场景生成")
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	ally.brain.enabled = false
+	for enemy in enemies:
+		enemy.brain.enabled = false
+		enemy.target = ally
+	templar.position = Vector2(600, 1050)
+	ally.position = Vector2(560, 1100)
+	enemies[0].position = Vector2(830, 1020)
+	enemies[1].position = Vector2(860, 1070)
+	enemies[2].position = Vector2(900, 1030)
+	enemies[3].position = Vector2(550, 1250)
+	# 两处敌群人数相同：优先保护正被追击的远程友军。
+	var original_third_position := enemies[2].position
+	var original_fourth_position := enemies[3].position
+	enemies[2].position = Vector2(450, 1420)
+	enemies[3].position = Vector2(510, 1460)
+	enemies[2].target = templar
+	enemies[3].target = templar
+	var protected_cluster := ActionTargetQuery.densest_circle_point(templar, enemies, 160.0, 340.0)
+	var protected_point: Vector2 = protected_cluster.get("point", Vector2.ZERO)
+	_check(int(protected_cluster.get("count", 0)) == 2
+		and protected_point.distance_to(Vector2(845, 1045)) < 80.0,
+		"同样密集时优先冲向正在追击后排友军的敌群")
+	enemies[2].position = original_third_position
+	enemies[3].position = original_fourth_position
+	enemies[2].target = ally
+	enemies[3].target = ally
+	templar.mana = templar.max_mana
+	templar.brain.enabled = true
+	templar.brain.force_think()
+	var chosen_point := templar.planned_point
+	_check(templar.planned_action == ultimate and templar.planned_has_point
+		and templar.brain.planned_target_count == 3
+		and chosen_point.distance_to(Vector2(863, 1040)) < 65.0
+		and templar.global_position.distance_to(chosen_point) > 150.0,
+		"AI 选择可到达的三人密集区，不追逐附近的单个敌人")
+	templar.brain.enabled = false
+	templar.state_machine.transition_to(&"action", true)
+	_check(templar.current_animation() == &"move_02", "冲向目标地点时播放移动2动画")
+	var effect_deadline := Time.get_ticks_msec() + 2000
+	while templar.shield <= 0.0 and Time.get_ticks_msec() < effect_deadline:
+		await get_tree().process_frame
+	_check(templar.global_position.distance_to(chosen_point) < 15.0
+		and templar.mana < 15.0,
+		"圣殿骑士实际冲入敌群并消耗满蓝")
+	_check(is_equal_approx(templar.shield, templar.max_hp * 0.36)
+		and templar.shield_time > 3.0,
+		"三名受嘲讽敌人提供 36% 最大生命护盾")
+	var all_taunted := true
+	for index in 3:
+		all_taunted = all_taunted and enemies[index].status_controller.has_status(&"taunt")
+		all_taunted = all_taunted and enemies[index].target == templar
+	_check(all_taunted and not enemies[3].status_controller.has_status(&"taunt")
+		and enemies[3].target == ally,
+		"圆形内三名敌人被强制改攻圣殿骑士，圈外敌人不受影响")
+	var pulse: Node2D = null
+	for child in battle.effects_root.get_children():
+		if child.get_script() != null and child.get_script().resource_path == "res://scripts/fx/templar_taunt_pulse.gd":
+			pulse = child as Node2D
+			break
+	_check(pulse != null and is_equal_approx(float(pulse.get("radius")), 160.0)
+		and enemies[0].status_controller.get_vfx(&"taunt") != null
+		and enemies[3].status_controller.get_vfx(&"taunt") == null,
+		"落地圆形光环和头顶嘲讽标记仅显示在有效目标上")
+	var basic: CombatActionDefinition = enemies[0].actions[0]
+	_check(ActionActivation.reason(enemies[0], basic, ally).contains("被嘲讽"),
+		"嘲讽期间不能对原友军目标发动攻击")
+	var orc_block: CombatActionDefinition = null
+	for action in enemies[1].actions:
+		if action.action_id == &"armored_orc_block":
+			orc_block = action
+			break
+	enemies[1].hp = enemies[1].max_hp * 0.4
+	_check(orc_block != null and ActionActivation.reason(enemies[1], orc_block, enemies[1]).contains("被嘲讽"),
+		"嘲讽期间不能改用自我格挡规避强制攻击")
+	enemies[0].brain.enabled = true
+	enemies[0].brain.force_think()
+	_check(enemies[0].brain.target == templar and enemies[0].planned_target == templar,
+		"受嘲讽敌人重新决策时仍锁定圣殿骑士")
+	enemies[0].brain.enabled = false
+	enemies[0].status_controller._physics_process(2.6)
+	_check(enemies[0].status_controller.forced_target() == null
+		and not ActionActivation.reason(enemies[0], basic, ally).contains("被嘲讽"),
+		"嘲讽到期后恢复自由选敌")
+	# 减速会拉长冲刺时间；嘲讽仍要等真正到达选定区域后结算。
+	templar.state_machine.transition_to(&"idle", true)
+	templar.position = Vector2(600, 1050)
+	templar.mana = templar.max_mana
+	templar.action_cooldowns[ultimate.action_id] = 0.0
+	templar.status_controller.apply(StatusCatalog.get_definition(&"slow"), enemies[0], {
+		"duration": 3.0, "power": 0.3,
+	})
+	templar.target = enemies[0]
+	templar.planned_target = enemies[0]
+	templar.planned_action = ultimate
+	templar.planned_point = chosen_point
+	templar.planned_has_point = true
+	templar.planned_direction = (chosen_point - templar.global_position).normalized()
+	templar.state_machine.transition_to(&"action", true)
+	var slow_deadline := Time.get_ticks_msec() + 3000
+	while not enemies[0].status_controller.has_status(&"taunt") and Time.get_ticks_msec() < slow_deadline:
+		await get_tree().process_frame
+	_check(enemies[0].status_controller.has_status(&"taunt")
+		and templar.global_position.distance_to(chosen_point) <= 18.0,
+		"受到减速时大招等待到达目标地点再释放嘲讽")
 	battle.queue_free()
 	await get_tree().process_frame
 	GameState.reset_lineups()
@@ -1739,7 +1893,7 @@ func _test_status_framework() -> void:
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 7, "状态目录包含 7 种状态（含骑士被动）")
+	_check(StatusCatalog.count() == 8, "状态目录包含 8 种状态（含嘲讽）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,

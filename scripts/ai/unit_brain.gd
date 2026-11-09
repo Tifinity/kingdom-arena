@@ -161,6 +161,12 @@ func _judge() -> void:
 	if previous_target != null and best != previous_target and previous_score >= best_score - 0.12:
 		best = previous_target
 		best_score = previous_score
+	var forced := unit.status_controller.forced_target() if unit.status_controller != null else null
+	if forced != null and enemies.has(forced):
+		best = forced
+		best_score = _score_target(forced, unit.global_position.distance_to(forced.global_position))
+	else:
+		forced = null
 	target = best
 	var threat := clampf(float(close_threats) / 4.0 + (1.0 - unit.hp_ratio()) * 0.55, 0.0, 1.0)
 	judgment = {
@@ -169,9 +175,10 @@ func _judge() -> void:
 		"close_threats": close_threats,
 		"threat": threat,
 	}
-	last_judge_text = "优先 %s · 评分 %.2f · 近身威胁 %d 人" % [
-		best.definition.display_name if best != null else "无", best_score, close_threats,
-	]
+	last_judge_text = ("被嘲讽 → %s" % forced.definition.display_name) if forced != null else (
+		"优先 %s · 评分 %.2f · 近身威胁 %d 人" % [
+			best.definition.display_name if best != null else "无", best_score, close_threats,
+		])
 
 
 func random_score() -> float:
@@ -233,7 +240,7 @@ func _decide() -> void:
 		planned_target = plan.target
 		planned_point = plan.point
 		planned_has_point = plan.has_point
-		if planned_action.target_mode == CombatActionDefinition.TargetMode.ENEMY:
+		if planned_action.target_mode in [CombatActionDefinition.TargetMode.ENEMY, CombatActionDefinition.TargetMode.POINT]:
 			target = plan.target
 		intent = Intent.ACTION
 		intent_reason = "使用 %s（%s，%s）" % [planned_action.display_name, planned_action.category_label(), plan_reason]
@@ -254,16 +261,24 @@ func _select_action() -> ActionPlan:
 	var best_plan: ActionPlan = null
 	var best_score := -INF
 	var enemies: Array = observation.get("enemies", [])
+	var forced := unit.status_controller.forced_target() if unit.status_controller != null else null
 	for action in unit.actions:
 		if action == null:
+			continue
+		if not unit.is_action_ready(action) or not unit.has_mana(action):
+			continue
+		if forced != null and (not action.is_offensive() or action.target_mode == CombatActionDefinition.TargetMode.SELF):
 			continue
 		if unit.summoned and _contains_summon(action):
 			continue
 		var candidates: Array[Unit] = []
 		var direction := Vector2.ZERO
+		var cluster: Dictionary = {}
 		match action.target_mode:
 			CombatActionDefinition.TargetMode.ENEMY:
-				if action.select_farthest():
+				if forced != null:
+					candidates.append(forced)
+				elif action.select_farthest():
 					var farthest: Unit = null
 					for enemy in enemies:
 						if farthest == null or unit.global_position.distance_squared_to(enemy.global_position) > unit.global_position.distance_squared_to(farthest.global_position):
@@ -282,17 +297,33 @@ func _select_action() -> ActionPlan:
 					candidates.append(ally)
 				candidates.append(unit)
 			CombatActionDefinition.TargetMode.POINT:
-				for enemy in enemies:
-					candidates.append(enemy)
-				for ally in observation.get("allies", []):
-					candidates.append(ally)
-				candidates.append(unit)
+				if action.select_densest_cluster():
+					var radius := 0.0
+					for effect in action.effects:
+						if effect.shape == ActionEffectDefinition.Shape.CIRCLE:
+							radius = maxf(radius, effect.radius)
+					cluster = ActionTargetQuery.densest_circle_point(unit, enemies, radius, action.action_range)
+					if int(cluster.get("count", 0)) < maxi(action.min_targets, 1):
+						continue
+					candidates.append(cluster["anchor"] as Unit)
+				elif forced != null:
+					candidates.append(forced)
+				else:
+					for enemy in enemies:
+						candidates.append(enemy)
+					for ally in observation.get("allies", []):
+						candidates.append(ally)
+					candidates.append(unit)
 			CombatActionDefinition.TargetMode.DIRECTION:
-				var best_dir := _best_direction_for(action)
-				if int(best_dir.get("count", 0)) < maxi(action.min_targets, 1):
-					continue
-				direction = best_dir.get("direction", Vector2.ZERO)
-				candidates.append(target)
+				if forced != null:
+					direction = (forced.global_position - unit.global_position).normalized()
+					candidates.append(forced)
+				else:
+					var best_dir := _best_direction_for(action)
+					if int(best_dir.get("count", 0)) < maxi(action.min_targets, 1):
+						continue
+					direction = best_dir.get("direction", Vector2.ZERO)
+					candidates.append(target)
 			_:
 				continue
 		for candidate in candidates:
@@ -301,11 +332,13 @@ func _select_action() -> ActionPlan:
 			var candidate_direction := direction
 			if action.select_farthest():
 				candidate_direction = (candidate.global_position - unit.global_position).normalized()
-			var candidate_point := candidate.global_position if action.target_mode == CombatActionDefinition.TargetMode.POINT else Vector2.ZERO
+			var candidate_point: Vector2 = cluster.get("point", candidate.global_position) if not cluster.is_empty() else (candidate.global_position if action.target_mode == CombatActionDefinition.TargetMode.POINT else Vector2.ZERO)
 			var candidate_has_point := action.target_mode == CombatActionDefinition.TargetMode.POINT
+			if not cluster.is_empty():
+				candidate_direction = (candidate_point - unit.global_position).normalized()
 			if not ActionActivation.reason(unit, action, candidate, candidate_direction, candidate_point, candidate_has_point).is_empty():
 				continue
-			var evaluation := _evaluate_plan(action, candidate, candidate_direction)
+			var evaluation := _evaluate_cluster_plan(action, cluster) if not cluster.is_empty() else _evaluate_plan(action, candidate, candidate_direction)
 			var score: float = evaluation.score
 			if score > best_score + 0.001:
 				best_score = score
@@ -317,6 +350,26 @@ func _select_action() -> ActionPlan:
 				plan_reason = evaluation.reason
 				best_plan = ActionPlan.create(action, candidate, candidate_direction, candidate_point, candidate_has_point)
 	return best_plan
+
+
+func _evaluate_cluster_plan(action: CombatActionDefinition, cluster: Dictionary) -> Dictionary:
+	var count := int(cluster.get("count", 0))
+	var threat := float(cluster.get("threat", 0.0))
+	var point: Vector2 = cluster.get("point", unit.global_position)
+	var shield_ratio := 0.0
+	var shield_cap := 0.0
+	for effect in action.effects:
+		if effect.kind == ActionEffectDefinition.Kind.SHIELD:
+			shield_ratio = effect.shield_per_target_ratio
+			shield_cap = effect.shield_max_ratio
+	var shield_gain := minf(float(count) * shield_ratio, shield_cap) * 10.0
+	var score := float(action.priority) + float(count) * 4.0 + threat * 2.0 + shield_gain
+	score += (1.0 - unit.hp_ratio()) * 10.0
+	score -= unit.global_position.distance_to(point) / 250.0
+	if count == 1 and threat < 1.0 and unit.hp_ratio() > 0.7:
+		score -= 6.0
+	return {"score": score, "hits": count,
+		"reason": "预计嘲讽 %d 人，评分 %.1f" % [count, score]}
 
 
 func _evaluate_plan(action: CombatActionDefinition, candidate: Unit, direction: Vector2) -> Dictionary:

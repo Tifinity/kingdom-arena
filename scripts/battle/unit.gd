@@ -529,7 +529,7 @@ func interrupt_current_action() -> void:
 func is_charging() -> bool:
 	return (state_machine != null and state_machine.current_name == &"action"
 		and planned_action != null
-		and planned_action.movement_kind() in [ActionMovementDefinition.Kind.CHARGE, ActionMovementDefinition.Kind.ADVANCE])
+		and planned_action.movement_kind() in [ActionMovementDefinition.Kind.CHARGE, ActionMovementDefinition.Kind.ADVANCE, ActionMovementDefinition.Kind.DASH_TO_POINT])
 
 
 func begin_action_effects() -> void:
@@ -638,6 +638,8 @@ func _resolve_legacy_action_effect(action: CombatActionDefinition, effect: Actio
 				if effect.requires_action_hit and (current_cast == null or not current_cast.has_hit(victim)):
 					continue
 				victim.apply_status(effect, self)
+				if victim.team != team:
+					_record_action_hit(victim)
 		ActionEffectDefinition.Kind.DISPLACE:
 			for victim in _effect_victims(effect):
 				victim.apply_knockback(global_position, effect.knockback)
@@ -716,7 +718,7 @@ func apply_shield(amount: float, duration: float, cap: float) -> void:
 	if not alive or amount <= 0.0 or duration <= 0.0 or cap <= 0.0:
 		return
 	var before := shield
-	shield = minf(shield + amount, cap)
+	shield = minf(shield + amount, maxf(cap, shield))
 	shield_time = duration
 	health_bar.set_shield_ratio(shield / max_hp)
 	if battle != null and shield > before:

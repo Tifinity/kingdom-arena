@@ -81,6 +81,10 @@ func select_farthest() -> bool:
 	return charge_to_farthest
 
 
+func select_densest_cluster() -> bool:
+	return targeting != null and targeting.selection == ActionTargetingDefinition.Selection.DENSEST_CLUSTER
+
+
 func category_label() -> String:
 	match category:
 		Category.BASIC: return "普攻"
@@ -144,6 +148,8 @@ func detail_text(attack_damage: float = -1.0) -> String:
 				var status_definition := StatusCatalog.definition_for_effect(effect)
 				var status_name := status_definition.display_name if status_definition != null else "状态"
 				var status_text := "附加%s %.1f 秒" % [status_name, effect.status_duration]
+				if effect.shape == ActionEffectDefinition.Shape.CIRCLE and effect.center_on_self:
+					status_text = "周围 %.0fpx %s" % [effect.radius, status_text]
 				if effect.status_stacks > 1:
 					status_text += " ×%d" % effect.status_stacks
 				parts.append(status_text)
@@ -155,6 +161,8 @@ func detail_text(attack_damage: float = -1.0) -> String:
 		parts.push_front("冲向最远敌人")
 	if movement_kind() == ActionMovementDefinition.Kind.TELEPORT:
 		parts.push_front("闪现到目标身前")
+	if movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT:
+		parts.push_front("冲向敌群密集处")
 	for index in parts.size():
 		if damage_counts.has(parts[index]) and damage_counts[parts[index]] > 1:
 			parts[index] += " ×%d" % damage_counts[parts[index]]

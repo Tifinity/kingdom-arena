@@ -15,6 +15,9 @@ static func reason(unit: Unit, action: CombatActionDefinition, target: Variant =
 		return "冷却中"
 	if not unit.has_mana(action):
 		return "蓝量不足"
+	var forced_target := unit.status_controller.forced_target() if unit.status_controller != null else null
+	if forced_target != null and (not action.is_offensive() or action.target_mode == CombatActionDefinition.TargetMode.SELF):
+		return "被嘲讽，必须攻击嘲讽者"
 	if unit.hp_ratio() < action.min_self_hp_ratio or unit.hp_ratio() > action.max_self_hp_ratio:
 		return "生命条件未满足"
 	if action.requires_wounded_ally and not _has_wounded_ally(unit):
@@ -30,6 +33,9 @@ static func reason(unit: Unit, action: CombatActionDefinition, target: Variant =
 				return "目标无效"
 			if (live_target.team == unit.team) != (action.target_mode == CombatActionDefinition.TargetMode.ALLY):
 				return "目标阵营不符"
+			if action.target_mode == CombatActionDefinition.TargetMode.ENEMY:
+				if forced_target != null and live_target != forced_target:
+					return "被嘲讽，目标必须是嘲讽者"
 			if action.target_mode == CombatActionDefinition.TargetMode.ENEMY and action.movement_kind() != ActionMovementDefinition.Kind.CHARGE:
 				if not _in_range(unit, action, live_target):
 					return "目标超出范围"

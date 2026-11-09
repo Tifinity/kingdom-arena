@@ -26,6 +26,8 @@ func enter(_previous: StringName) -> void:
 			return
 
 	_cast = ActionCast.create(plan)
+	if _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT:
+		_cast.point = unit.battle.clamp_unit_position(_cast.point)
 	unit.current_cast = _cast
 	unit.spend_mana(_action)
 	unit.begin_action_effects()
@@ -65,6 +67,9 @@ func enter(_previous: StringName) -> void:
 	)
 	if _action.movement_kind() == ActionMovementDefinition.Kind.CHARGE and _action.movement_speed() > 0.0:
 		_cast.duration = maxf(_cast.duration, unit.global_position.distance_to(_cast.charge_destination) / _action.movement_speed())
+	elif _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT and _action.movement_speed() > 0.0:
+		var speed_factor := maxf(unit.status_controller.modify_stat(&"move_speed", 1.0), 0.05)
+		_cast.duration = maxf(_cast.duration, unit.global_position.distance_to(_cast.point) / (_action.movement_speed() * speed_factor) + 0.12)
 	# 同一帧可能有多个效果（伤害 → 眩晕 → 击退）。Godot 的 sort_custom 不是稳定排序，
 	# 这里用原始下标做第二排序键，保证数据里“先伤害、后状态”的顺序不会被交换。
 	var ordered: Array = []
@@ -94,6 +99,10 @@ func update(delta: float) -> void:
 		if remaining.length_squared() > 0.01:
 			unit.advance_step(remaining.normalized(), minf(_action.movement_speed() * delta, remaining.length()) / maxf(delta, 0.0001), delta)
 		_charge_hit_segment(previous, unit.global_position)
+	elif _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT and _action.movement_speed() > 0.0:
+		var remaining := _cast.point - unit.global_position
+		if remaining.length_squared() > 1.0:
+			unit.advance_step(remaining.normalized(), minf(_action.movement_speed() * delta, remaining.length()) / maxf(delta, 0.0001), delta)
 	elif _action.movement_kind() == ActionMovementDefinition.Kind.ADVANCE and _action.movement_speed() > 0.0:
 		var step_distance := _action.movement_speed() * delta
 		if _action.movement_distance() > 0.0:
@@ -111,11 +120,16 @@ func update(delta: float) -> void:
 		var trigger_time := float(maxi(effect.trigger_frame, 0)) / maxf(fps * unit.visual.speed_scale, 0.01)
 		if trigger_time > _cast.elapsed:
 			break
+		if _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT \
+				and unit.global_position.distance_to(_cast.point) > 18.0 \
+				and _cast.elapsed < _cast.duration + 0.4:
+			break
 		if not (_action.movement_kind() == ActionMovementDefinition.Kind.CHARGE and effect.kind == ActionEffectDefinition.Kind.DAMAGE):
 			unit.resolve_action_effect(_action, effect)
 		_cast.next_effect += 1
 
-	if _cast.elapsed >= _cast.duration + 0.04:
+	if _cast.elapsed >= _cast.duration + 0.04 \
+			and (_cast.next_effect >= _cast.effects.size() or _cast.elapsed >= _cast.duration + 0.4):
 		unit.visual.speed_scale = 1.0
 		machine.transition_to(&"idle")
 

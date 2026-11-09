@@ -264,6 +264,8 @@ def _write_action(
     description: str = "",
     min_range: float = 0.0,
     preferred_min_range: float = 0.0,
+    movement_kind_override: int = 0,
+    targeting_selection: int = 0,
 ) -> None:
     # 运行中的技能平衡以 .tres 为准；默认只补齐缺失文件。
     if path.exists() and not REBUILD_ACTIONS:
@@ -275,10 +277,11 @@ def _write_action(
         '[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]',
         '[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]',
     ]
-    movement_kind = 3 if charge_to_farthest else (2 if teleport_to_target else (1 if advance_speed > 0.0 else 0))
+    movement_kind = movement_kind_override or (3 if charge_to_farthest else (2 if teleport_to_target else (1 if advance_speed > 0.0 else 0)))
+    targeting_selection = 1 if charge_to_farthest else targeting_selection
     if movement_kind:
         lines.append('[ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="movement_script"]')
-    if charge_to_farthest:
+    if targeting_selection:
         lines.append('[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="targeting_script"]')
     behavior_paths = {
         3: 'res://scripts/data/effects/heal_effect_behavior.gd',
@@ -323,11 +326,11 @@ def _write_action(
             f'target_gap = {teleport_gap:.1f}',
             '',
         ]
-    if charge_to_farthest:
+    if targeting_selection:
         lines += [
             '[sub_resource type="Resource" id="targeting"]',
             'script = ExtResource("targeting_script")',
-            'selection = 1',
+            f'selection = {targeting_selection}',
             '',
         ]
     lines += [
@@ -349,7 +352,7 @@ def _write_action(
         f'min_self_hp_ratio = {min_self_hp_ratio:.2f}',
         f'max_self_hp_ratio = {max_self_hp_ratio:.2f}',
         *(['movement = SubResource("movement")'] if movement_kind else []),
-        *(['targeting = SubResource("targeting")'] if charge_to_farthest else []),
+        *(['targeting = SubResource("targeting")'] if targeting_selection else []),
         f'min_targets = {min_targets}',
         f'requires_wounded_ally = {"true" if requires_wounded_ally else "false"}',
         f'priority = {priority}',
@@ -396,7 +399,8 @@ def _skill(action_id: str, name: str, animation: str, effects: list[dict],
            description: str = "", advance_distance: float = 0.0,
            min_range: float = 0.0, preferred_min_range: float = 0.0,
            teleport_to_target: bool = False,
-           teleport_gap: float = 10.0) -> dict:
+           teleport_gap: float = 10.0, movement_kind: int = 0,
+           targeting_selection: int = 0) -> dict:
     return {
         "id": action_id, "name": name, "animation": animation,
         "effects": effects, "cooldown": cooldown, "priority": priority,
@@ -407,6 +411,7 @@ def _skill(action_id: str, name: str, animation: str, effects: list[dict],
         "preferred_min_range": preferred_min_range,
         "teleport_to_target": teleport_to_target, "teleport_gap": teleport_gap,
         "charge_to_farthest": charge_to_farthest, "charge_speed": charge_speed,
+        "movement_kind": movement_kind, "targeting_selection": targeting_selection,
         "min_targets": min_targets, "requires_wounded_ally": requires_wounded_ally,
         "max_hp": max_hp,
         "description": description,
@@ -455,11 +460,19 @@ def _skills_for(unit: Unit) -> list[dict]:
                              [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 10.0, half=62.0)],
                              7.0, 7, rng, rng))
         skills.append(_skill("knight_templar_judgement", "圣光裁决", "attack_03",
-                             [_fx(shape=2, ratio=2.0, frame=6, radius=190.0, half=55.0)],
-                             15.0, 10, 200.0, rng, mana=100.0,
+                             [_fx(shape=2, ratio=1.5, frame=6, radius=190.0, half=55.0)],
+                             12.0, 10, 200.0, rng,
                              description="斩击时金色冲击波向前扩散，对扇形敌人造成 {damage_0} 伤害。"))
         skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_judgement_wave.tscn"
-        skills.append(_guard_action("knight_templar_block", "格挡"))
+        skills.append(_skill("knight_templar_block", "圣盾守护", "move_02",
+                             [_fx(kind=5, shape=1, frame=7, radius=160.0, center_self=True,
+                                  status_id="taunt", status_duration=2.5),
+                              _fx(kind=4, shape=3, frame=7, duration=4.0,
+                                  shield_per_target_ratio=0.12, shield_max_ratio=0.48)],
+                             16.0, 13, 340.0, rng, mana=100.0, target_mode=3,
+                             category=2, action_duration=0.8, advance=850.0,
+                             advance_distance=340.0, movement_kind=4, targeting_selection=2))
+        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_taunt_pulse.tscn"
     elif slug == "armored_axeman":
         skills.append(_skill("armored_axeman_heavy", "重击", "attack_03",
                              [_fx(shape=0, ratio=2.0, frame=8)],
@@ -676,6 +689,7 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
             min_targets=spec["min_targets"],
             teleport_to_target=spec["teleport_to_target"], teleport_gap=spec["teleport_gap"],
             charge_to_farthest=spec["charge_to_farthest"], charge_speed=spec["charge_speed"],
+            movement_kind_override=spec["movement_kind"], targeting_selection=spec["targeting_selection"],
             description=spec["description"],
             requires_wounded_ally=spec["requires_wounded_ally"],
         )
