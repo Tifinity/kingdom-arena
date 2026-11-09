@@ -24,6 +24,6 @@ tick_interval = 0.5
 max_stacks = 1
 stack_policy = 2
 source_scoped = false
-base_power = 20.0
+base_power = 3.0
 behavior = SubResource("behavior")
 vfx_offset = Vector2(0, -22)

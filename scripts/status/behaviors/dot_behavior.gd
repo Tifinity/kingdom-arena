@@ -63,7 +63,6 @@ func _deal_damage(instance: StatusInstance, tick_scale: float) -> void:
 		amount,
 		source,
 		instance.target.get_hit_point(),
-		false,
 		ignore_armor,
 		ignore_shield
 	)

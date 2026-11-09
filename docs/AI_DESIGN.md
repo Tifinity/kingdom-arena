@@ -225,17 +225,13 @@ func can_transition(next: StringName) -> bool
 | Idle | 重置动画速度，播 `idle` | 面向目标；读 `brain.intent` | ActionPlan 可用 → Action；推进/后撤 → Move |
 | Move | 播 `move` | 朝个人战斗位移动/后撤；面向移动方向或目标 | 到位/失去目标/意图待机 → Idle；ActionPlan 可用 → Action |
 | Action | 面向目标，播放 `plan.action.animation` | 累计动画时间；按 `trigger_frame` 执行 effects | 动画时长结束 → Idle |
-| Hurt | 强制打断当前动作，播 `hurt`；若带眩晕则保持受击动画 | 无眩晕时累计 0.26s；眩晕时等待 `stun_time` 归零 | 硬直结束 / 眩晕结束 → Idle |
+| Hurt | 眩晕等控制效果打断当前动作并播放 `hurt` | 控制持续期间保持受击动画 | 控制结束 → Idle |
 | Death | 停用大脑、隐藏血条与队伍环、播 `death` | 无（由 Tween 淡出） | 淡出结束 → `queue_free()` |
 
-### 受击保护
+### 普通伤害
 
-如果每次受击都打断，5v5 混战会变成“永久硬直”。MVP 使用两条保护：
-
-- 只有单次伤害 ≥ `最大生命 × 6.5%` 才触发受击；
-- 触发后 `_flinch_cooldown = 1.05s`，期间再受伤只掉血、不再硬直。
-
-更小的伤害只触发 0.09s 的红色闪烁，不打断动作。
+普攻、技能、投射物和持续伤害只结算生命与受击闪烁，不打断正在执行的动作。
+仅眩晕等明确配置的控制状态会中断动作并进入 Hurt。
 
 ### 眩晕
 
@@ -331,12 +327,12 @@ behavior_profile: resources/behaviors/<id>.tres
   打开后显示基础攻击范围（蓝圈）和技能范围（橙色虚线圈）。
 - **暂停/变速**：`空格`暂停、`F`变速，便于观察 AI 在某一帧的选择。
 - **自动化测试**：
-  - `tests/test_runner.tscn` 307 项检查；
+  - `tests/test_runner.tscn` 运行当前完整检查；
   - `tools/soak_test.tscn` 8 场随机阵容，检查卡死与胜负分布。
 - **可调参数**：
   - `UnitBrain.THINK_INTERVAL`：思考频率；
   - `UnitBrain._score_target()`：目标权重；
-  - `Unit._flinch_cooldown`、`take_damage()` 的 6.5% 阈值：受击手感；
+  - `Unit.take_damage()`：护甲、护盾和受击闪烁；
   - `Battle._resolve_separation()` 的 0.86 / 0.38：拥挤程度；
   - `Unit.desired_combat_position()` 的 lateral / forward 公式：包围圈宽度；
   - `UnitDefinition` 的 `attack_windup`、`attack_range`、`move_speed`。

@@ -2,7 +2,11 @@
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/effects/summon_effect_behavior.gd" id="summon_behavior_script"]
 [ext_resource type="PackedScene" path="res://scenes/fx/necromancer_summon_circle.tscn" id="3"]
+
+[sub_resource type="Resource" id="summon_behavior"]
+script = ExtResource("summon_behavior_script")
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -22,6 +26,7 @@ heal_amount = 0.0
 heal_ratio = 0.00
 summon_unit_id = &"skeleton"
 summon_count = 1
+behavior = SubResource("summon_behavior")
 effect_scene = ExtResource("3")
 knockback = 0.0
 projectile_kind = 0

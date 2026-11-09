@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="movement_script"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -113,6 +114,13 @@ knockback = 0.0
 projectile_kind = 0
 duration = 0.00
 
+[sub_resource type="Resource" id="movement"]
+script = ExtResource("movement_script")
+kind = 1
+speed = 240.0
+distance = 0.0
+target_gap = 10.0
+
 [resource]
 script = ExtResource("1")
 action_id = &"armored_axeman_spin"
@@ -128,8 +136,8 @@ mana_cost = 100.0
 action_duration = 0.00
 min_self_hp_ratio = 0.00
 max_self_hp_ratio = 1.00
-advance_speed = 240.0
 min_targets = 1
 requires_wounded_ally = false
 priority = 10
+movement = SubResource("movement")
 effects = [SubResource("effect_0"), SubResource("effect_1"), SubResource("effect_2"), SubResource("effect_3"), SubResource("effect_4")]

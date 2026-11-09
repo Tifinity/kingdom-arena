@@ -12,5 +12,5 @@ script = ExtResource("1")
 action_id = &"armored_orc_basic"
 display_name = "普通攻击"
 action_range = 84.0
-cooldown = 0.67
+cooldown = 1.54
 effects = Array[ExtResource("2")]([SubResource("effect_0")])

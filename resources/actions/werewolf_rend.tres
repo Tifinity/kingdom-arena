@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="movement_script"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -97,7 +98,7 @@ width = 0.0
 center_on_self = false
 status_kind = 2
 status_duration = 4.00
-status_power = 20.00
+status_power = 3.00
 requires_action_hit = true
 burn_duration = 0.00
 burn_dps_ratio = 0.00
@@ -111,11 +112,18 @@ knockback = 0.0
 projectile_kind = 0
 duration = 0.00
 
+[sub_resource type="Resource" id="movement"]
+script = ExtResource("movement_script")
+kind = 2
+speed = 0.0
+distance = 0.0
+target_gap = 10.0
+
 [resource]
 script = ExtResource("1")
 action_id = &"werewolf_rend"
 display_name = "血月连斩"
-description = "优先闪现至中距离目标身前连续斩击 3 次，共造成 350% 攻击伤害，并使其流血 4 秒。"
+description = "优先闪现至中距离目标身前连续斩击 3 次，共造成 {total_damage}单体伤害，并使其流血 4 秒。"
 category = 1
 target_mode = 0
 animation = &"attack_02"
@@ -128,13 +136,8 @@ mana_cost = 100.0
 action_duration = 0.00
 min_self_hp_ratio = 0.00
 max_self_hp_ratio = 1.00
-advance_speed = 0.0
-advance_distance = 0.0
-teleport_to_target = true
-teleport_gap = 10.0
-charge_to_farthest = false
-charge_speed = 0.0
 min_targets = 1
 requires_wounded_ally = false
 priority = 10
+movement = SubResource("movement")
 effects = [SubResource("effect_0"), SubResource("effect_1"), SubResource("effect_2"), SubResource("effect_3")]

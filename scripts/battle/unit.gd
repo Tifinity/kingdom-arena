@@ -22,7 +22,6 @@ var mana_regen := 8.0
 var guard_time := 0.0
 var shield := 0.0
 var shield_time := 0.0
-var _action_hit_targets: Dictionary = {}
 var summoned := false
 var last_heal_amount := 0.0
 ## 兼容旧测试/UI 的只读视图；真实状态数据在 StatusController 的 StatusInstance 里。
@@ -59,7 +58,11 @@ var alive := true
 var facing := 1
 var actions: Array[CombatActionDefinition] = []
 var planned_action: CombatActionDefinition
+var planned_target: Unit
 var planned_direction := Vector2.ZERO
+var planned_point := Vector2.ZERO
+var planned_has_point := false
+var current_cast: ActionCast
 var action_cooldowns: Dictionary = {}
 var is_selected := false
 var initialized := false
@@ -70,7 +73,6 @@ var intent_reason := ""
 var last_damage_source: Unit
 
 var _flash_left := 0.0
-var _flinch_cooldown := 0.0
 var _current_animation: StringName = &""
 
 var shadow: Sprite2D
@@ -100,7 +102,10 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	hp = max_hp
 	shield = 0.0
 	shield_time = 0.0
-	_action_hit_targets.clear()
+	current_cast = null
+	planned_target = null
+	planned_point = Vector2.ZERO
+	planned_has_point = false
 	max_mana = p_definition.max_mana
 	mana = clampf(p_definition.starting_mana, 0.0, max_mana)
 	mana_regen = p_definition.mana_regen
@@ -224,7 +229,6 @@ func _physics_process(delta: float) -> void:
 		if shield_time <= 0.0:
 			shield = 0.0
 			health_bar.set_shield_ratio(0.0)
-	_flinch_cooldown = maxf(0.0, _flinch_cooldown - delta)
 
 
 func _measure_animation(animation: StringName, fallback: float) -> float:
@@ -429,21 +433,20 @@ func current_action_cooldown() -> float:
 
 
 func can_execute_planned_action() -> bool:
-	if planned_action == null or not alive:
-		return false
-	# 动作结束后 planned_action 仍保留；必须重新检查冷却/蓝量，
-	# 否则 Idle 会拿冷却中的旧动作反复进入 Action，导致角色不普攻。
-	if not is_action_ready(planned_action) or not has_mana(planned_action):
-		return false
-	if planned_action.target_mode == CombatActionDefinition.TargetMode.SELF:
-		return true
-	if planned_action.target_mode == CombatActionDefinition.TargetMode.DIRECTION:
-		return planned_direction.length_squared() > 0.0001
-	if planned_action.charge_to_farthest:
-		return has_live_target()
-	if not has_live_target():
-		return false
-	return is_target_in_action_range(planned_action, 6.0)
+	var cast_target := action_target(planned_action)
+	return ActionActivation.reason(self, planned_action, cast_target, planned_direction, planned_point, planned_has_point).is_empty()
+
+
+## HUD 和动作入口统一取有效目标，避免把已释放的 Unit 传给类型化参数。
+func action_target(action: CombatActionDefinition) -> Unit:
+	if action == null:
+		return null
+	if action.target_mode == CombatActionDefinition.TargetMode.SELF:
+		return self
+	var candidate: Variant = planned_target if action.target_mode == CombatActionDefinition.TargetMode.ALLY else target
+	if not is_instance_valid(candidate) or not (candidate is Unit):
+		return null
+	return candidate as Unit
 
 
 func battle_active() -> bool:
@@ -496,15 +499,17 @@ func interrupt_current_action() -> void:
 func is_charging() -> bool:
 	return (state_machine != null and state_machine.current_name == &"action"
 		and planned_action != null
-		and (planned_action.charge_to_farthest or planned_action.advance_distance > 0.0))
+		and planned_action.movement_kind() in [ActionMovementDefinition.Kind.CHARGE, ActionMovementDefinition.Kind.ADVANCE])
 
 
 func begin_action_effects() -> void:
-	_action_hit_targets.clear()
+	if current_cast != null:
+		current_cast.hit_targets.clear()
 
 
 func _record_action_hit(victim: Unit) -> void:
-	_action_hit_targets[victim.get_instance_id()] = true
+	if current_cast != null:
+		current_cast.record_hit(victim)
 
 
 func heal(amount: float, healer: Unit = null) -> void:
@@ -544,16 +549,14 @@ func apply_burn(duration: float, dps: float, source: Unit) -> void:
 	status_controller.apply(definition, source, {"duration": duration, "power": dps})
 
 
-func hit_by_action(victim: Unit, action: CombatActionDefinition, effect: ActionEffectDefinition) -> void:
+func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 	if not is_instance_valid(victim) or not victim.alive:
 		return
 	var impact := victim.get_hit_point()
 	var blocked := victim.is_guarding()
 	_record_action_hit(victim)
-	victim.take_damage(attack_damage * maxf(effect.damage_ratio, 0.0), self, impact,
-		action.category != CombatActionDefinition.Category.BASIC)
-	if victim.alive and not blocked and effect.burn_duration > 0.0:
-		victim.apply_burn(effect.burn_duration, attack_damage * effect.burn_dps_ratio, self)
+	victim.take_damage(attack_damage * maxf(effect.damage_ratio, 0.0), self, impact)
+	ActionImpact.apply_on_hit(effect, self, victim, blocked)
 	battle.spawn_hit_spark(impact, accent_color, 1.2)
 	battle.action_hits += 1
 
@@ -574,25 +577,35 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 	if effect == null:
 		return
 	var damage := attack_damage * maxf(effect.damage_ratio, 0.0)
+	var cast_target: Unit = current_cast.target if current_cast != null else target
+	if effect.behavior != null:
+		effect.behavior.execute(self, current_cast, effect)
+	else:
+		_resolve_legacy_action_effect(action, effect, damage, cast_target)
+
+	if effect.effect_scene != null and effect.kind != ActionEffectDefinition.Kind.VISUAL:
+		_spawn_action_visual(effect)
+
+
+func _resolve_legacy_action_effect(action: CombatActionDefinition, effect: ActionEffectDefinition, damage: float, cast_target: Unit) -> void:
 	match effect.kind:
 		ActionEffectDefinition.Kind.DAMAGE:
 			_resolve_damage_effect(action, effect, damage)
 		ActionEffectDefinition.Kind.PROJECTILE:
-			if has_live_target() and is_target_in_action_range(action, 24.0, false):
-				battle.spawn_projectile(self, target, damage, effect.projectile_kind, accent_color,
-					action.category != CombatActionDefinition.Category.BASIC, effect)
+			if cast_target != null and is_instance_valid(cast_target) and cast_target.alive and is_target_in_action_range(action, 24.0, false):
+				battle.spawn_projectile(self, cast_target, damage, effect.projectile_kind, accent_color, effect)
 		ActionEffectDefinition.Kind.VISUAL:
 			_spawn_action_visual(effect)
 		ActionEffectDefinition.Kind.GUARD:
 			apply_guard(effect.duration)
 		ActionEffectDefinition.Kind.SHIELD:
-			apply_shield(max_hp * effect.shield_per_target_ratio * _action_hit_targets.size(),
+			apply_shield(max_hp * effect.shield_per_target_ratio * (current_cast.hit_targets.size() if current_cast != null else 0),
 				effect.duration, max_hp * effect.shield_max_ratio)
 		ActionEffectDefinition.Kind.HEAL:
 			_resolve_heal_effect(effect)
 		ActionEffectDefinition.Kind.STATUS:
 			for victim in _effect_victims(effect):
-				if effect.requires_action_hit and not _action_hit_targets.has(victim.get_instance_id()):
+				if effect.requires_action_hit and (current_cast == null or not current_cast.has_hit(victim)):
 					continue
 				victim.apply_status(effect, self)
 		ActionEffectDefinition.Kind.DISPLACE:
@@ -604,74 +617,53 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 		_:
 			push_warning("ActionEffect kind %d 尚未实现" % effect.kind)
 
-	if effect.effect_scene != null and effect.kind != ActionEffectDefinition.Kind.VISUAL:
-		_spawn_action_visual(effect)
-
-
 func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffectDefinition, damage: float) -> void:
-	match effect.shape:
-		ActionEffectDefinition.Shape.SINGLE:
-			if not has_live_target() or not is_target_in_action_range(action, 24.0, false):
-				return
-			if (action.advance_distance > 0.0 or action.teleport_to_target) and distance_to_target() > target_reach(24.0):
-				return
-			var impact := target.get_hit_point()
-			battle.spawn_slash(impact, accent_color, signf(target.global_position.x - global_position.x))
-			_record_action_hit(target)
-			target.take_damage(damage, self, impact, action.category != CombatActionDefinition.Category.BASIC)
-			if target.alive and effect.knockback > 0.0:
-				target.apply_knockback(global_position, effect.knockback)
-			battle.action_hits += 1
-		ActionEffectDefinition.Shape.CONE:
-			var cone_direction := planned_direction
-			if cone_direction.length_squared() < 0.0001:
-				cone_direction = Vector2(float(facing), 0.0)
-			var victims: Array = battle.units_in_cone(
-				self, cone_direction, effect.radius, effect.half_angle
-			)
-			for victim in victims:
-				_record_action_hit(victim)
-				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
-				battle.spawn_hit_spark(victim.get_hit_point(), Color(1.0, 0.55, 0.18), 1.4)
-				battle.action_hits += 1
-		ActionEffectDefinition.Shape.CIRCLE:
-			var center := global_position if effect.center_on_self else (target.global_position if has_live_target() else global_position)
-			for victim in battle.units_in_circle(self, center, effect.radius):
-				_record_action_hit(victim)
-				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
-				battle.action_hits += 1
-		ActionEffectDefinition.Shape.RECT:
-			var direction := planned_direction
-			if direction.length_squared() < 0.0001:
-				direction = Vector2(float(facing), 0.0)
-			for victim in battle.units_in_rect(self, direction, effect.length, effect.width):
-				_record_action_hit(victim)
-				victim.take_damage(damage, self, victim.get_hit_point(), action.category != CombatActionDefinition.Category.BASIC)
-				battle.spawn_hit_spark(victim.get_hit_point(), accent_color, 1.2)
-				battle.action_hits += 1
-		_:
-			pass
+	var cast_target: Unit = current_cast.target if current_cast != null else target
+	if effect.shape == ActionEffectDefinition.Shape.SINGLE:
+		if cast_target == null or not is_instance_valid(cast_target) or not cast_target.alive or not is_target_in_action_range(action, 24.0, false):
+			return
+		if (action.movement_kind() == ActionMovementDefinition.Kind.ADVANCE or action.movement_kind() == ActionMovementDefinition.Kind.TELEPORT) and distance_to_target() > target_reach(24.0):
+			return
+	var direction := current_cast.direction if current_cast != null else planned_direction
+	var point := current_cast.point if current_cast != null else planned_point
+	for victim in ActionTargetQuery.enemies(self, effect, cast_target, direction, point,
+		current_cast != null and current_cast.has_point):
+		var impact := victim.get_hit_point()
+		if effect.shape == ActionEffectDefinition.Shape.SINGLE:
+			battle.spawn_slash(impact, accent_color, signf(victim.global_position.x - global_position.x))
+		elif effect.shape == ActionEffectDefinition.Shape.CONE:
+			battle.spawn_hit_spark(impact, Color(1.0, 0.55, 0.18), 1.4)
+		elif effect.shape == ActionEffectDefinition.Shape.RECT:
+			battle.spawn_hit_spark(impact, accent_color, 1.2)
+		_record_action_hit(victim)
+		var blocked := victim.is_guarding()
+		victim.take_damage(damage, self, impact)
+		ActionImpact.apply_on_hit(effect, self, victim, blocked)
+		if effect.shape == ActionEffectDefinition.Shape.SINGLE and victim.alive and effect.knockback > 0.0:
+			victim.apply_knockback(global_position, effect.knockback)
+		battle.action_hits += 1
 
 
 func _effect_victims(effect: ActionEffectDefinition) -> Array[Unit]:
-	var victims: Array[Unit] = []
-	if effect.shape == ActionEffectDefinition.Shape.CIRCLE:
-		var center := global_position if effect.center_on_self else (target.global_position if has_live_target() else global_position)
-		victims = battle.units_in_circle(self, center, effect.radius)
-	elif has_live_target():
-		victims.append(target)
-	return victims
+	var cast_target: Unit = current_cast.target if current_cast != null else target
+	var direction := current_cast.direction if current_cast != null else planned_direction
+	var point := current_cast.point if current_cast != null else planned_point
+	if effect.shape == ActionEffectDefinition.Shape.SELF or (current_cast != null and current_cast.action.target_mode == CombatActionDefinition.TargetMode.ALLY):
+		return ActionTargetQuery.allies(self, effect, cast_target, direction, point, current_cast.has_point)
+	return ActionTargetQuery.enemies(self, effect, cast_target, direction, point,
+		current_cast != null and current_cast.has_point)
 
 
 func _resolve_heal_effect(effect: ActionEffectDefinition) -> void:
 	if battle == null:
 		return
 	var amount := effect.heal_amount + attack_damage * effect.heal_ratio
-	for ally in battle.living_units():
-		if ally.team != team:
-			continue
-		if effect.radius <= 0.0 or ally.global_position.distance_to(global_position) <= effect.radius + ally.body_radius:
-			ally.heal(amount, self)
+	var cast_target: Unit = self if current_cast == null or current_cast.action.target_mode == CombatActionDefinition.TargetMode.SELF else current_cast.target
+	var point := current_cast.point if current_cast != null else planned_point
+	var direction := current_cast.direction if current_cast != null else planned_direction
+	for ally in ActionTargetQuery.allies(self, effect, cast_target, direction, point,
+		current_cast != null and current_cast.has_point):
+		ally.heal(amount, self)
 
 
 func _spawn_action_visual(effect: ActionEffectDefinition) -> void:
@@ -702,7 +694,7 @@ func is_guarding() -> bool:
 	return guard_time > 0.0
 
 
-func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, can_interrupt := true, ignore_armor := false, ignore_shield := false) -> void:
+func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, ignore_armor := false, ignore_shield := false) -> void:
 	if not alive or raw_amount <= 0.0:
 		return
 	if guard_time > 0.0:
@@ -735,10 +727,6 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 		die(source)
 		return
 
-	if can_interrupt and _flinch_cooldown <= 0.0 and amount >= max_hp * 0.065:
-		_flinch_cooldown = 1.05
-		state_machine.transition_to(&"hurt", true)
-
 
 func die(killer: Unit) -> void:
 	if not alive:
@@ -752,6 +740,7 @@ func die(killer: Unit) -> void:
 	if status_controller != null:
 		status_controller.clear_all()
 	target = null
+	planned_target = null
 	brain.enabled = false
 	brain.last_observe_text = "生命归零，已失去感知"
 	brain.last_judge_text = "无法继续判断"
