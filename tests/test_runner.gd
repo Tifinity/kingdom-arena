@@ -311,6 +311,27 @@ func _test_flame_slash() -> void:
 		"火焰斩击配置为扇形 AOE")
 	_check(skill.mana_cost > 0.0 and knight_definition.max_mana > 0.0,
 		"火焰斩击有蓝耗，单位有蓝量属性")
+	var knight_no_cc := true
+	for action in knight_definition.actions:
+		if action == null or action.action_id not in [&"knight_cleave", &"knight_flame_slash"]:
+			continue
+		if action.interrupts_target:
+			knight_no_cc = false
+		for effect in action.effects:
+			if effect.kind == ActionEffectDefinition.Kind.DISPLACE and effect.knockback > 0.0:
+				knight_no_cc = false
+	_check(knight_no_cc, "骑士技能不打断、不击退")
+	var swordsman_definition := UnitCatalog.get_definition(&"swordsman")
+	var swordsman_no_cc := true
+	for action in swordsman_definition.actions:
+		if action == null or action.action_id not in [&"swordsman_triple", &"swordsman_flurry"]:
+			continue
+		if action.interrupts_target:
+			swordsman_no_cc = false
+		for effect in action.effects:
+			if effect.kind == ActionEffectDefinition.Kind.DISPLACE and effect.knockback > 0.0:
+				swordsman_no_cc = false
+	_check(swordsman_no_cc, "剑士技能不打断、不击退")
 
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
@@ -339,10 +360,14 @@ func _test_flame_slash() -> void:
 	# 把敌人放到骑士前方扇形内/外，关闭敌人 AI，手动触发技能。
 	knight.position = Vector2(700, 650)
 	enemies[0].position = Vector2(820, 650)   # 扇形内
-	enemies[1].position = Vector2(820, 700)   # 扇形内
+	enemies[1].position = Vector2(820, 720)   # 扇形内，避免与另一名敌人发生软分离
 	enemies[2].position = Vector2(600, 650)   # 身后，不应命中
+	var positions_before: Array[Vector2] = []
 	for enemy in enemies:
 		enemy.brain.enabled = false
+		enemy.state_machine.transition_to(&"idle", true)
+		enemy.state_machine.set_physics_process(false)
+		positions_before.append(enemy.global_position)
 	var hp_before: Array[float] = [enemies[0].hp, enemies[1].hp, enemies[2].hp]
 	# 先验证决策层：技能就绪且目标在范围内时，应选中火焰斩击而不是普攻。
 	knight.mana = knight.max_mana
@@ -367,6 +392,12 @@ func _test_flame_slash() -> void:
 	_check(enemies[0].hp < hp_before[0] and enemies[1].hp < hp_before[1],
 		"扇形内两名敌人同时受到火焰斩击伤害")
 	_check(enemies[2].hp == hp_before[2], "身后敌人不受扇形 AOE 影响")
+	_check(enemies[0].state_machine.current_name != &"hurt"
+		and enemies[1].state_machine.current_name != &"hurt",
+		"火焰斩击不打断目标")
+	_check(enemies[0].global_position.distance_to(positions_before[0]) < 0.1
+		and enemies[1].global_position.distance_to(positions_before[1]) < 0.1,
+		"火焰斩击不击退目标")
 	_check(battle.skill_casts == 1 and knight.action_cooldown(skill) > 0.0,
 		"一次技能只释放一次并进入冷却")
 	_check(knight.mana < knight.max_mana, "释放火焰斩击消耗蓝量")

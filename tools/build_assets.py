@@ -257,6 +257,7 @@ def _write_action(
     description: str = "",
     min_range: float = 0.0,
     preferred_min_range: float = 0.0,
+    interrupts_target: bool = True,
 ) -> None:
     effects = effect if isinstance(effect, list) else [effect]
     lines = [
@@ -297,6 +298,7 @@ def _write_action(
         f'min_range = {min_range:.1f}',
         f'preferred_min_range = {preferred_min_range:.1f}',
         f'cooldown = {cooldown:.2f}',
+        f'interrupts_target = {"true" if interrupts_target else "false"}',
         f'mana_cost = {mana_cost:.1f}',
         f'action_duration = {action_duration:.2f}',
         f'min_self_hp_ratio = {min_self_hp_ratio:.2f}',
@@ -349,7 +351,7 @@ def _skill(action_id: str, name: str, animation: str, effects: list[dict],
            requires_wounded_ally: bool = False, max_hp: float = 1.0,
            description: str = "", advance_distance: float = 0.0,
            min_range: float = 0.0, preferred_min_range: float = 0.0,
-           teleport_to_target: bool = False,
+           teleport_to_target: bool = False, interrupts_target: bool = True,
            teleport_gap: float = 10.0) -> dict:
     return {
         "id": action_id, "name": name, "animation": animation,
@@ -363,7 +365,7 @@ def _skill(action_id: str, name: str, animation: str, effects: list[dict],
         "charge_to_farthest": charge_to_farthest, "charge_speed": charge_speed,
         "min_targets": min_targets, "requires_wounded_ally": requires_wounded_ally,
         "max_hp": max_hp,
-        "description": description,
+        "description": description, "interrupts_target": interrupts_target,
     }
 
 
@@ -393,10 +395,10 @@ def _skills_for(unit: Unit) -> list[dict]:
     elif slug == "knight":
         skills.append(_skill("knight_cleave", "回旋斩", "attack_02",
                              [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 10.0, half=62.0)],
-                             7.0, 7, rng, rng))
+                             7.0, 7, rng, rng, interrupts_target=False))
         skills.append(_skill("knight_flame_slash", "火焰斩击", "attack_03",
                              [_fx(shape=2, ratio=1.4, frame=7, radius=170.0, half=65.0)],
-                             14.0, 10, 170.0, rng, mana=100.0))
+                             14.0, 10, 170.0, rng, mana=100.0, interrupts_target=False))
         skills.append(_guard_action("knight_block", "格挡"))
     elif slug == "knight_templar":
         skills.append(_skill("knight_templar_cleave", "圣光斩", "attack_02",
@@ -427,10 +429,10 @@ def _skills_for(unit: Unit) -> list[dict]:
     elif slug == "swordsman":
         skills.append(_skill("swordsman_triple", "疾风三连", "attack_02",
                              [_fx(shape=0, ratio=0.45, frame=frame) for frame in [4, 6, 8]],
-                             7.0, 7, rng, rng))
+                             7.0, 7, rng, rng, interrupts_target=False))
         skills.append(_skill("swordsman_flurry", "追魂连刺", "attack_03",
                              [_fx(shape=0, ratio=0.40, frame=frame) for frame in [3, 5, 7, 9, 11]],
-                             13.0, 10, rng, rng, mana=100.0))
+                             13.0, 10, rng, rng, mana=100.0, interrupts_target=False))
     elif slug == "priest":
         skills.append(_skill("priest_sanctuary", "圣光普照", "heal",
                              [_fx(kind=3, shape=1, frame=2, radius=520.0,
@@ -622,6 +624,7 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
             charge_to_farthest=spec["charge_to_farthest"], charge_speed=spec["charge_speed"],
             description=spec["description"],
             requires_wounded_ally=spec["requires_wounded_ally"],
+            interrupts_target=spec["interrupts_target"],
         )
         actions.append(f"res://resources/actions/{spec['id']}.tres")
     return actions

@@ -123,6 +123,7 @@ animation = &"attack_03"
 animation_speed = 1.0
 action_range = 72.0
 min_range = 0.0
+interrupts_target = false
 cooldown = 13.00
 mana_cost = 100.0
 action_duration = 0.00
