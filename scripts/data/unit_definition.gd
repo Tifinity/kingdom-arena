@@ -96,6 +96,9 @@ func apply_stat_override(stats: Dictionary) -> void:
 		mana_regen = clampf(float(stats["mana_regen"]), 0.0, 100.0)
 	if stats.has("max_mana"):
 		max_mana = maxf(0.0, float(stats["max_mana"]))
+		starting_mana = minf(starting_mana, max_mana)
+	if stats.has("starting_mana"):
+		starting_mana = clampf(float(stats["starting_mana"]), 0.0, max_mana)
 	var new_interval := attack_interval()
 	for index in actions.size():
 		var action := actions[index]

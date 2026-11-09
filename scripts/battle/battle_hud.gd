@@ -16,6 +16,7 @@ const DEBUG_FIELD_DEFS := [
 	["attack_range", "攻击距离", 10.0, 2000.0, 5.0],
 	["armor", "护甲 %", 0.0, 80.0, 1.0],
 	["move_speed", "移动速度", 10.0, 800.0, 5.0],
+	["max_mana", "最大蓝量", 0.0, 1000.0, 10.0],
 	["mana_regen", "每秒回蓝", 0.0, 50.0, 1.0],
 ]
 
@@ -310,6 +311,7 @@ func _sync_debug_panel() -> void:
 	debug_fields["attack_range"].value = selected_unit.attack_range
 	debug_fields["armor"].value = selected_unit.armor * 100.0
 	debug_fields["move_speed"].value = selected_unit.move_speed
+	debug_fields["max_mana"].value = selected_unit.max_mana
 	debug_fields["mana_regen"].value = selected_unit.mana_regen
 
 
@@ -323,6 +325,7 @@ func _on_debug_apply() -> void:
 		"attack_range": debug_fields["attack_range"].value,
 		"armor": debug_fields["armor"].value / 100.0,
 		"move_speed": debug_fields["move_speed"].value,
+		"max_mana": debug_fields["max_mana"].value,
 		"mana_regen": debug_fields["mana_regen"].value,
 	})
 	_update_inspector()

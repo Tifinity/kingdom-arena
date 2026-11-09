@@ -49,6 +49,8 @@ var _opponents: Array[UnitDefinition] = []
 @onready var stat_range: SpinBox = $HUD/Root/RightPanel/VBox/Stats/RangeValue
 @onready var stat_armor: SpinBox = $HUD/Root/RightPanel/VBox/Stats/ArmorValue
 @onready var stat_speed: SpinBox = $HUD/Root/RightPanel/VBox/Stats/SpeedValue
+@onready var stat_max_mana: SpinBox = $HUD/Root/RightPanel/VBox/Stats/MaxManaValue
+@onready var stat_starting_mana: SpinBox = $HUD/Root/RightPanel/VBox/Stats/StartManaValue
 @onready var stat_regen: SpinBox = $HUD/Root/RightPanel/VBox/Stats/ManaValue
 @onready var opponent_option: OptionButton = $HUD/Root/RightPanel/VBox/OpponentRow/OpponentOption
 @onready var start_button: Button = $HUD/Root/RightPanel/VBox/StartButton
@@ -116,8 +118,11 @@ func _update_details(definition: UnitDefinition) -> void:
 	stat_atk.set_value_no_signal(definition.attack_damage)
 	stat_aspd.set_value_no_signal(definition.attack_speed)
 	stat_range.set_value_no_signal(definition.attack_range)
+	# armor 内部是 0.00~0.80 的减伤比例；属性面板按 0~80 的百分数显示和编辑。
 	stat_armor.set_value_no_signal(definition.armor * 100.0)
 	stat_speed.set_value_no_signal(definition.move_speed)
+	stat_max_mana.set_value_no_signal(definition.max_mana)
+	stat_starting_mana.set_value_no_signal(definition.starting_mana)
 	stat_regen.set_value_no_signal(definition.mana_regen)
 
 
@@ -194,7 +199,8 @@ func _animation_used_by_action(animation: StringName) -> bool:
 
 
 func _wire_stat_inputs() -> void:
-	for spin in [stat_hp, stat_atk, stat_aspd, stat_range, stat_armor, stat_speed, stat_regen]:
+	for spin in [stat_hp, stat_atk, stat_aspd, stat_range, stat_armor, stat_speed,
+			stat_max_mana, stat_starting_mana, stat_regen]:
 		spin.value_changed.connect(_on_stat_value_changed)
 
 
@@ -209,6 +215,7 @@ func _move_1v1_to_bottom() -> void:
 func _on_stat_value_changed(_value: float) -> void:
 	if selected_definition == null:
 		return
+	var previous_starting_mana := selected_definition.starting_mana
 	var stats := {
 		"max_hp": stat_hp.value,
 		"attack_damage": stat_atk.value,
@@ -216,11 +223,15 @@ func _on_stat_value_changed(_value: float) -> void:
 		"attack_range": stat_range.value,
 		"armor": stat_armor.value / 100.0,
 		"move_speed": stat_speed.value,
+		"max_mana": stat_max_mana.value,
+		"starting_mana": stat_starting_mana.value,
 		"mana_regen": stat_regen.value,
 	}
 	selected_definition.apply_stat_override(stats)
 	if is_instance_valid(preview_unit):
 		preview_unit.apply_debug_stats(stats)
+		if not is_equal_approx(previous_starting_mana, selected_definition.starting_mana):
+			preview_unit.mana = selected_definition.starting_mana
 	_update_details(selected_definition)
 
 

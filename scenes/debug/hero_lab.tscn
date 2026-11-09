@@ -235,7 +235,9 @@ min_value = 0.0
 max_value = 80.0
 step = 1.0
 allow_greater = true
+suffix = "%"
 alignment = 2
+tooltip_text = "内部按 0.00~0.80 的减伤比例存储，界面按百分比显示"
 
 [node name="SpeedCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
@@ -253,6 +255,42 @@ max_value = 800.0
 step = 5.0
 allow_greater = true
 alignment = 2
+
+[node name="MaxManaCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
+theme_override_font_sizes/font_size = 12
+text = "最大蓝量"
+
+[node name="MaxManaValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(120, 0)
+min_value = 0.0
+max_value = 1000.0
+step = 10.0
+allow_greater = true
+alignment = 2
+tooltip_text = "单位蓝量上限，大招通常按满蓝判定"
+
+[node name="StartManaCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
+theme_override_font_sizes/font_size = 12
+text = "入场蓝量"
+
+[node name="StartManaValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
+layout_mode = 2
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(120, 0)
+min_value = 0.0
+max_value = 1000.0
+step = 5.0
+allow_greater = true
+alignment = 2
+tooltip_text = "新生成单位的初始蓝量；修改后会影响之后进入战斗的单位"
 
 [node name="ManaCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
