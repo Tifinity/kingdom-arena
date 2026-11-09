@@ -1,5 +1,21 @@
 # 技能系统与数值调整
 
+每名单位 3 主动 + 1 被动的设计及逐项完成状态见 [单位技能追踪表](SKILL_ROSTER.md)。
+
+圣殿骑士「圣光裁决」的金色冲击波位于 `scenes/fx/templar_judgement_wave.tscn`，由动作伤害效果的 `effect_scene` 在斩击结算帧生成。波纹从施法者向施法方向扩散，宽度和最远距离直接读取同一效果的 `half_angle`、`radius`；特效只负责表现，不重复造成伤害。
+
+骑士的被动资源位于 `resources/passives/knight_morale.tres`，引用两份 20 秒的属性状态：护甲加 0.05（5 个百分点）与攻击力加 5。`UnitDefinition.passive` 决定单位是否拥有被动；战斗倒计时结束时由 `Unit.on_battle_started()` 施加，状态到期自动恢复基础值。调数值时改对应的 `resources/status/knight_morale_armor.tres`、`resources/status/knight_morale_attack.tres` 的 `base_power` 和 `duration`；被动描述中的占位符会按资源当前数值重新渲染。
+
+骑士格挡使用通用 `GUARD` 效果；成功格挡后的奖励护盾由 `resources/actions/knight_block.tres` 的 `guard_reward_shield_ratio` 和 `guard_reward_shield_duration` 控制。其他单位可用不同奖励、格挡时长、触发条件与冷却形成差异，不需要在单位脚本中写分支。
+
+| 单位 | 格挡定位 | 状态 |
+| --- | --- | --- |
+| 骑士 | 挡住伤害后获得自身最大生命 8% 护盾，持续 3 秒 | 已实现 |
+| 圣殿骑士 | 成功格挡后给附近最低血量友军短时护盾，突出保护 | 设计建议，未实现 |
+| 重甲兽人 | 成功格挡后强化下一次普攻，突出反击 | 设计建议，未实现 |
+| 兽人骑兵 | 格挡时间略长，但冷却更长；脱离格挡后加速切入 | 设计建议，未实现 |
+| 骷髅 | 低血量时维持较长格挡，不产生额外护盾 | 设计建议，未实现 |
+
 ## 2026-11-08 首轮单位数值粗调
 
 以本机 Hero Lab 已保存的骑士（生命 150、攻击 12、攻速 0.70、护甲 15%）
@@ -38,6 +54,9 @@ Hero Lab 保存的 `user://hero_stat_overrides.cfg` 会覆盖 `.tres` 基础属�
 | 伤害 | 动作内 `effect_*` 的 `damage_ratio`，实际基础伤害为英雄 `attack_damage × damage_ratio` |
 | 命中范围 | `effect_*` 的 `shape`、`radius`、`half_angle`、`length`、`width` |
 | 命中时机 | `effect_*` 的 `trigger_frame`；从 0 开始计数，受动作动画帧率影响 |
+| 骑士双连斩 | `resources/actions/knight_cleave.tres` 中两个伤害效果的 `damage_ratio`，当前为 1.2、1.5；`trigger_frame` 为 4、7 |
+| 格挡成功奖励 | 格挡效果的 `guard_reward_shield_ratio`、`guard_reward_shield_duration`，仅实际挡住伤害才在格挡结束时给护盾 |
+| 开战被动 | `UnitDefinition.passive` 指向被动资源；状态资源的 `base_power`、`duration` 控制属性加成和持续时间 |
 | 治疗、护盾、击退、召唤 | `effect_*` 的 `heal_amount`/`heal_ratio`、`shield_*`、`knockback`、`summon_*` |
 | 冲锋、推进、闪现 | 动作内 `movement` 的 `kind`、`speed`、`distance`、`target_gap` |
 | 最远目标选择 | 动作内 `targeting.selection`；`FARTHEST` 选最远敌人 |

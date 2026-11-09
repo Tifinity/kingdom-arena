@@ -32,7 +32,9 @@ func _run_all() -> void:
 	await _test_catalog()
 	await _test_setup_scene()
 	await _test_hero_lab()
+	await _test_knight_kit()
 	await _test_flame_slash()
+	await _test_templar_judgement_wave()
 	await _test_smart_knight()
 	await _test_wizard_and_elite_orc()
 	await _test_lancer_charge()
@@ -309,6 +311,113 @@ func _test_hero_lab() -> void:
 	GameState.reset_lineups()
 
 
+func _test_knight_kit() -> void:
+	print("\n[4] 骑士双连斩、格挡奖励与开战被动")
+	var definition := UnitCatalog.get_definition(&"knight")
+	var cleave: CombatActionDefinition = definition.actions[1]
+	var block: CombatActionDefinition = definition.actions[3]
+	_check(cleave.display_name == "双连斩" and cleave.effects.size() == 2
+		and cleave.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
+		and cleave.effects[1].shape == ActionEffectDefinition.Shape.SINGLE
+		and is_equal_approx(cleave.effects[0].damage_ratio, 1.2)
+		and is_equal_approx(cleave.effects[1].damage_ratio, 1.5)
+		and cleave.effects[0].trigger_frame < cleave.effects[1].trigger_frame,
+		"双连斩依次对同一目标造成 1.2/1.5 AD")
+	_check(definition.skill_description_text().contains("14.4（AD × 1.2）")
+		and definition.skill_description_text().contains("18（AD × 1.5）")
+		and definition.skill_description_text().contains("斗志昂扬"),
+		"技能详情显示两段伤害和被动数值")
+	_check(definition.passive != null and definition.passive.battle_start_statuses.size() == 2,
+		"骑士配置独立的开战被动资源")
+	var armor_status: StatusDefinition = definition.passive.battle_start_statuses[0]
+	var original_armor_power := armor_status.base_power
+	armor_status.base_power = 0.08
+	_check(definition.skill_description_text().contains("护甲 +8 个百分点"),
+		"调整被动状态数值后技能描述实时重算")
+	armor_status.base_power = original_armor_power
+	_check(is_equal_approx(block.effects[0].guard_reward_shield_ratio, 0.08)
+		and is_equal_approx(block.effects[0].guard_reward_shield_duration, 3.0),
+		"骑士格挡成功奖励 8% 最大生命护盾 3 秒")
+	var original_block_reward := block.effects[0].guard_reward_shield_ratio
+	block.effects[0].guard_reward_shield_ratio = 0.12
+	_check(block.detail_text().contains("最大生命 12% 的护盾"),
+		"调整格挡奖励数值后技能描述实时重算")
+	block.effects[0].guard_reward_shield_ratio = original_block_reward
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"archer")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var knight: Unit = null
+	var enemies: Array[Unit] = []
+	for unit in battle.units:
+		if unit.team == 0:
+			knight = unit
+		else:
+			enemies.append(unit)
+	if knight == null or enemies.size() != 2:
+		_check(false, "骑士固定场景生成")
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	knight.brain.enabled = false
+	for enemy in enemies:
+		enemy.brain.enabled = false
+	_check(is_equal_approx(knight.current_attack_damage(), 12.0) and is_equal_approx(knight.current_armor(), 0.15),
+		"倒计时期间尚未获得被动加成")
+	await get_tree().create_timer(2.5).timeout
+	_check(battle.battle_active and is_equal_approx(knight.current_attack_damage(), 17.0)
+		and is_equal_approx(knight.current_armor(), 0.20)
+		and knight.status_controller.remaining(&"knight_morale_attack") > 19.0,
+		"开战时获得攻击 +5、护甲 +5 个百分点，持续 20 秒")
+	battle.hud.set_selected_unit(knight)
+	_check(battle.hud.skill_status.text.contains("斗志昂扬 · 被动 · 生效中")
+		and battle.hud.skill_status.text.contains("20.4（AD × 1.2）")
+		and battle.hud.skill_status.text.contains("25.5（AD × 1.5）"),
+		"战斗观察镜显示被动剩余时间和当前攻击力对应的技能伤害")
+	knight.position = Vector2(700, 650)
+	enemies[0].position = Vector2(750, 650)
+	enemies[1].position = Vector2(752, 670)
+	knight.target = enemies[0]
+	knight.planned_action = cleave
+	var first_hp := enemies[0].hp
+	var other_hp := enemies[1].hp
+	var hits_before := battle.action_hits
+	knight.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.8).timeout
+	var expected_damage := 17.0 * 2.7 * (1.0 - enemies[0].current_armor())
+	_check(is_equal_approx(enemies[0].hp, first_hp - expected_damage)
+		and is_equal_approx(enemies[1].hp, other_hp)
+		and battle.action_hits == hits_before + 2,
+		"双连斩实际两次命中锁定目标，附近单位不受伤")
+	knight.apply_guard(1.0, 0.08, 3.0)
+	knight._physics_process(1.01)
+	_check(is_equal_approx(knight.shield, 0.0), "未挡住伤害时不获得奖励护盾")
+	knight.apply_guard(1.0, 0.08, 3.0)
+	var guarded_hp := knight.hp
+	knight.take_damage(100.0, enemies[0])
+	knight._physics_process(1.01)
+	_check(is_equal_approx(knight.hp, guarded_hp)
+		and is_equal_approx(knight.shield, knight.max_hp * 0.08)
+		and knight.shield_time > 0.0,
+		"格挡成功后免伤并获得 3 秒奖励护盾")
+	knight.apply_guard(1.0, 0.08, 3.0)
+	knight.take_damage(100.0, enemies[0])
+	knight._physics_process(1.01)
+	_check(is_equal_approx(knight.shield, knight.max_hp * 0.16),
+		"格挡奖励叠加现有护盾，不会清除原有护盾")
+	knight.status_controller._physics_process(20.1)
+	_check(is_equal_approx(knight.current_attack_damage(), 12.0)
+		and is_equal_approx(knight.current_armor(), 0.15),
+		"被动到期后攻击和护甲恢复基础值")
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
 func _test_flame_slash() -> void:
 	print("\n[4] 火焰斩击 AOE")
 	var knight_definition := UnitCatalog.get_definition(&"knight")
@@ -330,6 +439,10 @@ func _test_flame_slash() -> void:
 		and block.effects[0].duration >= 1.0, "格挡效果持续 1 秒")
 	_check(not skill.effects.is_empty() and skill.effects[0].shape == ActionEffectDefinition.Shape.CONE,
 		"火焰斩击配置为扇形 AOE")
+	_check(skill.display_name == "烈焰剑" and is_equal_approx(skill.effects[0].damage_ratio, 1.5)
+		and is_equal_approx(skill.effects[0].radius, 170.0)
+		and is_equal_approx(skill.effects[0].half_angle, 65.0),
+		"烈焰剑维持原扇形范围，伤害提高到 1.5 AD")
 	_check(skill.mana_cost > 0.0 and knight_definition.max_mana > 0.0,
 		"火焰斩击有蓝耗，单位有蓝量属性")
 
@@ -412,10 +525,10 @@ func _test_flame_slash() -> void:
 	if cleave != null:
 		enemies[1].position = knight.position + Vector2(112, 0)
 		_check(not knight.is_target_in_action_range(cleave, 4.0),
-			"回旋斩不会在扇形有效半径之外释放")
-		enemies[1].position = knight.position + Vector2(95, 0)
+			"双连斩不会在单体攻击范围之外释放")
+		enemies[1].position = knight.position + Vector2(65, 0)
 		_check(knight.is_target_in_action_range(cleave, 4.0),
-			"回旋斩在安全范围内可释放")
+			"双连斩在单体攻击范围内可释放")
 
 	# 低血量、火焰斩击与格挡都就绪时，防御紧迫度应让格挡胜出。
 	knight.hp = knight.max_hp * 0.4
@@ -467,6 +580,81 @@ func _test_flame_slash() -> void:
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
+
+
+func _test_templar_judgement_wave() -> void:
+	print("\n[4b] 圣殿骑士圣光裁决冲击波")
+	var definition := UnitCatalog.get_definition(&"knight_templar")
+	var judgement: CombatActionDefinition = null
+	for action in definition.actions:
+		if action.action_id == &"knight_templar_judgement":
+			judgement = action
+			break
+	_check(judgement != null and judgement.effects.size() == 1
+		and judgement.effects[0].effect_scene != null,
+		"圣光裁决伤害效果绑定金色冲击波场景")
+	if judgement == null or judgement.effects.is_empty() or judgement.effects[0].effect_scene == null:
+		return
+	var effect: ActionEffectDefinition = judgement.effects[0]
+	_check(effect.shape == ActionEffectDefinition.Shape.CONE
+		and is_equal_approx(effect.radius, 190.0)
+		and is_equal_approx(effect.half_angle, 55.0)
+		and is_equal_approx(effect.damage_ratio, 2.0),
+		"圣光裁决保留原扇形范围与伤害")
+	_check(judgement.detail_text(definition.attack_damage).contains("金色冲击波")
+		and judgement.detail_text(definition.attack_damage).contains("AD × 2"),
+		"圣光裁决描述同时展示冲击波与当前伤害倍率")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight_templar")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"archer")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var templar: Unit = null
+	var enemies: Array[Unit] = []
+	for unit in battle.units:
+		if unit.team == 0:
+			templar = unit
+		else:
+			enemies.append(unit)
+	if templar == null or enemies.size() != 2:
+		_check(false, "圣光裁决固定场景生成")
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	templar.brain.enabled = false
+	for enemy in enemies:
+		enemy.brain.enabled = false
+	templar.position = Vector2(700, 650)
+	enemies[0].position = Vector2(850, 650)
+	enemies[1].position = Vector2(600, 650)
+	var front_hp := enemies[0].hp
+	var rear_hp := enemies[1].hp
+	templar.mana = templar.max_mana
+	templar.target = enemies[0]
+	templar.planned_action = judgement
+	templar.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.45).timeout
+	var wave: Node2D = null
+	for child in battle.effects_root.get_children():
+		if child.get_script() != null and child.get_script().resource_path == "res://scripts/fx/templar_judgement_wave.gd":
+			wave = child as Node2D
+			break
+	_check(wave != null and is_equal_approx(float(wave.get("radius")), effect.radius)
+		and is_equal_approx(float(wave.get("half_angle")), deg_to_rad(effect.half_angle))
+		and wave.global_position.distance_to(templar.global_position) < 1.0
+		and absf(wave.rotation) < 0.05,
+		"斩击触发时冲击波以骑士为中心、朝目标方向展开")
+	_check(is_equal_approx(enemies[0].hp, front_hp - templar.current_attack_damage() * 2.0 * (1.0 - enemies[0].current_armor()))
+		and is_equal_approx(enemies[1].hp, rear_hp),
+		"冲击波仅作表现，扇形前方受伤而身后不受伤")
+	await get_tree().create_timer(0.45).timeout
+	_check(not is_instance_valid(wave), "冲击波播放后自动清理")
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
 
 
 func _test_smart_knight() -> void:
@@ -1551,7 +1739,7 @@ func _test_status_framework() -> void:
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 5, "状态目录包含 5 种状态")
+	_check(StatusCatalog.count() == 7, "状态目录包含 7 种状态（含骑士被动）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,

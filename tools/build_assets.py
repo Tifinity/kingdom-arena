@@ -221,6 +221,8 @@ def _write_effect_resource(effect_id: str, effect: dict) -> str:
         f'burn_dps_ratio = {effect.get("burn_dps_ratio", 0.0):.2f}',
         f'shield_per_target_ratio = {effect.get("shield_per_target_ratio", 0.0):.2f}',
         f'shield_max_ratio = {effect.get("shield_max_ratio", 0.0):.2f}',
+        f'guard_reward_shield_ratio = {effect.get("guard_reward_shield_ratio", 0.0):.2f}',
+        f'guard_reward_shield_duration = {effect.get("guard_reward_shield_duration", 0.0):.2f}',
         f'heal_amount = {effect.get("heal_amount", 0.0):.1f}',
         f'heal_ratio = {effect.get("heal_ratio", 0.0):.2f}',
         f'summon_unit_id = &"{effect.get("summon_unit_id", "")}"',
@@ -363,7 +365,8 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         heal_amount=0.0, heal_ratio=0.0, summon_id="", summon_count=1, knockback=0.0,
         burn_duration=0.0, burn_dps_ratio=0.0,
         shield_per_target_ratio=0.0, shield_max_ratio=0.0,
-        requires_action_hit=False) -> dict:
+        requires_action_hit=False, guard_reward_shield_ratio=0.0,
+        guard_reward_shield_duration=0.0) -> dict:
     return {
         "kind": kind, "shape": shape, "trigger_frame": frame,
         "damage_ratio": ratio, "radius": radius, "half_angle": half,
@@ -377,6 +380,8 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         "burn_duration": burn_duration, "burn_dps_ratio": burn_dps_ratio,
         "shield_per_target_ratio": shield_per_target_ratio,
         "shield_max_ratio": shield_max_ratio,
+        "guard_reward_shield_ratio": guard_reward_shield_ratio,
+        "guard_reward_shield_duration": guard_reward_shield_duration,
         "requires_action_hit": requires_action_hit,
     }
 
@@ -432,20 +437,28 @@ def _skills_for(unit: Unit) -> list[dict]:
                              [_fx(shape=4, ratio=2.1, frame=9, length=360.0, width=40.0)],
                              14.0, 10, 380.0, rng, mana=100.0))
     elif slug == "knight":
-        skills.append(_skill("knight_cleave", "回旋斩", "attack_02",
-                             [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 10.0, half=62.0)],
-                             7.0, 7, rng, rng))
-        skills.append(_skill("knight_flame_slash", "火焰斩击", "attack_03",
-                             [_fx(shape=2, ratio=1.4, frame=7, radius=170.0, half=65.0)],
-                             14.0, 10, 170.0, rng, mana=100.0))
-        skills.append(_guard_action("knight_block", "格挡"))
+        skills.append(_skill("knight_cleave", "双连斩", "attack_02",
+                             [_fx(shape=0, ratio=1.2, frame=4), _fx(shape=0, ratio=1.5, frame=7)],
+                             7.0, 7, rng, rng,
+                             description="连续斩击同一目标，第一剑造成 {damage_0} 单体伤害，第二剑造成 {damage_1} 单体伤害。"))
+        skills.append(_skill("knight_flame_slash", "烈焰剑", "attack_03",
+                             [_fx(shape=2, ratio=1.5, frame=7, radius=170.0, half=65.0)],
+                             14.0, 10, 170.0, rng, mana=100.0,
+                             description="挥出烈焰剑气，对前方扇形敌人造成 {damage_0} 范围伤害。"))
+        block = _guard_action("knight_block", "格挡")
+        block["effects"][0]["guard_reward_shield_ratio"] = 0.08
+        block["effects"][0]["guard_reward_shield_duration"] = 3.0
+        block["description"] = "格挡 {guard_duration} 秒，成功挡下攻击后获得最大生命 {guard_reward_shield_percent}% 的护盾，持续 {guard_reward_shield_duration} 秒。"
+        skills.append(block)
     elif slug == "knight_templar":
         skills.append(_skill("knight_templar_cleave", "圣光斩", "attack_02",
                              [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 10.0, half=62.0)],
                              7.0, 7, rng, rng))
         skills.append(_skill("knight_templar_judgement", "圣光裁决", "attack_03",
                              [_fx(shape=2, ratio=2.0, frame=6, radius=190.0, half=55.0)],
-                             15.0, 10, 200.0, rng, mana=100.0))
+                             15.0, 10, 200.0, rng, mana=100.0,
+                             description="斩击时金色冲击波向前扩散，对扇形敌人造成 {damage_0} 伤害。"))
+        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_judgement_wave.tscn"
         skills.append(_guard_action("knight_templar_block", "格挡"))
     elif slug == "armored_axeman":
         skills.append(_skill("armored_axeman_heavy", "重击", "attack_03",
@@ -952,8 +965,11 @@ def build_character(unit: Unit) -> tuple[float, str]:
     behavior_id = str(5 + len(action_paths))
     visual_ext_line = f'[ext_resource type="PackedScene" path="{visual_scene_path}" id="{visual_id}"]'
     behavior_ext_line = f'[ext_resource type="Resource" path="{behavior_path}" id="{behavior_id}"]'
+    passive_id = str(6 + len(action_paths)) if unit.slug == "knight" else ""
+    passive_ext_line = (f'[ext_resource type="Resource" path="res://resources/passives/knight_morale.tres" id="{passive_id}"]'
+                        if passive_id else "")
     accent = ROLE_COLORS[unit.role]
-    load_steps = 6 + len(action_paths)
+    load_steps = 6 + len(action_paths) + (1 if passive_id else 0)
     attack_animation_line = 'attack_animation = &"attack_02"\n' if unit.slug == "orc_rider" else ""
     content = f'''[gd_resource type="Resource" script_class="UnitDefinition" load_steps={load_steps} format=3]
 
@@ -963,6 +979,7 @@ def build_character(unit: Unit) -> tuple[float, str]:
 {chr(10).join(action_ext_lines)}
 {visual_ext_line}
 {behavior_ext_line}
+{passive_ext_line}
 
 [resource]
 script = ExtResource("1")
@@ -991,6 +1008,7 @@ character_height = {character_height:.1f}
 body_radius = {unit.body_radius * 1.05:.1f}
 accent_color = {godot_color(accent)}
 actions = [{", ".join(action_refs)}]
+{'passive = ExtResource("' + passive_id + '")' if passive_id else ''}
 behavior_profile = ExtResource("{behavior_id}")
 visual_scene = ExtResource("{visual_id}")
 sprite_frames = ExtResource("2")

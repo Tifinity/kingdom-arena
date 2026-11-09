@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="StatusDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/status/status_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/status/behaviors/stat_modifier_behavior.gd" id="2"]
+
+[sub_resource type="Resource" id="behavior"]
+script = ExtResource("2")
+stat = &"attack_damage"
+mode = 1
+
+[resource]
+script = ExtResource("1")
+id = &"knight_morale_attack"
+display_name = "斗志昂扬·攻击"
+description = "攻击力暂时提高。"
+tags = Array[StringName]([&"buff"])
+duration = 20.0
+base_power = 5.0
+behavior = SubResource("behavior")

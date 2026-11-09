@@ -133,6 +133,11 @@ func detail_text(attack_damage: float = -1.0) -> String:
 					effect.shield_per_target_ratio * 100.0, effect.shield_max_ratio * 100.0, effect.duration])
 			ActionEffectDefinition.Kind.GUARD:
 				parts.append("格挡 %.1f 秒" % effect.duration)
+				rendered_description = rendered_description.replace("{guard_duration}", _number_text(effect.duration))
+				rendered_description = rendered_description.replace("{guard_reward_shield_percent}", _number_text(effect.guard_reward_shield_ratio * 100.0))
+				rendered_description = rendered_description.replace("{guard_reward_shield_duration}", _number_text(effect.guard_reward_shield_duration))
+				if effect.guard_reward_shield_ratio > 0.0:
+					parts.append("成功格挡后获得 %.0f%% 最大生命护盾，持续 %.1f 秒" % [effect.guard_reward_shield_ratio * 100.0, effect.guard_reward_shield_duration])
 			ActionEffectDefinition.Kind.SUMMON:
 				parts.append("召唤 %d 名单位" % effect.summon_count)
 			ActionEffectDefinition.Kind.STATUS:
@@ -177,3 +182,8 @@ func _damage_formula(damage_ratio: float, attack_damage: float) -> String:
 	var rounded := snappedf(damage, 0.001)
 	var value := str(roundi(rounded)) if is_equal_approx(rounded, float(roundi(rounded))) else str(rounded)
 	return "%s（AD × %s）" % [value, str(damage_ratio)]
+
+
+func _number_text(value: float) -> String:
+	var rounded := snappedf(value, 0.001)
+	return str(roundi(rounded)) if is_equal_approx(rounded, float(roundi(rounded))) else str(rounded)

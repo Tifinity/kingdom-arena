@@ -148,6 +148,7 @@ func _run_countdown() -> void:
 	hud.show_countdown("开战！")
 	for unit in units:
 		if is_instance_valid(unit) and unit.alive:
+			unit.on_battle_started()
 			unit.brain.force_think()
 	await get_tree().create_timer(0.55, false).timeout
 	if not is_inside_tree():
@@ -339,6 +340,8 @@ func spawn_summons(source: Unit, unit_id: StringName, count: int, effect_scene: 
 			if fx is Node2D:
 				fx.global_position = spawn_position
 		unit.setup(self, source.team, source.slot, definition)
+		if battle_active:
+			unit.on_battle_started()
 		unit.summoned = true
 		unit.face_direction(-1.0 if source.team == 0 else 1.0)
 		unit.set_range_overlay_visible(show_combat_ranges)

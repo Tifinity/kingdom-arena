@@ -9,7 +9,7 @@ static func apply_on_hit(effect: ActionEffectDefinition, source: Unit, victim: U
 		return
 	if effect.burn_duration > 0.0:
 		victim.apply_burn(effect.burn_duration,
-			source.attack_damage * effect.burn_dps_ratio if source != null and is_instance_valid(source) else 0.0,
+			source.current_attack_damage() * effect.burn_dps_ratio if source != null and is_instance_valid(source) else 0.0,
 			source if source != null and is_instance_valid(source) else null)
 	if effect.status_duration > 0.0:
 		victim.apply_status(effect, source if source != null and is_instance_valid(source) else null)

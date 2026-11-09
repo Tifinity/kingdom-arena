@@ -20,6 +20,9 @@ var max_mana := 100.0
 var mana := 100.0
 var mana_regen := 8.0
 var guard_time := 0.0
+var guard_blocked_hit := false
+var guard_reward_shield_ratio := 0.0
+var guard_reward_shield_duration := 0.0
 var shield := 0.0
 var shield_time := 0.0
 var summoned := false
@@ -102,6 +105,10 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	hp = max_hp
 	shield = 0.0
 	shield_time = 0.0
+	guard_time = 0.0
+	guard_blocked_hit = false
+	guard_reward_shield_ratio = 0.0
+	guard_reward_shield_duration = 0.0
 	current_cast = null
 	planned_target = null
 	planned_point = Vector2.ZERO
@@ -166,6 +173,22 @@ func setup_preview(p_definition: UnitDefinition) -> void:
 	play_animation(&"idle", true)
 
 
+func on_battle_started() -> void:
+	if not alive or definition == null or definition.passive == null:
+		return
+	for status in definition.passive.battle_start_statuses:
+		if status != null:
+			status_controller.apply(status, self)
+
+
+func current_attack_damage() -> float:
+	return status_controller.modify_stat(&"attack_damage", attack_damage) if status_controller != null else attack_damage
+
+
+func current_armor() -> float:
+	return clampf(status_controller.modify_stat(&"armor", armor), 0.0, 0.8) if status_controller != null else armor
+
+
 func play_preview_animation(animation: StringName) -> bool:
 	if not preview_mode:
 		return false
@@ -223,7 +246,14 @@ func _physics_process(delta: float) -> void:
 	for key in action_cooldowns.keys():
 		action_cooldowns[key] = maxf(0.0, float(action_cooldowns[key]) - delta)
 	mana = minf(max_mana, mana + mana_regen * delta)
-	guard_time = maxf(0.0, guard_time - delta)
+	if guard_time > 0.0:
+		guard_time = maxf(0.0, guard_time - delta)
+		if guard_time <= 0.0:
+			if guard_blocked_hit:
+				apply_shield(max_hp * guard_reward_shield_ratio, guard_reward_shield_duration, maxf(max_hp, shield))
+			guard_blocked_hit = false
+			guard_reward_shield_ratio = 0.0
+			guard_reward_shield_duration = 0.0
 	if shield_time > 0.0:
 		shield_time = maxf(0.0, shield_time - delta)
 		if shield_time <= 0.0:
@@ -555,7 +585,7 @@ func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 	var impact := victim.get_hit_point()
 	var blocked := victim.is_guarding()
 	_record_action_hit(victim)
-	victim.take_damage(attack_damage * maxf(effect.damage_ratio, 0.0), self, impact)
+	victim.take_damage(current_attack_damage() * maxf(effect.damage_ratio, 0.0), self, impact)
 	ActionImpact.apply_on_hit(effect, self, victim, blocked)
 	battle.spawn_hit_spark(impact, accent_color, 1.2)
 	battle.action_hits += 1
@@ -576,7 +606,7 @@ func apply_knockback(origin: Vector2, distance: float) -> void:
 func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectDefinition) -> void:
 	if effect == null:
 		return
-	var damage := attack_damage * maxf(effect.damage_ratio, 0.0)
+	var damage := current_attack_damage() * maxf(effect.damage_ratio, 0.0)
 	var cast_target: Unit = current_cast.target if current_cast != null else target
 	if effect.behavior != null:
 		effect.behavior.execute(self, current_cast, effect)
@@ -597,7 +627,7 @@ func _resolve_legacy_action_effect(action: CombatActionDefinition, effect: Actio
 		ActionEffectDefinition.Kind.VISUAL:
 			_spawn_action_visual(effect)
 		ActionEffectDefinition.Kind.GUARD:
-			apply_guard(effect.duration)
+			apply_guard(effect.duration, effect.guard_reward_shield_ratio, effect.guard_reward_shield_duration)
 		ActionEffectDefinition.Kind.SHIELD:
 			apply_shield(max_hp * effect.shield_per_target_ratio * (current_cast.hit_targets.size() if current_cast != null else 0),
 				effect.duration, max_hp * effect.shield_max_ratio)
@@ -657,7 +687,7 @@ func _effect_victims(effect: ActionEffectDefinition) -> Array[Unit]:
 func _resolve_heal_effect(effect: ActionEffectDefinition) -> void:
 	if battle == null:
 		return
-	var amount := effect.heal_amount + attack_damage * effect.heal_ratio
+	var amount := effect.heal_amount + current_attack_damage() * effect.heal_ratio
 	var cast_target: Unit = self if current_cast == null or current_cast.action.target_mode == CombatActionDefinition.TargetMode.SELF else current_cast.target
 	var point := current_cast.point if current_cast != null else planned_point
 	var direction := current_cast.direction if current_cast != null else planned_direction
@@ -672,10 +702,14 @@ func _spawn_action_visual(effect: ActionEffectDefinition) -> void:
 	battle.spawn_action_effect(effect.effect_scene, self, effect)
 
 
-func apply_guard(duration: float) -> void:
+func apply_guard(duration: float, reward_shield_ratio := 0.0, reward_shield_duration := 0.0) -> void:
 	if not alive:
 		return
+	if guard_time <= 0.0:
+		guard_blocked_hit = false
 	guard_time = maxf(guard_time, duration)
+	guard_reward_shield_ratio = reward_shield_ratio
+	guard_reward_shield_duration = reward_shield_duration
 
 
 func apply_shield(amount: float, duration: float, cap: float) -> void:
@@ -699,13 +733,14 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 		return
 	if guard_time > 0.0:
 		# 格挡期间完全免伤，也不进入受击硬直。
+		guard_blocked_hit = true
 		var block_at := get_hit_point() if hit_position == null else Vector2(hit_position)
 		_flash_left = 0.09
 		visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
 		battle.spawn_hit_spark(block_at, Color("#e7c46b"), 1.8)
 		battle.spawn_block_text(block_at)
 		return
-	var amount := raw_amount if ignore_armor else raw_amount * (1.0 - clampf(armor, 0.0, 0.8))
+	var amount := raw_amount if ignore_armor else raw_amount * (1.0 - current_armor())
 	if shield > 0.0 and not ignore_shield:
 		var absorbed := minf(shield, amount)
 		shield -= absorbed

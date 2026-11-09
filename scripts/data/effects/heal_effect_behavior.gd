@@ -9,6 +9,6 @@ func execute(source: Unit, cast: ActionCast, effect: ActionEffectDefinition) -> 
 	var direction := cast.direction if cast != null else Vector2.ZERO
 	var point := cast.point if cast != null else Vector2.ZERO
 	var use_point := cast != null and cast.has_point
-	var amount := effect.heal_amount + source.attack_damage * effect.heal_ratio
+	var amount := effect.heal_amount + source.current_attack_damage() * effect.heal_ratio
 	for ally in ActionTargetQuery.allies(source, effect, cast_target, direction, point, use_point):
 		ally.heal(amount, source)

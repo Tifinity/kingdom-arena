@@ -223,7 +223,15 @@ func _update_status_icons(statuses: Array) -> void:
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.texture = data.get("icon")
 		icon.tooltip_text = "%s" % data.get("display_name", "状态")
-		box.add_child(icon)
+		if icon.texture != null:
+			box.add_child(icon)
+		else:
+			var fallback := Label.new()
+			fallback.custom_minimum_size = Vector2(22, 22)
+			fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			fallback.text = str(data.get("display_name", "状态")).left(1)
+			fallback.add_theme_color_override("font_color", Color("#e7c46b"))
+			box.add_child(fallback)
 		var stacks := int(data.get("stacks", 1))
 		if stacks > 1:
 			var stack_label := Label.new()
@@ -358,8 +366,12 @@ func _update_inspector() -> void:
 		skill_lines.append("%s · %s · 蓝 %.0f/%.0f · %s\n%s" % [
 			action.display_name, state, selected_unit.mana, action.mana_cost,
 			"满蓝" if action.mana_cost >= selected_unit.max_mana - 0.001 else "技能",
-			action.detail_text(selected_unit.attack_damage),
+			action.detail_text(selected_unit.current_attack_damage()),
 		])
+	if definition.passive != null:
+		var passive_remaining := definition.passive.remaining(selected_unit.status_controller)
+		var passive_state := "生效中 %.1fs" % passive_remaining if passive_remaining > 0.0 else "未生效"
+		skill_lines.append("%s · 被动 · %s\n%s" % [definition.passive.display_name, passive_state, definition.passive.detail_text()])
 	skill_status.text = "\n".join(PackedStringArray(skill_lines))
 	inspector_state.text = snapshot.state
 	if snapshot.state_key == "action" and snapshot.get("action_name", "—") != "—":

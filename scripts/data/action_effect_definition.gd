@@ -48,6 +48,10 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 @export var shield_per_target_ratio := 0.0
 @export var shield_max_ratio := 0.0
 
+## 格挡成功后的奖励护盾：按最大生命计算，在格挡结束时获得。
+@export var guard_reward_shield_ratio := 0.0
+@export var guard_reward_shield_duration := 0.0
+
 ## 治疗量 = heal_amount + 施法者攻击力 × heal_ratio。
 @export var heal_amount: float = 0.0
 @export var heal_ratio: float = 0.0

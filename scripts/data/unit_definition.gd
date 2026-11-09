@@ -52,6 +52,7 @@ const FACTION_NAMES := {
 ## 该单位可执行的全部 Action（普通攻击、技能、防御、位移……）。
 ## 决策层从这些动作中选择 ActionPlan；ActionState 负责执行。
 @export var actions: Array[CombatActionDefinition] = []
+@export var passive: PassiveDefinition
 
 @export_group("攻击表现")
 @export_enum("近战:0", "远程:1") var attack_kind: int = AttackKind.MELEE
@@ -143,4 +144,6 @@ func skill_description_text() -> String:
 			continue
 		var mana_text := "满蓝" if action.mana_cost >= max_mana - 0.001 else ("蓝 %.0f" % action.mana_cost if action.mana_cost > 0.0 else "0 蓝")
 		lines.append("%s｜%s｜CD %.0f 秒：%s" % [action.display_name, mana_text, action.cooldown, action.detail_text(attack_damage)])
+	if passive != null:
+		lines.append("%s｜被动：%s" % [passive.display_name, passive.detail_text()])
 	return "\n".join(PackedStringArray(lines))
