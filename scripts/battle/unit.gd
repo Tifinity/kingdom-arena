@@ -588,6 +588,10 @@ func heal(amount: float, healer: Unit = null) -> void:
 	if not alive or amount <= 0.0:
 		return
 	var before := hp
+	if healer != null and healer.definition != null and healer.definition.passive != null \
+			and healer.definition.passive.heal_below_hp_ratio > 0.0 \
+			and hp_ratio() < healer.definition.passive.heal_below_hp_ratio:
+		amount *= 1.0 + healer.definition.passive.heal_bonus_ratio
 	hp = minf(max_hp, hp + amount)
 	health_bar.set_ratio(hp / max_hp)
 	if hp > before:

@@ -370,7 +370,7 @@ func _update_inspector() -> void:
 		])
 	if definition.passive != null:
 		var passive_remaining := definition.passive.remaining(selected_unit.status_controller)
-		var passive_state := "生效中 %.1fs" % passive_remaining if passive_remaining > 0.0 else "未生效"
+		var passive_state := "常驻" if definition.passive.heal_bonus_ratio > 0.0 else ("生效中 %.1fs" % passive_remaining if passive_remaining > 0.0 else "未生效")
 		skill_lines.append("%s · 被动 · %s\n%s" % [definition.passive.display_name, passive_state, definition.passive.detail_text()])
 	skill_status.text = "\n".join(PackedStringArray(skill_lines))
 	inspector_state.text = snapshot.state

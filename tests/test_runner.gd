@@ -33,6 +33,7 @@ func _run_all() -> void:
 	await _test_setup_scene()
 	await _test_hero_lab()
 	await _test_swordsman_kit()
+	await _test_priest_kit()
 	await _test_knight_kit()
 	await _test_flame_slash()
 	await _test_templar_judgement_wave()
@@ -548,6 +549,102 @@ func _test_swordsman_kit() -> void:
 	_check(hero.status_controller.stacks(zeal.id) == 3,
 		"突刺斩三次技能命中真实叠加 3 层热诚")
 	hero.status_controller.clear_all()
+
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _test_priest_kit() -> void:
+	print("\n[3d] 牧师三技能与恩泽被动")
+	var definition := UnitCatalog.get_definition(&"priest")
+	var holy_bolt: CombatActionDefinition = null
+	var blessing: CombatActionDefinition = null
+	var sanctuary: CombatActionDefinition = null
+	for action in definition.actions:
+		if action == null:
+			continue
+		if action.action_id == &"priest_holy_bolt":
+			holy_bolt = action
+		elif action.action_id == &"priest_blessing":
+			blessing = action
+		elif action.action_id == &"priest_sanctuary":
+			sanctuary = action
+	var grace := definition.passive
+	_check(holy_bolt != null and blessing != null and sanctuary != null,
+		"牧师配置圣光弹、祈福与圣光普照")
+	_check(holy_bolt != null and not holy_bolt.effects.is_empty()
+		and holy_bolt.effects[0].kind == ActionEffectDefinition.Kind.PROJECTILE
+		and holy_bolt.effects[0].projectile_kind == UnitDefinition.ProjectileKind.HOLY_BOLT,
+		"圣光弹使用圣光投射物")
+	_check(blessing != null and blessing.target_mode == CombatActionDefinition.TargetMode.ALLY
+		and blessing.targeting != null
+		and blessing.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_HP_ALLY
+		and blessing.requires_wounded_ally,
+		"祈福默认选择最低血量受伤友军")
+	_check(sanctuary != null and sanctuary.target_mode == CombatActionDefinition.TargetMode.ALLY
+		and sanctuary.targeting != null
+		and sanctuary.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_HP_ALLY
+		and not sanctuary.effects.is_empty() and sanctuary.effects[0].effect_scene != null,
+		"圣光普照以最低血量友军为中心并带治疗特效")
+	_check(grace != null and grace.display_name == "恩泽"
+		and is_equal_approx(grace.heal_below_hp_ratio, 0.4)
+		and is_equal_approx(grace.heal_bonus_ratio, 0.2),
+		"恩泽配置为低于 40% 生命时治疗 +20%")
+	if holy_bolt == null or blessing == null or grace == null:
+		_check(false, "牧师技能资源完整")
+		return
+
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"priest")
+	GameState.set_slot(0, 1, &"soldier")
+	GameState.set_slot(1, 0, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var priest: Unit = null
+	var patient: Unit = null
+	var enemy: Unit = null
+	for unit in battle.units:
+		if unit.team == 1:
+			enemy = unit
+		elif unit.definition.unit_id == &"priest":
+			priest = unit
+		else:
+			patient = unit
+	if priest == null or patient == null or enemy == null:
+		_check(false, "牧师测试固定场景生成")
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	for unit in battle.units:
+		unit.brain.enabled = false
+	battle.battle_active = true
+	priest.position = Vector2(700, 650)
+	patient.position = Vector2(760, 650)
+	enemy.position = Vector2(850, 650)
+	patient.hp = patient.max_hp * 0.35
+	priest.mana = priest.max_mana
+	var before_heal := patient.hp
+	priest.target = enemy
+	priest.planned_action = blessing
+	priest.planned_target = patient
+	priest.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.7).timeout
+	var heal_gain := patient.hp - before_heal
+	_check(heal_gain > 17.0 and heal_gain <= 21.0,
+		"祈福治疗受伤队友并按恩泽提高 20% 治疗量")
+
+	var enemy_hp := enemy.hp
+	priest.position = Vector2(700, 650)
+	enemy.position = Vector2(850, 650)
+	priest.mana = 0.0
+	priest.target = enemy
+	priest.planned_action = holy_bolt
+	priest.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(1.0).timeout
+	_check(enemy.hp < enemy_hp, "圣光弹命中敌人并造成伤害")
 
 	battle.queue_free()
 	await get_tree().process_frame
@@ -1891,6 +1988,7 @@ func _test_skill_effects() -> void:
 			var before_hp: float = patient.hp
 			priest.target = enemy
 			priest.planned_action = heal_action
+			priest.planned_target = patient
 			priest.state_machine.transition_to(&"action", true)
 			await get_tree().create_timer(1.0).timeout
 			_check(patient.hp > before_hp, "圣光普照治疗队友")

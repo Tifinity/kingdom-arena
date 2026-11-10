@@ -7,6 +7,7 @@ const ARROW_TEXTURE := preload("res://assets/projectiles/arrow.png")
 const ORB_TEXTURE := preload("res://assets/projectiles/magic_orb.png")
 const ICE_TEXTURE := preload("res://assets/projectiles/wizard_ice.png")
 const FIREBALL_TEXTURE := preload("res://assets/projectiles/wizard_fireball.png")
+const HOLY_BOLT_TEXTURE := preload("res://assets/fx/pixelfx/holy_laser_bolt.png")
 const GHOSTFIRE_TEXTURE := preload("res://assets/magic/necromancer_attack02_effect.png")
 
 var source: Unit
@@ -44,7 +45,11 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 	is_skill = p_source.current_cast != null and p_source.current_cast.action.category == CombatActionDefinition.Category.SKILL
 	global_position = p_source.get_muzzle_point()
 
-	if kind == UnitDefinition.ProjectileKind.ICE or kind == UnitDefinition.ProjectileKind.FIREBALL:
+	if kind == UnitDefinition.ProjectileKind.HOLY_BOLT:
+		sprite.scale = Vector2(0.8, 0.8)
+		speed = 900.0
+		_set_effect_frame(0)
+	elif kind == UnitDefinition.ProjectileKind.ICE or kind == UnitDefinition.ProjectileKind.FIREBALL:
 		sprite.scale = Vector2(2.4, 2.4)
 		speed = 800.0
 		_set_effect_frame(7 if kind == UnitDefinition.ProjectileKind.ICE else 0)
@@ -88,7 +93,9 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 	_travel_elapsed += delta
-	if kind == UnitDefinition.ProjectileKind.FIREBALL:
+	if kind == UnitDefinition.ProjectileKind.HOLY_BOLT:
+		_set_effect_frame(int(_travel_elapsed * 30.0) % 15)
+	elif kind == UnitDefinition.ProjectileKind.FIREBALL:
 		_set_effect_frame(int(_travel_elapsed * 16.0) % 4)
 	elif kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
 		_set_effect_frame(mini(2, int(_travel_elapsed * 12.0)))
@@ -140,6 +147,11 @@ func _hit() -> void:
 
 func _set_effect_frame(frame: int) -> void:
 	var atlas := AtlasTexture.new()
+	if kind == UnitDefinition.ProjectileKind.HOLY_BOLT:
+		atlas.atlas = HOLY_BOLT_TEXTURE
+		atlas.region = Rect2((frame % 2) * 128, int(frame / 2) * 32, 128, 32)
+		sprite.texture = atlas
+		return
 	if kind == UnitDefinition.ProjectileKind.ICE:
 		atlas.atlas = ICE_TEXTURE
 	elif kind == UnitDefinition.ProjectileKind.GHOSTFIRE:

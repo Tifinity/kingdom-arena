@@ -51,3 +51,10 @@
 实现过程中参考了同机项目《波比竞技场》《部落大战》的工程组织方式（资源驱动数据、
 场景拆分、HUD 分层、无界面测试），以及 Godot 官方文档推荐做法；
 未复制其业务代码或专有数据。
+
+## Pixelfx 牧师特效
+
+- `assets/fx/pixelfx/holy_laser_bolt.png`：`projectiles/laser-bolt`，holy palette。
+- `assets/fx/pixelfx/heal.png`：`holy/heal`，heal palette；仅导出特效层，未包含示例角色。
+- `assets/fx/pixelfx/healing_ring.png`：`holy/heal-aoe`（Healing ring）。
+- 来源：[patch-gg/pixelfx](https://github.com/patch-gg/pixelfx)，MIT License。
