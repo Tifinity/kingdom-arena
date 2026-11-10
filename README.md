@@ -280,7 +280,7 @@ godot --path . res://scenes/debug/hero_lab.tscn
 | 自动战斗 | 索敌、推进、走位分离、近战/远程普攻、投射物、受击、死亡、胜负 |
 | OODA AI | 观察、评分判断、多 Action 选择、行动四段式；可暂停/变速观察 |
 | 统一 Action | `actions` 列表 + `CombatActionDefinition` + `ActionEffectDefinition` + 单一 `ActionState` |
-| 技能 | 22 名英雄均有普攻和满蓝大招，当前共接入 40 个主动技能和 2 个被动；目标为每人 3 主动 + 1 被动，设计与完成状态见 [docs/SKILL_ROSTER.md](docs/SKILL_ROSTER.md) |
+| 技能 | 22 名英雄均有普攻和满蓝大招，当前共接入 42 个主动技能和 3 个被动；目标为每人 3 主动 + 1 被动，设计与完成状态见 [docs/SKILL_ROSTER.md](docs/SKILL_ROSTER.md) |
 | 战斗 HUD | 顶部双方名称/剩余人数/时间，无总血量；OODA 观察镜始终显示生命/蓝量/攻击范围/技能范围/冷却；暂停时仍可点击单位切换观察镜；选中单位的范围环由「范围」按钮或 `Tab` 开关，默认关闭；右下角控制按钮 |
 | 竞技场 | 地面/背墙扩展至接近镜头高度，单位阵型纵向展开 |
 | FSM | 待机、移动、行动、受击、死亡五个状态节点 |

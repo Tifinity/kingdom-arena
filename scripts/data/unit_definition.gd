@@ -8,7 +8,7 @@ extends Resource
 
 enum Faction { HUMAN, WILDERNESS, MONSTER }
 enum AttackKind { MELEE, RANGED }
-enum ProjectileKind { NONE, ARROW, MAGIC, ICE, FIREBALL, GHOSTFIRE }
+enum ProjectileKind { NONE, ARROW, MAGIC, ICE, FIREBALL, GHOSTFIRE, HOLY_BOLT }
 
 const FACTION_NAMES := {
 	Faction.HUMAN: "人类",

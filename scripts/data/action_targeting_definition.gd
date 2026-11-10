@@ -3,6 +3,6 @@ extends Resource
 
 ## 候选目标的选择规则；命中范围仍由 ActionEffectDefinition.shape 决定。
 
-enum Selection { ALL, FARTHEST, DENSEST_CLUSTER, LOWEST_HP_ENEMY }
+enum Selection { ALL, FARTHEST, DENSEST_CLUSTER, LOWEST_HP_ENEMY, LOWEST_HP_ALLY }
 
-@export_enum("全部候选:0", "最远敌人:1", "最密集敌群:2", "范围内最低血量敌人:3") var selection: int = Selection.ALL
+@export_enum("全部候选:0", "最远敌人:1", "最密集敌群:2", "范围内最低血量敌人:3", "最低血量友军:4") var selection: int = Selection.ALL

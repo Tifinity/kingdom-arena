@@ -297,9 +297,22 @@ func _select_action() -> ActionPlan:
 					continue
 				candidates.append(unit)
 			CombatActionDefinition.TargetMode.ALLY:
+				var allies: Array[Unit] = [unit]
 				for ally in observation.get("allies", []):
-					candidates.append(ally)
-				candidates.append(unit)
+					allies.append(ally)
+				if action.targeting != null and action.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_HP_ALLY:
+					var lowest: Unit = null
+					for ally in allies:
+						if not ally.alive or ally.hp >= ally.max_hp - 0.5:
+							continue
+						if action.action_range > 0.0 and unit.global_position.distance_to(ally.global_position) > action.action_range + ally.body_radius:
+							continue
+						if lowest == null or ally.hp_ratio() < lowest.hp_ratio():
+							lowest = ally
+					if lowest != null:
+						candidates.append(lowest)
+				else:
+					candidates.append_array(allies)
 			CombatActionDefinition.TargetMode.POINT:
 				if action.select_densest_cluster():
 					var radius := 0.0
