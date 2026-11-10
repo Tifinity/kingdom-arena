@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "恩泽"
+description = "治疗生命低于 40% 的友军时，治疗量提高 20%。"
+heal_below_hp_ratio = 0.4
+heal_bonus_ratio = 0.2

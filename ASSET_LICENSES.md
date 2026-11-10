@@ -52,6 +52,13 @@
 场景拆分、HUD 分层、无界面测试），以及 Godot 官方文档推荐做法；
 未复制其业务代码或专有数据。
 
+## Pixelfx 牧师特效
+
+- `assets/fx/pixelfx/holy_laser_bolt.png`：`projectiles/laser-bolt`，holy palette。
+- `assets/fx/pixelfx/heal.png`：`holy/heal`，heal palette；仅导出特效层，未包含示例角色。
+- `assets/fx/pixelfx/healing_ring.png`：`holy/heal-aoe`（Healing ring）。
+- 来源：[patch-gg/pixelfx](https://github.com/patch-gg/pixelfx)，MIT License。
+
 ## Pixelfx 圣殿骑士结界
 
 - `assets/fx/pixelfx/aegis_ring_back.png`、`aegis_ring_front.png`：`holy/aegis-ring`，金色结界（97 帧、30 FPS、256×136）。按前后两层分别导出，地面层画在单位下方，光柱层画在单位上方。

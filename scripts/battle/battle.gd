@@ -11,11 +11,16 @@ const PROJECTILE_SCENE := preload("res://scenes/battle/projectile.tscn")
 const DAMAGE_NUMBER_SCENE := preload("res://scenes/battle/damage_number.tscn")
 const HIT_SPARK_SCENE := preload("res://scenes/battle/hit_spark.tscn")
 const SLASH_SCENE := preload("res://scenes/battle/slash_effect.tscn")
+const TRAINING_DUMMY_DEFINITION := preload("res://resources/training/training_dummy.tres")
 
 const SETUP_SCENE := "res://scenes/setup/setup_screen.tscn"
 const BASE_SIZE := Vector2(1600.0, 900.0)
 const BASE_FIELD_MIN := Vector2(190.0, 430.0)
 const BASE_FIELD_MAX := Vector2(1410.0, 860.0)
+
+## 训练模式的固定站位：英雄在左、稻草人在右，保持在中央可视区且避开底部技能栏。
+const TRAINING_HERO_SPOT := Vector2(650.0, 600.0)
+const TRAINING_DUMMY_SPOT := Vector2(980.0, 600.0)
 
 ## 5 个槽位在 1600x900 设计坐标里的位置。槽位即布阵面板中的从上到下 1~5。
 const BASE_FORMATIONS := [
@@ -47,6 +52,13 @@ var action_casts := 0
 var skill_casts := 0
 var action_hits := 0
 
+## 训练模式：不读 GameState 阵容，只生成指定英雄 + 一只不会死亡、不会移动的稻草人。
+## Hero Lab 在 add_child 之前设置 training_mode / training_definition。
+var training_mode := false
+var training_definition: UnitDefinition
+var training_hero: Unit
+var training_dummy: Unit
+
 var _mvp_name := "无"
 var _mvp_team := -1
 var _mvp_damage := 0.0
@@ -70,8 +82,18 @@ func _ready() -> void:
 	_refresh_layout()
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	hud.bind(self)
-	_spawn_lineups()
-	_run_countdown()
+	if training_mode:
+		hud.visible = false
+		hud.process_mode = Node.PROCESS_MODE_DISABLED
+		if training_definition == null:
+			var roster := UnitCatalog.all()
+			if not roster.is_empty():
+				training_definition = roster[0]
+		if training_definition != null:
+			start_training(training_definition)
+	else:
+		_spawn_lineups()
+		_run_countdown()
 
 
 ## 逻辑视口变化时重新计算战场边界；单位按相同比例平移，保持相对站位。
@@ -82,6 +104,13 @@ func _on_viewport_resized() -> void:
 	var previous := _viewport_size
 	_viewport_size = next_size
 	_refresh_layout()
+	if training_mode:
+		var layout_scale := _viewport_size / BASE_SIZE
+		if is_instance_valid(training_hero):
+			training_hero.position = TRAINING_HERO_SPOT * layout_scale
+		if is_instance_valid(training_dummy):
+			training_dummy.position = TRAINING_DUMMY_SPOT * layout_scale
+		return
 	if previous.x <= 1.0 or previous.y <= 1.0:
 		return
 	var ratio := next_size / previous
@@ -117,17 +146,84 @@ func _spawn_lineups() -> void:
 			var definition: UnitDefinition = UnitCatalog.get_definition(unit_id)
 			if definition == null:
 				continue
-			var unit_scene: PackedScene = definition.unit_scene if definition.unit_scene != null else UNIT_SCENE
-			var unit: Unit = unit_scene.instantiate()
-			units_root.add_child(unit)
-			unit.position = _formation_position(team, slot)
-			unit.setup(self, team, slot, definition)
-			unit.face_direction(1.0 if team == 0 else -1.0)
-			unit.set_range_overlay_visible(show_combat_ranges)
-			unit.died.connect(_on_unit_died)
-			units.append(unit)
-			team_sizes[team] += 1
-			team_max_hp_total[team] += unit.max_hp
+			_spawn_unit(definition, team, slot, _formation_position(team, slot))
+
+
+## 生成并登记一个单位。正常战斗与试炼场的训练模式共用这条路径。
+func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_position: Vector2) -> Unit:
+	var unit_scene: PackedScene = definition.unit_scene if definition.unit_scene != null else UNIT_SCENE
+	var unit: Unit = unit_scene.instantiate()
+	units_root.add_child(unit)
+	unit.position = spawn_position
+	unit.setup(self, team, slot, definition)
+	unit.face_direction(1.0 if team == 0 else -1.0)
+	unit.set_range_overlay_visible(show_combat_ranges)
+	unit.died.connect(_on_unit_died)
+	units.append(unit)
+	team_sizes[team] += 1
+	team_max_hp_total[team] += unit.max_hp
+	return unit
+
+
+## Hero Lab：清空战场并重新摆出「英雄 vs 稻草人」。切换英雄或重置演示时调用。
+func start_training(definition: UnitDefinition) -> void:
+	training_mode = true
+	training_definition = definition
+	_clear_battlefield()
+	finished = false
+	battle_active = true
+	winner = -1
+	elapsed = 0.0
+	speed_multiplier = 1.0
+	Engine.time_scale = 1.0
+	team_damage = [0.0, 0.0]
+	team_kills = [0, 0]
+	team_sizes = [0, 0]
+	team_max_hp_total = [0.0, 0.0]
+	unit_damage.clear()
+	projectiles_fired = 0
+	action_casts = 0
+	skill_casts = 0
+	action_hits = 0
+	_mvp_name = "无"
+	_mvp_team = -1
+	_mvp_damage = 0.0
+	selected_unit = null
+	training_hero = null
+	training_dummy = null
+	if definition == null:
+		return
+	var layout_scale := _viewport_size / BASE_SIZE
+	training_hero = _spawn_unit(definition, 0, 0, TRAINING_HERO_SPOT * layout_scale)
+	var dummy_definition := TRAINING_DUMMY_DEFINITION as UnitDefinition
+	training_dummy = _spawn_unit(dummy_definition, 1, 2, TRAINING_DUMMY_SPOT * layout_scale)
+	training_hero.face_direction(1.0)
+	training_dummy.face_direction(-1.0)
+	training_hero.on_battle_started()
+	training_hero.brain.force_think()
+
+
+func _clear_battlefield() -> void:
+	for unit in units:
+		if not is_instance_valid(unit):
+			continue
+		unit.brain.enabled = false
+		unit.set_physics_process(false)
+		unit.set_process(false)
+		unit.queue_free()
+	units.clear()
+	for container in [projectiles_root, effects_root]:
+		for child in container.get_children():
+			child.queue_free()
+
+
+func is_training_dummy(unit: Unit) -> bool:
+	return is_instance_valid(unit) and unit.definition != null and unit.definition.training_dummy
+
+
+func training_damage() -> float:
+	return team_damage[0] if team_damage.size() > 0 else 0.0
+
 
 
 func _run_countdown() -> void:
@@ -162,7 +258,7 @@ func _physics_process(delta: float) -> void:
 	if battle_active:
 		elapsed += delta
 	_resolve_separation()
-	if battle_active:
+	if battle_active and not training_mode:
 		_evaluate_victory()
 
 
@@ -175,6 +271,9 @@ func _resolve_separation() -> void:
 		for other_index in range(index + 1, living.size()):
 			var b: Unit = living[other_index]
 			if not is_instance_valid(b) or not b.alive:
+				continue
+			# 稻草人固定站位，不被分离推挤，也不推开英雄。
+			if is_training_dummy(a) or is_training_dummy(b):
 				continue
 			if a.is_charging() or b.is_charging():
 				continue
@@ -232,11 +331,14 @@ func _on_unit_died(unit: Unit, killer: Unit) -> void:
 		spawn_death_burst(unit.get_hit_point(), unit.accent_color)
 	if is_instance_valid(killer):
 		team_kills[killer.team] += 1
+	# 训练模式没有胜负：稻草人不会死亡，英雄也不应由靶子击杀。
+	if training_mode:
+		return
 	call_deferred("_evaluate_victory")
 
 
 func _evaluate_victory() -> void:
-	if finished:
+	if finished or training_mode:
 		return
 	var alive_blue := team_alive(0)
 	var alive_red := team_alive(1)

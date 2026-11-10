@@ -44,6 +44,11 @@ func modify_stat(_instance: StatusInstance, _stat: StringName, value: float) -> 
 	return value
 
 
+## 在动作伤害命中结算前修正伤害；is_basic 标识是否普通攻击。
+func modify_damage(_instance: StatusInstance, amount: float, _is_basic: bool) -> float:
+	return amount
+
+
 func blocks_move(_instance: StatusInstance) -> bool:
 	return false
 

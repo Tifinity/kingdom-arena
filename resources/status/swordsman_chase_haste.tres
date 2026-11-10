@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="StatusDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/status/status_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/status/behaviors/stat_modifier_behavior.gd" id="2"]
+
+[sub_resource type="Resource" id="behavior"]
+script = ExtResource("2")
+stat = &"attack_speed"
+mode = 0
+stronger_when_lower = false
+
+[resource]
+script = ExtResource("1")
+id = &"swordsman_chase_haste"
+display_name = "疾风·追击"
+description = "攻速提高 10%。"
+tags = Array[StringName]([&"buff"])
+duration = 4.0
+stack_policy = 0
+max_stacks = 1
+base_power = 1.10
+behavior = SubResource("behavior")

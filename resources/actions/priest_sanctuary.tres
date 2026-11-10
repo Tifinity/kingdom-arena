@@ -4,6 +4,13 @@
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/data/effects/heal_effect_behavior.gd" id="heal_behavior_script"]
 
+[ext_resource type="PackedScene" path="res://scenes/fx/priest_healing_ring.tscn" id="fx"]
+[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="targeting_script"]
+
+[sub_resource type="Resource" id="lowest_targeting"]
+script = ExtResource("targeting_script")
+selection = 4
+
 [sub_resource type="Resource" id="heal_behavior"]
 script = ExtResource("heal_behavior_script")
 
@@ -24,6 +31,7 @@ status_power = 0.00
 heal_amount = 20.0
 heal_ratio = 1.00
 behavior = SubResource("heal_behavior")
+effect_scene = ExtResource("fx")
 summon_unit_id = &""
 summon_count = 1
 knockback = 0.0
@@ -34,11 +42,12 @@ duration = 0.00
 script = ExtResource("1")
 action_id = &"priest_sanctuary"
 display_name = "圣光普照"
+description = "以生命比例最低的受伤友军为中心，范围治疗 20 + 1.0 AD。"
 category = 1
-target_mode = 2
+target_mode = 1
 animation = &"heal"
 animation_speed = 1.0
-action_range = 0.0
+action_range = 650.0
 min_range = 0.0
 cooldown = 15.00
 mana_cost = 100.0
@@ -48,5 +57,6 @@ max_self_hp_ratio = 1.00
 advance_speed = 0.0
 min_targets = 1
 requires_wounded_ally = true
-priority = 10
+priority = 9
+targeting = SubResource("lowest_targeting")
 effects = [SubResource("effect_0")]
