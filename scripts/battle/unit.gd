@@ -159,7 +159,16 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	status_controller.setup(self)
 	brain.setup(self)
 	state_machine.setup(self)
+	if p_definition.training_dummy:
+		# 训练靶没有生命条和 AI；仍保留受击闪烁与状态表现，方便观察技能。
+		health_bar.hide()
+		team_ring.setup(Color("#d8b877"), p_definition.body_radius * 0.9)
+		brain.enabled = false
 	initialized = true
+
+
+func is_training_dummy() -> bool:
+	return definition != null and definition.training_dummy
 
 
 ## 调试用：不挂 Battle，只把一名英雄的资源和场景初始化好，停在 idle。
@@ -187,6 +196,18 @@ func current_attack_damage() -> float:
 
 func current_armor() -> float:
 	return clampf(status_controller.modify_stat(&"armor", armor), 0.0, 0.8) if status_controller != null else armor
+
+
+## 攻速会受 buff/debuff 的 attack_speed 乘区影响；基础普攻冷却使用当前值。
+func current_attack_speed() -> float:
+	var speed := 1.0 / maxf(attack_interval, 0.001)
+	if status_controller != null:
+		speed = status_controller.modify_stat(&"attack_speed", speed)
+	return maxf(speed, 0.05)
+
+
+func current_attack_interval() -> float:
+	return 1.0 / current_attack_speed()
 
 
 func play_preview_animation(animation: StringName) -> bool:
@@ -451,7 +472,10 @@ func action_cooldown(action: CombatActionDefinition) -> float:
 func start_action_cooldown(action: CombatActionDefinition) -> void:
 	if action == null:
 		return
-	action_cooldowns[action.action_id] = maxf(action.cooldown, 0.0)
+	var cooldown := action.cooldown
+	if action.category == CombatActionDefinition.Category.BASIC:
+		cooldown = current_attack_interval()
+	action_cooldowns[action.action_id] = maxf(cooldown, 0.0)
 
 
 func current_action_cooldown() -> float:
@@ -484,7 +508,7 @@ func battle_active() -> bool:
 
 
 func move_step(direction: Vector2, delta: float) -> void:
-	if direction.length_squared() < 0.0001 or not can_move():
+	if direction.length_squared() < 0.0001 or not can_move() or is_training_dummy():
 		return
 	var speed := status_controller.modify_stat(&"move_speed", move_speed)
 	position += direction.normalized() * speed * delta
@@ -492,7 +516,7 @@ func move_step(direction: Vector2, delta: float) -> void:
 
 
 func advance_step(direction: Vector2, speed: float, delta: float) -> void:
-	if direction.length_squared() < 0.0001 or speed <= 0.0 or not can_move():
+	if direction.length_squared() < 0.0001 or speed <= 0.0 or not can_move() or is_training_dummy():
 		return
 	var factor := status_controller.modify_stat(&"move_speed", 1.0)
 	position += direction.normalized() * speed * factor * delta
@@ -535,6 +559,24 @@ func is_charging() -> bool:
 func begin_action_effects() -> void:
 	if current_cast != null:
 		current_cast.hit_targets.clear()
+
+
+## 记录一次实际造成伤害的命中；技能命中会为“热诚决斗”类被动叠一层。
+## DoT 的周期伤害不经过这里，因此不会叠被动。
+func register_damage_hit(victim: Unit, is_skill := false) -> void:
+	if not alive or not is_skill or victim == null or not is_instance_valid(victim):
+		return
+	var passive: PassiveDefinition = definition.passive if definition != null else null
+	if passive == null or passive.skill_hit_stacks_status == null or status_controller == null:
+		return
+	status_controller.apply(passive.skill_hit_stacks_status, self)
+
+
+## 对动作伤害应用状态提供的伤害修正（例如满层热诚的固定额外伤害）。
+func apply_status_damage_bonus(base_damage: float, is_basic := false) -> float:
+	if status_controller == null:
+		return base_damage
+	return status_controller.modify_damage(base_damage, is_basic)
 
 
 func _record_action_hit(victim: Unit) -> void:
@@ -584,15 +626,19 @@ func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 		return
 	var impact := victim.get_hit_point()
 	var blocked := victim.is_guarding()
+	var is_skill := current_cast != null and current_cast.action.category == CombatActionDefinition.Category.SKILL
+	var damage := current_attack_damage() * maxf(effect.damage_ratio, 0.0)
+	damage = apply_status_damage_bonus(damage, not is_skill)
 	_record_action_hit(victim)
-	victim.take_damage(current_attack_damage() * maxf(effect.damage_ratio, 0.0), self, impact)
+	victim.take_damage(damage, self, impact)
+	register_damage_hit(victim, is_skill)
 	ActionImpact.apply_on_hit(effect, self, victim, blocked)
 	battle.spawn_hit_spark(impact, accent_color, 1.2)
 	battle.action_hits += 1
 
 
 func apply_knockback(origin: Vector2, distance: float) -> void:
-	if distance <= 0.0:
+	if distance <= 0.0 or is_training_dummy():
 		return
 	var dir := global_position - origin
 	if dir.length_squared() < 0.0001:
@@ -623,6 +669,7 @@ func _resolve_legacy_action_effect(action: CombatActionDefinition, effect: Actio
 			_resolve_damage_effect(action, effect, damage)
 		ActionEffectDefinition.Kind.PROJECTILE:
 			if cast_target != null and is_instance_valid(cast_target) and cast_target.alive and is_target_in_action_range(action, 24.0, false):
+				damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
 				battle.spawn_projectile(self, cast_target, damage, effect.projectile_kind, accent_color, effect)
 		ActionEffectDefinition.Kind.VISUAL:
 			_spawn_action_visual(effect)
@@ -658,8 +705,11 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 			return
 	var direction := current_cast.direction if current_cast != null else planned_direction
 	var point := current_cast.point if current_cast != null else planned_point
-	for victim in ActionTargetQuery.enemies(self, effect, cast_target, direction, point,
-		current_cast != null and current_cast.has_point):
+	var victims := ActionTargetQuery.enemies(self, effect, cast_target, direction, point,
+		current_cast != null and current_cast.has_point)
+	if not victims.is_empty():
+		damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
+	for victim in victims:
 		var impact := victim.get_hit_point()
 		if effect.shape == ActionEffectDefinition.Shape.SINGLE:
 			battle.spawn_slash(impact, accent_color, signf(victim.global_position.x - global_position.x))
@@ -670,6 +720,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 		_record_action_hit(victim)
 		var blocked := victim.is_guarding()
 		victim.take_damage(damage, self, impact)
+		register_damage_hit(victim, action.category == CombatActionDefinition.Category.SKILL)
 		ActionImpact.apply_on_hit(effect, self, victim, blocked)
 		if effect.shape == ActionEffectDefinition.Shape.SINGLE and victim.alive and effect.knockback > 0.0:
 			victim.apply_knockback(global_position, effect.knockback)
@@ -733,6 +784,16 @@ func is_guarding() -> bool:
 func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, ignore_armor := false, ignore_shield := false) -> void:
 	if not alive or raw_amount <= 0.0:
 		return
+	if is_training_dummy():
+		# 稻草人只记录伤害与飘字，不扣血、不进硬直、不死亡；护甲与格挡照常显示。
+		var recorded := raw_amount if ignore_armor else raw_amount * (1.0 - current_armor())
+		if recorded <= 0.0:
+			return
+		_flash_left = 0.09
+		visual.modulate = Color(1.0, 0.58, 0.58, 1.0)
+		if battle != null:
+			battle.on_damage_dealt(self, source, recorded)
+		return
 	if guard_time > 0.0:
 		# 格挡期间完全免伤，也不进入受击硬直。
 		guard_blocked_hit = true
@@ -766,7 +827,7 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 
 
 func die(killer: Unit) -> void:
-	if not alive:
+	if not alive or is_training_dummy():
 		return
 	alive = false
 	hp = 0.0

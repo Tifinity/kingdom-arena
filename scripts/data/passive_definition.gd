@@ -5,6 +5,8 @@ extends Resource
 @export var display_name := "被动"
 @export_multiline var description := ""
 @export var battle_start_statuses: Array[StatusDefinition] = []
+## 每次技能伤害命中施加一层；叠加、持续时间和上限由状态资源自身控制。
+@export var skill_hit_stacks_status: StatusDefinition
 
 
 func detail_text() -> String:
@@ -27,6 +29,8 @@ func remaining(controller: Node) -> float:
 	for status in battle_start_statuses:
 		if status != null:
 			result = maxf(result, controller.remaining(status.id))
+	if skill_hit_stacks_status != null:
+		result = maxf(result, controller.remaining(skill_hit_stacks_status.id))
 	return result
 
 

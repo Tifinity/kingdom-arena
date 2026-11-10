@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/units/scarecrow_visual.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"training_scarecrow"
+display_name = "稻草人"
+title = "试炼靶"
+faction = 2
+role = "训练目标"
+roster_order = 999
+description = "不会移动、不会死亡，也不会损失生命；只记录实际受到的伤害，用来观察每个技能的命中与表现。"
+max_hp = 1.0
+attack_damage = 0.0
+attack_speed = 0.05
+attack_range = 0.0
+move_speed = 0.0
+armor = 0.0
+attack_windup = 0.3
+max_mana = 0.0
+starting_mana = 0.0
+mana_regen = 0.0
+training_dummy = true
+attack_kind = 0
+projectile_kind = 0
+visual_scale = 1.9
+foot_offset = 0.0
+character_height = 70.0
+body_radius = 32.0
+accent_color = Color(0.847, 0.722, 0.467, 1)
+visual_scene = ExtResource("2")

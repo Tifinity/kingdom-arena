@@ -266,6 +266,7 @@ def _write_action(
     preferred_min_range: float = 0.0,
     movement_kind_override: int = 0,
     targeting_selection: int = 0,
+    animation_speed: float = 1.0,
 ) -> None:
     # 运行中的技能平衡以 .tres 为准；默认只补齐缺失文件。
     if path.exists() and not REBUILD_ACTIONS:
@@ -342,7 +343,7 @@ def _write_action(
         f'category = {category}',
         f'target_mode = {target_mode}',
         f'animation = &"{animation}"',
-        'animation_speed = 1.0',
+        f'animation_speed = {animation_speed:.2f}',
         f'action_range = {action_range:.1f}',
         f'min_range = {min_range:.1f}',
         f'preferred_min_range = {preferred_min_range:.1f}',
@@ -400,7 +401,7 @@ def _skill(action_id: str, name: str, animation: str, effects: list[dict],
            min_range: float = 0.0, preferred_min_range: float = 0.0,
            teleport_to_target: bool = False,
            teleport_gap: float = 10.0, movement_kind: int = 0,
-           targeting_selection: int = 0) -> dict:
+           targeting_selection: int = 0, animation_speed: float = 1.0) -> dict:
     return {
         "id": action_id, "name": name, "animation": animation,
         "effects": effects, "cooldown": cooldown, "priority": priority,
@@ -415,6 +416,7 @@ def _skill(action_id: str, name: str, animation: str, effects: list[dict],
         "min_targets": min_targets, "requires_wounded_ally": requires_wounded_ally,
         "max_hp": max_hp,
         "description": description,
+        "animation_speed": animation_speed,
     }
 
 
@@ -500,6 +502,13 @@ def _skills_for(unit: Unit) -> list[dict]:
                              [_fx(shape=0, ratio=1.0, frame=frame) for frame in [3, 5, 7, 9, 11]],
                              13.0, 10, rng, rng, mana=100.0,
                              description="以迅雷之势斩击 5 次，每一次造成 {damage_0} 单体伤害。"))
+        skills.append(_skill("swordsman_chase_step", "追击步", "move",
+                             [_fx(kind=5, shape=3, frame=6, status_id="swordsman_chase_haste",
+                                  status_duration=4.0, status_power=1.10)],
+                             9.0, 6, 300.0, rng, movement_kind=1, advance=1200.0,
+                             advance_distance=160.0, targeting_selection=3,
+                             min_range=240.0, preferred_min_range=260.0, animation_speed=1.6,
+                             description="向范围内血量最低的敌人方向位移 160 像素，不造成伤害；随后攻速提升 10%，持续 4 秒。"))
     elif slug == "priest":
         skills.append(_skill("priest_sanctuary", "圣光普照", "heal",
                              [_fx(kind=3, shape=1, frame=2, radius=520.0,
@@ -691,6 +700,7 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
             charge_to_farthest=spec["charge_to_farthest"], charge_speed=spec["charge_speed"],
             movement_kind_override=spec["movement_kind"], targeting_selection=spec["targeting_selection"],
             description=spec["description"],
+            animation_speed=spec["animation_speed"],
             requires_wounded_ally=spec["requires_wounded_ally"],
         )
         actions.append(f"res://resources/actions/{spec['id']}.tres")
@@ -979,8 +989,13 @@ def build_character(unit: Unit) -> tuple[float, str]:
     behavior_id = str(5 + len(action_paths))
     visual_ext_line = f'[ext_resource type="PackedScene" path="{visual_scene_path}" id="{visual_id}"]'
     behavior_ext_line = f'[ext_resource type="Resource" path="{behavior_path}" id="{behavior_id}"]'
-    passive_id = str(6 + len(action_paths)) if unit.slug == "knight" else ""
-    passive_ext_line = (f'[ext_resource type="Resource" path="res://resources/passives/knight_morale.tres" id="{passive_id}"]'
+    passive_paths = {
+        "knight": "knight_morale",
+        "swordsman": "swordsman_zeal_duel",
+    }
+    passive_path = passive_paths.get(unit.slug, "")
+    passive_id = str(6 + len(action_paths)) if passive_path else ""
+    passive_ext_line = (f'[ext_resource type="Resource" path="res://resources/passives/{passive_path}.tres" id="{passive_id}"]'
                         if passive_id else "")
     accent = ROLE_COLORS[unit.role]
     load_steps = 6 + len(action_paths) + (1 if passive_id else 0)

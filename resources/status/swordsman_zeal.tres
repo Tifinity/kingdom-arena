@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="StatusDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/status/status_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/status/behaviors/zeal_duel_behavior.gd" id="2"]
+
+[sub_resource type="Resource" id="behavior"]
+script = ExtResource("2")
+attack_speed_per_stack = 0.05
+max_stack_bonus_damage = 5.0
+
+[resource]
+script = ExtResource("1")
+id = &"swordsman_zeal"
+display_name = "热诚"
+description = "每层攻速 +5%，持续 6 秒；满 5 层时每次攻击额外造成 5 点伤害。"
+tags = Array[StringName]([&"buff"])
+duration = 6.0
+stack_policy = 3
+max_stacks = 5
+base_power = 0.0
+behavior = SubResource("behavior")

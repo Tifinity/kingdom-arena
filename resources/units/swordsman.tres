@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/swordsman_frames.tres" id="2"]
@@ -8,6 +8,8 @@
 [ext_resource type="Resource" path="res://resources/actions/swordsman_flurry.tres" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/units/swordsman_visual.tscn" id="7"]
 [ext_resource type="Resource" path="res://resources/behaviors/swordsman.tres" id="8"]
+[ext_resource type="Resource" path="res://resources/actions/swordsman_chase_step.tres" id="9"]
+[ext_resource type="Resource" path="res://resources/passives/swordsman_zeal_duel.tres" id="10"]
 
 [resource]
 script = ExtResource("1")
@@ -35,7 +37,8 @@ foot_offset = 10.0
 character_height = 22.0
 body_radius = 29.4
 accent_color = Color(1.000, 0.561, 0.639, 1)
-actions = [ExtResource("4"), ExtResource("5"), ExtResource("6")]
+actions = [ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("9")]
+passive = ExtResource("10")
 behavior_profile = ExtResource("8")
 visual_scene = ExtResource("7")
 sprite_frames = ExtResource("2")

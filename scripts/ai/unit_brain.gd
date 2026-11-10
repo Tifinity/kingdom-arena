@@ -285,6 +285,10 @@ func _select_action() -> ActionPlan:
 							farthest = enemy
 					if farthest != null:
 						candidates.append(farthest)
+				elif action.targeting != null and action.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_HP_ENEMY:
+					var lowest := _lowest_hp_enemy_in_range(action, enemies)
+					if lowest != null:
+						candidates.append(lowest)
 				else:
 					for enemy in enemies:
 						candidates.append(enemy)
@@ -350,6 +354,30 @@ func _select_action() -> ActionPlan:
 				plan_reason = evaluation.reason
 				best_plan = ActionPlan.create(action, candidate, candidate_direction, candidate_point, candidate_has_point)
 	return best_plan
+
+
+## 动作自己指定“范围内最低血量敌人”时，只把该目标交给评分；
+## 距离过滤与 ActionActivation 保持一致，避免选到无法施放的远处残血目标。
+func _lowest_hp_enemy_in_range(action: CombatActionDefinition, enemies: Array) -> Unit:
+	var lowest: Unit = null
+	var aoe_reach := unit.action_aoe_reach(action)
+	for enemy in enemies:
+		if not is_instance_valid(enemy) or not enemy.alive:
+			continue
+		var distance := unit.global_position.distance_to(enemy.global_position)
+		if distance < action.min_range:
+			continue
+		if action.movement_kind() != ActionMovementDefinition.Kind.CHARGE:
+			var reach: float
+			if aoe_reach > 0.0:
+				reach = (aoe_reach + enemy.body_radius + 6.0) * unit.AOE_CAST_BUFFER
+			else:
+				reach = action.action_range + enemy.body_radius + unit.body_radius * 0.35 + 6.0
+			if distance > reach:
+				continue
+		if lowest == null or enemy.hp_ratio() < lowest.hp_ratio():
+			lowest = enemy as Unit
+	return lowest
 
 
 func _evaluate_cluster_plan(action: CombatActionDefinition, cluster: Dictionary) -> Dictionary:

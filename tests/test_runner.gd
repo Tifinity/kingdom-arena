@@ -32,6 +32,7 @@ func _run_all() -> void:
 	await _test_catalog()
 	await _test_setup_scene()
 	await _test_hero_lab()
+	await _test_swordsman_kit()
 	await _test_knight_kit()
 	await _test_flame_slash()
 	await _test_templar_judgement_wave()
@@ -264,7 +265,7 @@ func _test_setup_scene() -> void:
 
 
 func _test_hero_lab() -> void:
-	print("\n[3] 英雄试炼场")
+	print("\n[3] 英雄试炼场：稻草人靶与四技能")
 	var scene: PackedScene = load("res://scenes/debug/hero_lab.tscn")
 	_check(scene != null, "hero_lab.tscn 可加载")
 	if scene == null:
@@ -273,41 +274,282 @@ func _test_hero_lab() -> void:
 	add_child(lab)
 	await get_tree().process_frame
 	_check(lab.hero_grid.get_child_count() == 22, "试炼场生成 22 张英雄卡（实际 %d）" % lab.hero_grid.get_child_count())
-	_check(lab.preview_unit != null, "试炼场默认生成预览单位")
-	_check(lab.animation_buttons.get_child_count() > 0, "动作预览按钮已生成")
+	_check(is_instance_valid(lab.battle), "试炼场默认启动真实 Battle")
+	_check(is_instance_valid(lab.hero) and is_instance_valid(lab.dummy), "默认场景生成英雄与稻草人")
+	_check(lab.battle.training_mode and lab.battle.battle_active and not lab.battle.finished,
+		"默认进入训练模式并直接开战")
+	_check(lab.dummy.definition.training_dummy and lab.dummy.definition.display_name == "稻草人",
+		"右侧单位是训练用稻草人")
+	_check(lab.skill_cards.size() == 4 and lab.skill_cards[0].action != null,
+		"底部生成四个技能槽并绑定主动技能")
+
+	# 稻草人：不移动、不死亡、不掉血，但记录伤害。
+	var dummy_hp: float = lab.dummy.hp
+	var dummy_position: Vector2 = lab.dummy.position
+	lab.dummy.take_damage(99999.0, lab.hero)
+	lab.dummy.move_step(Vector2.RIGHT, 1.0)
+	lab.dummy.apply_knockback(lab.hero.global_position, 400.0)
+	_check(lab.dummy.alive and is_equal_approx(lab.dummy.hp, dummy_hp),
+		"稻草人承受致命伤害后仍存活且生命不变")
+	_check(lab.dummy.position.is_equal_approx(dummy_position),
+		"稻草人不会被移动或击退")
+	_check(lab.battle.training_damage() > 0.0, "稻草人记录实际受到的伤害")
+
+	# 基础属性与当前属性分列显示；开战被动与减速应分别体现在当前值和状态列表里。
+	var knight := UnitCatalog.get_definition(&"knight")
+	lab._select_definition(knight)
+	await get_tree().process_frame
+	lab._refresh_live()
+	_check(lab.hero.current_attack_damage() > knight.attack_damage
+		and lab.hero.current_armor() > knight.armor,
+		"骑士开战被动改变当前攻击与当前护甲")
+	_check(lab.stat_atk_current.text.contains("+") and lab.stat_armor_current.text.contains("+"),
+		"当前属性列标出相对基础值的增益差值")
+	_check(lab.buffs_label.text.contains("斗志昂扬"), "状态列表显示开战被动")
+	var slow: StatusDefinition = StatusCatalog.get_definition(&"slow")
+	lab.hero.status_controller.apply(slow, lab.hero, {"duration": 5.0, "power": 0.5})
+	lab._refresh_live()
+	_check(lab.stat_speed_current.text.contains("(")
+		and lab.hero.status_controller.modify_stat(&"move_speed", lab.hero.move_speed) < lab.hero.move_speed,
+		"减速后当前移速低于基础移速并显示差值")
+	_check(lab.buffs_label.text.contains("减速"), "状态列表显示减速 debuff")
 
 	var wizard := UnitCatalog.get_definition(&"wizard")
 	lab._select_definition(wizard)
 	await get_tree().process_frame
-	_check(lab.preview_unit.definition.unit_id == &"wizard", "切换到法师后预览单位同步更新")
+	_check(lab.hero.definition.unit_id == &"wizard", "切换英雄后训练单位同步更新")
 	_check(lab.detail_name.text == "法师", "右侧详情同步更新")
 	_check(is_equal_approx(lab.stat_max_mana.value, wizard.max_mana)
 		and is_equal_approx(lab.stat_starting_mana.value, wizard.starting_mana),
 		"属性面板包含最大蓝量与入场蓝量")
-	lab._play_animation(&"attack_01")
-	_check(lab.current_anim.text.begins_with("普攻1"), "手动播放普攻动画并更新状态标签")
-	_check(lab.preview_unit.current_animation() == &"attack_01", "预览单位实际切到 attack_01")
+
+	var fireball: CombatActionDefinition = null
+	for action in wizard.actions:
+		if action.action_id == &"wizard_fireball":
+			fireball = action
+			break
+	_check(fireball != null, "法师配置火球术")
+	if fireball != null:
+		lab.hero.brain.enabled = false
+		lab._cast_action(fireball)
+		await get_tree().create_timer(0.9).timeout
+		_check(lab.hero.action_cooldown(fireball) > 0.0,
+			"点击技能卡会真实施放技能并进入冷却")
+		_check(lab.battle.training_damage() > 0.0,
+			"手动施放的技能实际命中稻草人并记录伤害")
+		lab.hero.brain.enabled = true
+
 	var original_attack := wizard.attack_damage
 	lab.stat_atk.value = 77.0
 	await get_tree().process_frame
-	_check(is_equal_approx(wizard.attack_damage, 77.0) and is_equal_approx(lab.preview_unit.attack_damage, 77.0),
-		"在属性展示 SpinBox 上修改立即生效")
+	_check(is_equal_approx(wizard.attack_damage, 77.0) and is_equal_approx(lab.hero.attack_damage, 77.0),
+		"在属性 SpinBox 上修改立即同步到训练单位")
 	lab.stat_atk.value = original_attack
 	await get_tree().process_frame
 	var original_max_mana := wizard.max_mana
 	var original_starting_mana := wizard.starting_mana
 	lab.stat_max_mana.value = 150.0
 	lab.stat_starting_mana.value = 50.0
+	await get_tree().process_frame
+	# 入场蓝量设置后英雄会立刻开始回蓝，因此只检查从 50 起且没有被旧值覆盖。
 	_check(is_equal_approx(wizard.max_mana, 150.0)
 		and is_equal_approx(wizard.starting_mana, 50.0)
-		and is_equal_approx(lab.preview_unit.max_mana, 150.0)
-		and is_equal_approx(lab.preview_unit.mana, 50.0),
+		and is_equal_approx(lab.hero.max_mana, 150.0)
+		and lab.hero.mana >= 50.0 and lab.hero.mana < 60.0,
 		"修改最大蓝量/入场蓝量立即生效")
-	await get_tree().process_frame
 	lab.stat_max_mana.value = original_max_mana
 	lab.stat_starting_mana.value = original_starting_mana
 	await get_tree().process_frame
+
+	# 治疗类主动技能在试炼场里可以对自己演示：施放前自动受伤以满足目标条件。
+	var priest := UnitCatalog.get_definition(&"priest")
+	lab._select_definition(priest)
+	await get_tree().process_frame
+	var blessing: CombatActionDefinition = null
+	for action in priest.actions:
+		if action.action_id == &"priest_blessing":
+			blessing = action
+			break
+	if blessing != null:
+		lab.hero.brain.enabled = false
+		lab._cast_action(blessing)
+		await get_tree().create_timer(0.7).timeout
+		_check(lab.hero.hp > lab.hero.max_hp * 0.47,
+			"治疗技能会自动受伤并治疗自己，可在试炼场演示辅助技能")
 	lab.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _test_swordsman_kit() -> void:
+	print("\n[3c] 剑士追击步与热诚决斗")
+	var definition := UnitCatalog.get_definition(&"swordsman")
+	var chase: CombatActionDefinition = null
+	var basic: CombatActionDefinition = null
+	var triple: CombatActionDefinition = null
+	for action in definition.actions:
+		if action == null:
+			continue
+		if action.action_id == &"swordsman_chase_step":
+			chase = action
+		elif action.action_id == &"swordsman_triple":
+			triple = action
+		elif action.category == CombatActionDefinition.Category.BASIC:
+			basic = action
+	_check(chase != null and chase.display_name == "追击步"
+		and chase.category == CombatActionDefinition.Category.SKILL,
+		"剑士配置主动技能追击步")
+	if chase != null:
+		var has_damage := false
+		var status_effect: ActionEffectDefinition = null
+		for effect in chase.effects:
+			if effect.kind == ActionEffectDefinition.Kind.DAMAGE or effect.kind == ActionEffectDefinition.Kind.PROJECTILE:
+				has_damage = true
+			elif effect.kind == ActionEffectDefinition.Kind.STATUS:
+				status_effect = effect
+		_check(chase.mana_cost <= 0.001 and is_equal_approx(chase.cooldown, 9.0)
+			and chase.movement_kind() == ActionMovementDefinition.Kind.ADVANCE
+			and is_equal_approx(chase.movement_distance(), 160.0),
+			"追击步为 CD9、无耗蓝、位移 160 像素的主动技能")
+		_check(not has_damage and status_effect != null
+			and status_effect.status_id == &"swordsman_chase_haste",
+			"追击步不造成伤害，只施加攻速状态")
+		_check(chase.targeting != null
+			and chase.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_HP_ENEMY,
+			"追击步的目标规则为范围内最低血量敌人")
+	var passive := definition.passive
+	var zeal: StatusDefinition = passive.skill_hit_stacks_status if passive != null else null
+	_check(passive != null and passive.display_name == "热诚决斗" and zeal != null
+		and is_equal_approx(zeal.duration, 6.0) and zeal.max_stacks == 5
+		and zeal.stack_policy == StatusDefinition.StackPolicy.STACK,
+		"热诚决斗配置为每次技能命中叠一层、持续 6 秒、最多 5 层")
+	if zeal != null and zeal.behavior is ZealDuelBehavior:
+		var behavior := zeal.behavior as ZealDuelBehavior
+		_check(is_equal_approx(behavior.attack_speed_per_stack, 0.05)
+			and is_equal_approx(behavior.max_stack_bonus_damage, 5.0),
+			"热诚每层攻速 +5%，满层每次攻击额外 +5")
+	else:
+		_check(false, "热诚决斗绑定 ZealDuelBehavior")
+	_check(definition.skill_description_text().contains("追击步")
+		and definition.skill_description_text().contains("热诚决斗"),
+		"剑士技能详情包含追击步与热诚决斗")
+	if chase == null or basic == null or triple == null or passive == null or zeal == null:
+		_check(false, "剑士追击步/热诚决斗资源完整")
+		return
+
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"swordsman")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"archer")
+	GameState.set_slot(1, 2, &"skeleton")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var hero: Unit = null
+	var enemies: Array[Unit] = []
+	for unit in battle.units:
+		if unit.team == 0:
+			hero = unit
+		else:
+			enemies.append(unit)
+	if hero == null or enemies.size() != 3:
+		_check(false, "剑士追击步固定场景生成")
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	hero.brain.enabled = false
+	for enemy in enemies:
+		enemy.brain.enabled = false
+	battle.battle_active = true
+	hero.position = Vector2(700, 650)
+	enemies[0].position = Vector2(980, 650)
+	enemies[1].position = Vector2(960, 720)
+	enemies[2].position = Vector2(1000, 590)
+	enemies[0].hp = enemies[0].max_hp
+	enemies[1].hp = enemies[1].max_hp * 0.5
+	enemies[2].hp = enemies[2].max_hp * 0.8
+	# 只让追击步参与决策，检查最低血量目标选择。
+	for action in hero.actions:
+		if action == null or action == chase or action.category == CombatActionDefinition.Category.BASIC:
+			continue
+		hero.action_cooldowns[action.action_id] = 99.0
+	hero.mana = 0.0
+	hero.action_cooldowns[chase.action_id] = 0.0
+	hero.brain.enabled = true
+	hero.brain.force_think()
+	_check(hero.planned_action == chase and hero.planned_target == enemies[1],
+		"AI 在范围内选择血量最低的敌人作为追击步目标")
+	hero.brain.enabled = false
+
+	# 实际施放：无伤害、向前位移并施加攻速 buff。
+	var haste: StatusDefinition = StatusCatalog.get_definition(&"swordsman_chase_haste")
+	hero.status_controller.clear_all()
+	var start_position := hero.global_position
+	hero.target = enemies[1]
+	hero.planned_action = chase
+	hero.planned_direction = (enemies[1].global_position - hero.position).normalized()
+	hero.planned_has_point = false
+	var damage_before := battle.training_damage()
+	hero.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.6).timeout
+	_check(hero.state_machine.current_name != &"death"
+		and hero.global_position.distance_to(start_position) > 50.0,
+		"追击步实际朝目标方向位移一段距离")
+	_check(haste != null and hero.status_controller.has_status(haste.id)
+		and hero.current_attack_speed() > 1.0 / hero.attack_interval * 1.05,
+		"追击步施加 10% 攻速提升并反映在当前攻速")
+	_check(is_equal_approx(battle.training_damage(), damage_before),
+		"追击步本身不造成伤害")
+
+	# 热诚决斗：只有技能命中叠层，普攻不叠；每次叠加刷新 6 秒。
+	hero.status_controller.clear_all()
+	var base_speed := hero.current_attack_speed()
+	hero.register_damage_hit(enemies[0], false)
+	_check(hero.status_controller.stacks(zeal.id) == 0, "普攻命中不会叠加热诚")
+	hero.register_damage_hit(enemies[0], true)
+	_check(hero.status_controller.stacks(zeal.id) == 1
+		and hero.status_controller.remaining(zeal.id) > 5.5
+		and is_equal_approx(hero.current_attack_speed(), base_speed * 1.05),
+		"技能命中叠 1 层并提高 5% 攻速")
+	hero.status_controller._physics_process(4.0)
+	hero.register_damage_hit(enemies[0], true)
+	_check(hero.status_controller.stacks(zeal.id) == 2
+		and hero.status_controller.remaining(zeal.id) > 5.5,
+		"再次技能命中叠层并刷新 6 秒持续时间")
+	hero.register_damage_hit(enemies[0], true)
+	hero.register_damage_hit(enemies[0], true)
+	_check(hero.status_controller.stacks(zeal.id) == 4
+		and is_equal_approx(hero.apply_status_damage_bonus(100.0, false), 100.0),
+		"4 层热诚尚未获得固定额外伤害")
+	hero.register_damage_hit(enemies[0], true)
+	_check(hero.status_controller.stacks(zeal.id) == 5
+		and is_equal_approx(hero.current_attack_speed(), base_speed * 1.25)
+		and is_equal_approx(hero.apply_status_damage_bonus(100.0, false), 105.0)
+		and is_equal_approx(hero.apply_status_damage_bonus(100.0, true), 105.0),
+		"满 5 层时 +25% 攻速且每次攻击额外 +5 伤害")
+	hero.start_action_cooldown(basic)
+	_check(hero.action_cooldown(basic) < hero.attack_interval * 0.95,
+		"满层攻速缩短基础普攻冷却")
+
+	# 真实动作路径：突刺斩 3 次命中叠 3 层。
+	hero.status_controller.clear_all()
+	hero.action_cooldowns[triple.action_id] = 0.0
+	if hero.state_machine.current_name != &"idle":
+		hero.state_machine.transition_to(&"idle", true)
+	hero.position = enemies[0].global_position + Vector2(-70.0, 0.0)
+	hero.target = enemies[0]
+	hero.planned_action = triple
+	hero.planned_target = enemies[0]
+	hero.planned_direction = Vector2.RIGHT
+	hero.planned_has_point = false
+	hero.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.8).timeout
+	_check(hero.status_controller.stacks(zeal.id) == 3,
+		"突刺斩三次技能命中真实叠加 3 层热诚")
+	hero.status_controller.clear_all()
+
+	battle.queue_free()
 	await get_tree().process_frame
 	GameState.reset_lineups()
 
@@ -1893,7 +2135,7 @@ func _test_status_framework() -> void:
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 8, "状态目录包含 8 种状态（含嘲讽）")
+	_check(StatusCatalog.count() == 10, "状态目录包含 10 种状态（含嘲讽与剑士攻速/热诚）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,

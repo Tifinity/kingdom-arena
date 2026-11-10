@@ -236,6 +236,14 @@ func modify_stat(stat: StringName, value: float) -> float:
 	return result
 
 
+## 动作伤害修正：例如满层热诚的固定额外伤害。
+func modify_damage(amount: float, is_basic: bool) -> float:
+	var result := amount
+	for instance in _instances:
+		result = instance.definition.behavior.modify_damage(instance, result, is_basic)
+	return result
+
+
 func get_vfx(status_id: StringName) -> Node2D:
 	for instance in _instances:
 		if instance.definition.id == status_id:

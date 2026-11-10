@@ -16,6 +16,7 @@ var damage := 0.0
 var kind := 0
 var tint := Color.WHITE
 var effect: ActionEffectDefinition
+var is_skill := false
 var speed := 900.0
 var life := 2.6
 
@@ -40,6 +41,7 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 		)
 	)
 	effect = p_effect
+	is_skill = p_source.current_cast != null and p_source.current_cast.action.category == CombatActionDefinition.Category.SKILL
 	global_position = p_source.get_muzzle_point()
 
 	if kind == UnitDefinition.ProjectileKind.ICE or kind == UnitDefinition.ProjectileKind.FIREBALL:
@@ -119,6 +121,8 @@ func _hit() -> void:
 		var shooter: Unit = source if is_instance_valid(source) else null
 		var blocked := target.is_guarding()
 		target.take_damage(damage, shooter, global_position)
+		if is_instance_valid(shooter):
+			shooter.register_damage_hit(target, is_skill)
 		ActionImpact.apply_on_hit(effect, shooter, target, blocked)
 	if battle != null and is_instance_valid(battle):
 		var spark_color := Color("#87d9ff") if kind == UnitDefinition.ProjectileKind.ICE else (
