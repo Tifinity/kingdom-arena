@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="4"]
-[ext_resource type="PackedScene" path="res://scenes/fx/templar_taunt_pulse.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/fx/aegis_ring.tscn" id="5"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")

@@ -41,7 +41,14 @@
 冲向敌人最密集的可达位置，嘲讽周围敌人并按人数获得护盾；数值见
 [技能追踪表](docs/SKILL_ROSTER.md)。
 
-![圣盾守护落地范围与嘲讽标记](artifacts/templar_taunt.png)
+![圣盾守护落地结界与嘲讽标记](artifacts/templar_taunt.png)
+
+落地特效换成 pixelfx 的 `holy/aegis-ring`：金色光点钻进地面，结界从落点滚开，光柱与盾徽
+绕圈升起，两秒后碎成光屑。半径直接读取嘲讽效果的 160px，圆环边界就是实际嘲讽范围；
+精灵表按前后两层导出，地面层画在单位下方、竖起来的光柱画在单位上方，被罩住的单位是站在
+结界里而不是被整片光斑糊住。重新导出见 `tools/pixelfx_split_layers.mjs`。
+
+![结界细节](artifacts/templar_aegis_ring.png)
 
 ### 格挡
 

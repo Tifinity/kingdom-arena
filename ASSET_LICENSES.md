@@ -51,3 +51,9 @@
 实现过程中参考了同机项目《波比竞技场》《部落大战》的工程组织方式（资源驱动数据、
 场景拆分、HUD 分层、无界面测试），以及 Godot 官方文档推荐做法；
 未复制其业务代码或专有数据。
+
+## Pixelfx 圣殿骑士结界
+
+- `assets/fx/pixelfx/aegis_ring_back.png`、`aegis_ring_front.png`：`holy/aegis-ring`，金色结界（97 帧、30 FPS、256×136）。按前后两层分别导出，地面层画在单位下方，光柱层画在单位上方。
+- 导出命令：`PIXELFX_DIR=../pixelfx node tools/pixelfx_split_layers.mjs holy/aegis-ring --out <path>`。
+- 来源：[patch-gg/pixelfx](https://github.com/patch-gg/pixelfx)，MIT License；盾徽描边配方改编自 [Sprite Fusion 的 pixel art VFX](https://www.spritefusion.com/pixel-art-vfx)（MIT License, Copyright (c) 2026 Hugo Duprez）。
