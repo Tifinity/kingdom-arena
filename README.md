@@ -50,6 +50,14 @@
 
 ![结界细节](artifacts/templar_aegis_ring.png)
 
+### 狂怒
+
+![精锐兽人狂怒](artifacts/elite_orc_rage.png)
+
+精锐兽人的被动：生命低于 50% 时攻击力 +50%，并获得 10% 吸血（按实际造成的伤害回复生命）。
+状态特效取自 pixelfx `status/rage`，导出时跳过替身身体，只保留怒纹、蒸汽、地裂与红光；
+生命回到阈值以上时，攻击加成、吸血和特效一起移除。重新导出见 `tools/export_rage_status.mjs`。
+
 ### 格挡
 
 ![格挡](artifacts/block.png)
