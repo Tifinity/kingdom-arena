@@ -1,0 +1,14 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/fx/aegis_ring_fx.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/aegis_ring_back.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/aegis_ring_front.png" id="3"]
+
+[node name="AegisRingFx" type="Node2D"]
+script = ExtResource("1")
+ground_sheet = ExtResource("2")
+glow_sheet = ExtResource("3")
+frame_size = Vector2i(256, 136)
+frame_count = 97
+fps = 30.0
+start_frame = 8

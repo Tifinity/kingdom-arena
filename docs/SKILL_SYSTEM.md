@@ -4,7 +4,7 @@
 
 圣殿骑士「圣光裁决」的金色冲击波位于 `scenes/fx/templar_judgement_wave.tscn`，由动作伤害效果的 `effect_scene` 在斩击结算帧生成。波纹从施法者向施法方向扩散，宽度和最远距离直接读取同一效果的 `half_angle`、`radius`；特效只负责表现，不重复造成伤害。
 
-圣殿骑士原格挡动作已改为满蓝大招「圣盾守护」，数值在 `resources/actions/knight_templar_block.tres`：`move_02` 动画以最高 850px/s 冲向 340px 内敌群最密集的可达位置；抵达后对周围 160px 敌人施加 2.5 秒嘲讽，每名命中的敌人提供最大生命 12% 的护盾，最多 48%，持续 4 秒。嘲讽期间敌人的下一次决策和攻击目标被锁定到圣殿骑士，已经开始的动作不会被打断。位置搜索先最大化覆盖人数，再优先保护正在被追击的友军，最后选择更靠近敌群中心的位置。落地光环和目标头顶标记分别由 `scenes/fx/templar_taunt_pulse.tscn`、`scenes/fx/taunt_mark.tscn` 呈现。原满蓝技「圣光裁决」改为 0 蓝普通技能，CD12、扇形 1.5 AD。
+圣殿骑士原格挡动作已改为满蓝大招「圣盾守护」，数值在 `resources/actions/knight_templar_block.tres`：`move_02` 动画以最高 850px/s 冲向 340px 内敌群最密集的可达位置；抵达后对周围 160px 敌人施加 2.5 秒嘲讽，每名命中的敌人提供最大生命 12% 的护盾，最多 48%，持续 4 秒。嘲讽期间敌人的下一次决策和攻击目标被锁定到圣殿骑士，已经开始的动作不会被打断。位置搜索先最大化覆盖人数，再优先保护正在被追击的友军，最后选择更靠近敌群中心的位置。落地结界和目标头顶标记分别由 `scenes/fx/aegis_ring.tscn`（pixelfx `holy/aegis-ring`，金色光点钻进地面、结界滚开、光柱与盾徽升起后碎成光屑）、`scenes/fx/taunt_mark.tscn` 呈现。原满蓝技「圣光裁决」改为 0 蓝普通技能，CD12、扇形 1.5 AD。
 
 骑士的被动资源位于 `resources/passives/knight_morale.tres`，引用两份 20 秒的属性状态：护甲加 0.05（5 个百分点）与攻击力加 5。`UnitDefinition.passive` 决定单位是否拥有被动；战斗倒计时结束时由 `Unit.on_battle_started()` 施加，状态到期自动恢复基础值。调数值时改对应的 `resources/status/knight_morale_armor.tres`、`resources/status/knight_morale_attack.tres` 的 `base_power` 和 `duration`；被动描述中的占位符会按资源当前数值重新渲染。
 

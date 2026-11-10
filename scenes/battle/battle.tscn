@@ -8,6 +8,7 @@
 script = ExtResource("1")
 
 [node name="Background" parent="." instance=ExtResource("2")]
+z_index = -100
 
 [node name="UnitsRoot" type="Node2D" parent="."]
 y_sort_enabled = true
