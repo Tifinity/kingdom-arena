@@ -1014,6 +1014,9 @@ func _test_templar_guardian_ultimate() -> void:
 		and ultimate.effects[1].kind == ActionEffectDefinition.Kind.SHIELD
 		and is_equal_approx(ultimate.effects[1].shield_per_target_ratio, 0.12),
 		"大招在 160px 圆形内嘲讽，并按每名敌人 12% 最大生命获盾")
+	_check(ultimate.effects[0].effect_scene != null
+		and ultimate.effects[0].effect_scene.resource_path == "res://scenes/fx/aegis_ring.tscn",
+		"大招落地特效使用 pixelfx 的 Aegis ring 结界")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"knight_templar")
@@ -1095,15 +1098,25 @@ func _test_templar_guardian_ultimate() -> void:
 	_check(all_taunted and not enemies[3].status_controller.has_status(&"taunt")
 		and enemies[3].target == ally,
 		"圆形内三名敌人被强制改攻圣殿骑士，圈外敌人不受影响")
-	var pulse: Node2D = null
+	var ring: Node2D = null
 	for child in battle.effects_root.get_children():
-		if child.get_script() != null and child.get_script().resource_path == "res://scripts/fx/templar_taunt_pulse.gd":
-			pulse = child as Node2D
+		if child.get_script() != null and child.get_script().resource_path == "res://scripts/fx/aegis_ring_fx.gd":
+			ring = child as Node2D
 			break
-	_check(pulse != null and is_equal_approx(float(pulse.get("radius")), 160.0)
+	var ground: Sprite2D = null
+	var glow: Sprite2D = null
+	if ring != null:
+		ground = ring.get_node_or_null("Ground") as Sprite2D
+		glow = ring.get_node_or_null("Glow") as Sprite2D
+	_check(ring != null and is_equal_approx(float(ring.get("radius")), 160.0)
+		and ring.global_position.distance_to(templar.global_position) < 1.0
+		and is_equal_approx(ring.scale.x, 160.0 / AegisRingFx.SHEET_RING_RADIUS)
+		and ground != null and glow != null
+		and battle.effects_root.z_index + ground.z_index < 0
+		and battle.effects_root.z_index + glow.z_index > 0
 		and enemies[0].status_controller.get_vfx(&"taunt") != null
 		and enemies[3].status_controller.get_vfx(&"taunt") == null,
-		"落地圆形光环和头顶嘲讽标记仅显示在有效目标上")
+		"落地结界以骑士为中心、按 160px 嘲讽半径铺开，地面层在单位下方、光柱层在上方")
 	var basic: CombatActionDefinition = enemies[0].actions[0]
 	_check(ActionActivation.reason(enemies[0], basic, ally).contains("被嘲讽"),
 		"嘲讽期间不能对原友军目标发动攻击")
@@ -1145,6 +1158,15 @@ func _test_templar_guardian_ultimate() -> void:
 	_check(enemies[0].status_controller.has_status(&"taunt")
 		and templar.global_position.distance_to(chosen_point) <= 18.0,
 		"受到减速时大招等待到达目标地点再释放嘲讽")
+	var rings: Array[Node] = []
+	for child in battle.effects_root.get_children():
+		if child.get_script() != null and child.get_script().resource_path == "res://scripts/fx/aegis_ring_fx.gd":
+			rings.append(child)
+	await get_tree().create_timer(3.2).timeout
+	var rings_cleared := not rings.is_empty()
+	for node in rings:
+		rings_cleared = rings_cleared and not is_instance_valid(node)
+	_check(rings_cleared, "结界播放完毕自动清理")
 	battle.queue_free()
 	await get_tree().process_frame
 	GameState.reset_lineups()
