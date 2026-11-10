@@ -25,7 +25,7 @@ func apply(definition: StatusDefinition, source: Unit, options: Dictionary = {})
 	var duration: float = maxf(0.0, float(options.get("duration", definition.duration)))
 	var power: float = float(options.get("power", definition.base_power))
 	var requested_stacks: int = maxi(1, int(options.get("stacks", 1)))
-	if duration <= 0.0 and definition.tick_interval <= 0.0:
+	if duration <= 0.0 and definition.tick_interval <= 0.0 and not definition.persistent:
 		return null
 
 	var existing := _find_instance(definition, source)
@@ -67,7 +67,7 @@ func _create_instance(definition: StatusDefinition, source: Unit, duration: floa
 	instance.definition = definition
 	instance.target = unit
 	instance.source = source
-	instance.remaining = duration
+	instance.remaining = -1.0 if definition.persistent else duration
 	instance.stacks = mini(maxi(stacks, 1), definition.max_stacks)
 	instance.power = power if power > 0.0 else definition.base_power
 	instance.instance_id = _next_instance_id
@@ -94,7 +94,7 @@ func _physics_process(delta: float) -> void:
 		return
 	for raw_instance in _instances.duplicate():
 		var instance: StatusInstance = raw_instance
-		if not _instances.has(instance):
+		if not _instances.has(instance) or instance.definition.persistent:
 			continue
 		var active := minf(delta, instance.remaining)
 		instance.remaining = maxf(0.0, instance.remaining - delta)
@@ -130,8 +130,11 @@ func _spawn_vfx(instance: StatusInstance) -> void:
 	var vfx := definition.vfx_scene.instantiate()
 	parent.add_child(vfx)
 	if vfx is Node2D:
-		var bar_y := unit.health_bar.position.y if unit.health_bar != null else -100.0
-		vfx.position = Vector2(0.0, bar_y) + definition.vfx_offset
+		if definition.vfx_at_origin:
+			vfx.position = Vector2.ZERO
+		else:
+			var bar_y := unit.health_bar.position.y if unit.health_bar != null else -100.0
+			vfx.position = Vector2(0.0, bar_y) + definition.vfx_offset
 		if vfx.has_method("play"):
 			vfx.play()
 	instance.vfx = vfx as Node2D
@@ -162,6 +165,14 @@ func has_status(status_id: StringName) -> bool:
 		if instance.definition.id == status_id:
 			return true
 	return false
+
+
+## 按状态 id 移除（例如低血量被动在生命回到阈值以上时撤销狂怒）。
+func remove_status(status_id: StringName, natural := false) -> void:
+	for raw_instance in _instances.duplicate():
+		var instance: StatusInstance = raw_instance
+		if instance.definition.id == status_id and _instances.has(instance):
+			_remove_instance(instance, natural)
 
 
 func forced_target() -> Unit:
@@ -244,6 +255,14 @@ func modify_damage(amount: float, is_basic: bool) -> float:
 	return result
 
 
+## 单位造成伤害后的吸血比例；多个来源相加。
+func modify_lifesteal(value: float) -> float:
+	var result := value
+	for instance in _instances:
+		result = instance.definition.behavior.modify_lifesteal(instance, result)
+	return result
+
+
 func get_vfx(status_id: StringName) -> Node2D:
 	for instance in _instances:
 		if instance.definition.id == status_id:
@@ -259,6 +278,7 @@ func snapshot() -> Array[Dictionary]:
 			"display_name": instance.definition.display_name,
 			"icon": instance.definition.icon,
 			"remaining": instance.remaining,
+			"persistent": instance.definition.persistent,
 			"stacks": instance.stacks,
 			"tags": instance.definition.tags,
 		})

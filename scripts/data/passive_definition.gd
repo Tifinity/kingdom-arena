@@ -9,6 +9,10 @@ extends Resource
 @export var skill_hit_stacks_status: StatusDefinition
 @export var heal_below_hp_ratio := 0.0
 @export var heal_bonus_ratio := 0.0
+## 生命低于该比例时施加 hp_threshold_status（例如狂怒）；0 表示没有低血量被动。
+@export var hp_threshold := 0.0
+## 低血量期间持续存在的状态，通常是攻击/吸血增益，自带特效；由 Unit 按生命自动施加和移除。
+@export var hp_threshold_status: StatusDefinition
 
 
 func detail_text() -> String:
@@ -33,7 +37,14 @@ func remaining(controller: Node) -> float:
 			result = maxf(result, controller.remaining(status.id))
 	if skill_hit_stacks_status != null:
 		result = maxf(result, controller.remaining(skill_hit_stacks_status.id))
+	if hp_threshold_status != null:
+		result = maxf(result, controller.remaining(hp_threshold_status.id))
 	return result
+
+
+## 低血量被动当前是否生效。
+func threshold_active(controller: Node) -> bool:
+	return hp_threshold_status != null and controller != null and controller.has_status(hp_threshold_status.id)
 
 
 func _number_text(value: float) -> String:

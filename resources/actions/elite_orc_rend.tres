@@ -110,7 +110,7 @@ target_gap = 10.0
 [resource]
 script = ExtResource("1")
 action_id = &"elite_orc_rend"
-display_name = "血牙斩"
+display_name = "巨斧狂袭"
 description = "朝敌人最密集的方向推进，连续挥砍 4 次。"
 category = 1
 target_mode = 4

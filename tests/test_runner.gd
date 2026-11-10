@@ -133,7 +133,9 @@ func _test_catalog() -> void:
 		for animation in [&"attack_02", &"attack_03"]:
 			if definition.sprite_frames != null and definition.sprite_frames.has_animation(animation) and not used_animations.has(animation):
 				missing_attack_use.append("%s/%s" % [definition.unit_id, animation])
-	_check(missing_ultimate.is_empty(), "每名英雄都有一个满蓝大招")
+	var allowed_no_ultimate: Array[String] = ["elite_orc"]
+	_check(missing_ultimate == allowed_no_ultimate,
+		"除精锐兽人（第三技能留空）外，每名英雄都有一个满蓝大招")
 	_check(bad_mana.is_empty(), "普通技能只受 CD，不再消耗蓝量")
 	_check(missing_attack_use.is_empty(), "所有现有 attack02/attack03 动画都被技能使用")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.HEAL), "技能数据包含治疗效果")
@@ -1315,13 +1317,18 @@ func _test_wizard_and_elite_orc() -> void:
 	await get_tree().process_frame
 
 	var elite_def := UnitCatalog.get_definition(&"elite_orc")
-	var sweep: CombatActionDefinition = elite_def.actions[1]
-	var heavy: CombatActionDefinition = elite_def.actions[2]
+	var sweep: CombatActionDefinition = elite_def.actions[2]
+	var hunt: CombatActionDefinition = elite_def.actions[1]
 	_check(sweep.animation == &"attack_02" and sweep.target_mode == CombatActionDefinition.TargetMode.DIRECTION
-		and sweep.movement_kind() == ActionMovementDefinition.Kind.ADVANCE and sweep.movement_speed() > 0.0 and sweep.effects.size() == 4,
+		and sweep.movement_kind() == ActionMovementDefinition.Kind.ADVANCE and sweep.movement_speed() > 0.0
+		and sweep.effects.size() == 4 and sweep.display_name == "巨斧狂袭",
 		"attack02 向人群推进并连续攻击")
-	_check(heavy.animation == &"attack_03" and heavy.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
-		and heavy.effects[0].damage_ratio >= 3.0, "attack03 是高伤害单体大招")
+	_check(hunt.animation == &"attack_03" and hunt.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
+		and is_equal_approx(hunt.effects[0].damage_ratio, 1.5) and hunt.mana_cost == 0.0,
+		"attack03 是冷酷捕猎：0 蓝重击当前目标")
+	_check(elite_def.actions.size() == 3 and elite_def.passive != null
+		and elite_def.passive.hp_threshold_status != null,
+		"精锐兽人两主动加狂怒被动，第三格留空")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"elite_orc")
@@ -1354,18 +1361,37 @@ func _test_wizard_and_elite_orc() -> void:
 	elite.position = Vector2(start_x, elite.position.y)
 	enemies[0].position = elite.position + Vector2(75, 0)
 	enemies[1].position = elite.position + Vector2(95, 40)
-	elite.mana = elite.max_mana
 	elite.target = enemies[0]
-	elite.planned_action = heavy
+	elite.planned_action = hunt
 	var target_hp := enemies[0].hp
 	var other_hp := enemies[1].hp
 	elite.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(0.8).timeout
-	var expected_heavy_damage := minf(target_hp,
-		elite.attack_damage * heavy.effects[0].damage_ratio * (1.0 - enemies[0].armor))
-	_check(target_hp - enemies[0].hp >= expected_heavy_damage - 0.1
+	var expected_hunt_damage := minf(target_hp,
+		elite.attack_damage * hunt.effects[0].damage_ratio * (1.0 - enemies[0].armor))
+	_check(target_hp - enemies[0].hp >= expected_hunt_damage - 0.1
 		and is_equal_approx(enemies[1].hp, other_hp),
-		"attack03 仅对目标造成高额伤害")
+		"冷酷捕猎仅对当前目标造成 1.5 AD")
+
+	# 狂怒：生命低于 50% 时攻击 +50%、10% 吸血，并显示 Rage 循环特效。
+	elite.hp = elite.max_hp * 0.4
+	elite.sync_conditional_passives()
+	_check(elite.status_controller.has_status(&"elite_orc_rage"), "生命低于 50% 时触发狂怒")
+	_check(is_equal_approx(elite.current_attack_damage(), elite.attack_damage * 1.5),
+		"狂怒提高 50% 攻击力")
+	var rage_fx := elite.status_controller.get_vfx(&"elite_orc_rage")
+	_check(rage_fx is RageStatusFx and rage_fx.is_playing(), "狂怒使用 Rage 状态特效")
+	battle.hud.set_selected_unit(elite)
+	await get_tree().process_frame
+	_check(battle.hud.skill_status.text.contains("狂怒") and battle.hud.skill_status.text.contains("生效中"),
+		"观察镜显示狂怒生效中")
+	var hp_before := elite.hp
+	enemies[1].take_damage(20.0, elite, null, true)
+	_check(is_equal_approx(elite.hp - hp_before, 2.0), "狂怒按造成伤害的 10% 吸血")
+	elite.heal(elite.max_hp * 0.3)
+	_check(not elite.status_controller.has_status(&"elite_orc_rage"), "生命回到 50% 以上后狂怒结束")
+	_check(is_equal_approx(elite.current_attack_damage(), elite.attack_damage),
+		"狂怒结束后攻击恢复基础值")
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
@@ -2255,7 +2281,7 @@ func _test_status_framework() -> void:
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 10, "状态目录包含 10 种状态（含嘲讽与剑士攻速/热诚）")
+	_check(StatusCatalog.count() == 11, "状态目录包含 11 种状态（含嘲讽、剑士攻速/热诚与狂怒）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,
