@@ -1380,7 +1380,7 @@ func _test_wizard_and_elite_orc() -> void:
 	_check(is_equal_approx(elite.current_attack_damage(), elite.attack_damage * 1.5),
 		"狂怒提高 50% 攻击力")
 	var rage_fx := elite.status_controller.get_vfx(&"elite_orc_rage")
-	_check(rage_fx is RageStatusFx and rage_fx.is_playing(), "狂怒使用 Rage 状态特效")
+	_check(rage_fx is RageStatusFx and rage_fx.is_playing(), "狂怒使用 Seething 状态特效")
 	battle.hud.set_selected_unit(elite)
 	await get_tree().process_frame
 	_check(battle.hud.skill_status.text.contains("狂怒") and battle.hud.skill_status.text.contains("生效中"),
