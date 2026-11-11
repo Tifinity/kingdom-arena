@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://by25jj8wts82o"]
+
+[ext_resource type="Script" path="res://scripts/fx/heavy_cleave.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/fx_heavy_cleave_sheet.png" id="2"]
+
+[node name="HeavyCleave" type="Node2D" unique_id=1174859102]
+z_index = 25
+script = ExtResource("1")
+playback_speed = 1.5
+preview_time = 0.6968532206418346
+
+[node name="Sprite" type="Sprite2D" parent="." unique_id=336971031]
+texture_filter = 1
+position = Vector2(54, -57)
+scale = Vector2(1.5, 1.5)
+texture = ExtResource("2")
+region_enabled = true
+region_rect = Rect2(416, 348, 208, 116)

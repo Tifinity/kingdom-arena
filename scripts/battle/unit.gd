@@ -19,6 +19,8 @@ var hp := 100.0
 var max_mana := 100.0
 var mana := 100.0
 var mana_regen := 8.0
+## 常驻生命回复比例：每秒回复最大生命 × 该比例（来自被动）。
+var hp_regen_ratio := 0.0
 var guard_time := 0.0
 var guard_blocked_hit := false
 var guard_reward_shield_ratio := 0.0
@@ -116,6 +118,7 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	max_mana = p_definition.max_mana
 	mana = clampf(p_definition.starting_mana, 0.0, max_mana)
 	mana_regen = p_definition.mana_regen
+	hp_regen_ratio = p_definition.passive.hp_regen_ratio_per_second if p_definition.passive != null else 0.0
 	attack_damage = p_definition.attack_damage
 	attack_interval = p_definition.attack_interval()
 	attack_range = p_definition.attack_range
@@ -206,6 +209,28 @@ func current_attack_speed() -> float:
 	return maxf(speed, 0.05)
 
 
+## 造成伤害后的吸血比例；狂怒等状态把 0 累加成 0.1。
+func current_lifesteal() -> float:
+	return status_controller.modify_lifesteal(0.0) if status_controller != null else 0.0
+
+
+## 生命跨过阈值时同步低血量被动（例如狂怒）。
+## hp 变化只走 heal/take_damage，因此在这里统一检查即可。
+func sync_conditional_passives() -> void:
+	if definition == null or definition.passive == null or status_controller == null:
+		return
+	var passive: PassiveDefinition = definition.passive
+	var status: StatusDefinition = passive.hp_threshold_status
+	if status == null:
+		return
+	var below_threshold := alive and hp > 0.0 and passive.hp_threshold > 0.0 and hp_ratio() < passive.hp_threshold
+	var active := status_controller.has_status(status.id)
+	if below_threshold and not active:
+		status_controller.apply(status, self)
+	elif not below_threshold and active:
+		status_controller.remove_status(status.id)
+
+
 func current_attack_interval() -> float:
 	return 1.0 / current_attack_speed()
 
@@ -267,6 +292,10 @@ func _physics_process(delta: float) -> void:
 	for key in action_cooldowns.keys():
 		action_cooldowns[key] = maxf(0.0, float(action_cooldowns[key]) - delta)
 	mana = minf(max_mana, mana + mana_regen * delta)
+	if hp_regen_ratio > 0.0 and hp < max_hp:
+		hp = minf(max_hp, hp + max_hp * hp_regen_ratio * delta)
+		health_bar.set_ratio(hp / max_hp)
+		sync_conditional_passives()
 	if guard_time > 0.0:
 		guard_time = maxf(0.0, guard_time - delta)
 		if guard_time <= 0.0:
@@ -567,9 +596,13 @@ func register_damage_hit(victim: Unit, is_skill := false) -> void:
 	if not alive or not is_skill or victim == null or not is_instance_valid(victim):
 		return
 	var passive: PassiveDefinition = definition.passive if definition != null else null
-	if passive == null or passive.skill_hit_stacks_status == null or status_controller == null:
+	if passive == null:
 		return
-	status_controller.apply(passive.skill_hit_stacks_status, self)
+	if passive.skill_hit_stacks_status != null and status_controller != null:
+		status_controller.apply(passive.skill_hit_stacks_status, self)
+	if passive.skill_hit_shield_ratio > 0.0:
+		apply_shield(max_hp * passive.skill_hit_shield_ratio,
+			passive.skill_hit_shield_duration, max_hp)
 
 
 ## 对动作伤害应用状态提供的伤害修正（例如满层热诚的固定额外伤害）。
@@ -595,9 +628,11 @@ func heal(amount: float, healer: Unit = null) -> void:
 	hp = minf(max_hp, hp + amount)
 	health_bar.set_ratio(hp / max_hp)
 	if hp > before:
-		battle.spawn_heal_text(get_hit_point(), hp - before)
+		if battle != null:
+			battle.spawn_heal_text(get_hit_point(), hp - before)
 		if healer != null:
 			healer.last_heal_amount += hp - before
+		sync_conditional_passives()
 
 
 func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
@@ -634,7 +669,7 @@ func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 	var damage := current_attack_damage() * maxf(effect.damage_ratio, 0.0)
 	damage = apply_status_damage_bonus(damage, not is_skill)
 	_record_action_hit(victim)
-	victim.take_damage(damage, self, impact)
+	victim.take_damage(damage, self, impact, false, effect.ignore_shield)
 	register_damage_hit(victim, is_skill)
 	ActionImpact.apply_on_hit(effect, self, victim, blocked)
 	battle.spawn_hit_spark(impact, accent_color, 1.2)
@@ -680,8 +715,12 @@ func _resolve_legacy_action_effect(action: CombatActionDefinition, effect: Actio
 		ActionEffectDefinition.Kind.GUARD:
 			apply_guard(effect.duration, effect.guard_reward_shield_ratio, effect.guard_reward_shield_duration)
 		ActionEffectDefinition.Kind.SHIELD:
-			apply_shield(max_hp * effect.shield_per_target_ratio * (current_cast.hit_targets.size() if current_cast != null else 0),
-				effect.duration, max_hp * effect.shield_max_ratio)
+			var hit_count := current_cast.hit_targets.size() if current_cast != null else 0
+			var shield_amount := max_hp * (effect.shield_self_ratio + effect.shield_per_target_ratio * hit_count)
+			var shield_cap := max_hp * effect.shield_max_ratio
+			if effect.shield_self_ratio > 0.0:
+				shield_cap = maxf(shield_cap, max_hp * effect.shield_self_ratio)
+			apply_shield(shield_amount, effect.duration, shield_cap)
 		ActionEffectDefinition.Kind.HEAL:
 			_resolve_heal_effect(effect)
 		ActionEffectDefinition.Kind.STATUS:
@@ -723,7 +762,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 			battle.spawn_hit_spark(impact, accent_color, 1.2)
 		_record_action_hit(victim)
 		var blocked := victim.is_guarding()
-		victim.take_damage(damage, self, impact)
+		victim.take_damage(damage, self, impact, false, effect.ignore_shield)
 		register_damage_hit(victim, action.category == CombatActionDefinition.Category.SKILL)
 		ActionImpact.apply_on_hit(effect, self, victim, blocked)
 		if effect.shape == ActionEffectDefinition.Shape.SINGLE and victim.alive and effect.knockback > 0.0:
@@ -797,6 +836,7 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 		visual.modulate = Color(1.0, 0.58, 0.58, 1.0)
 		if battle != null:
 			battle.on_damage_dealt(self, source, recorded)
+		_apply_lifesteal(recorded, source)
 		return
 	if guard_time > 0.0:
 		# 格挡期间完全免伤，也不进入受击硬直。
@@ -824,10 +864,21 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 	_flash_left = 0.09
 	visual.modulate = Color(1.0, 0.58, 0.58, 1.0)
 	battle.on_damage_dealt(self, source, amount)
+	_apply_lifesteal(amount, source)
+	sync_conditional_passives()
 
 	if hp <= 0.0:
 		die(source)
 		return
+
+
+## 吸血：伤害结算后按攻击者的吸血比例回复其生命。
+func _apply_lifesteal(damage: float, source: Unit) -> void:
+	if damage <= 0.0 or source == null or source == self or not is_instance_valid(source) or not source.alive:
+		return
+	var ratio := source.current_lifesteal()
+	if ratio > 0.0:
+		source.heal(damage * ratio)
 
 
 func die(killer: Unit) -> void:

@@ -48,6 +48,7 @@ func _run_all() -> void:
 	await _test_axeman_skills()
 	await _test_action_framework()
 	await _test_skill_effects()
+	await _test_armored_orc_kit()
 	await _test_stun_effect()
 	await _test_status_framework()
 	await _test_damage_no_interrupt()
@@ -134,7 +135,9 @@ func _test_catalog() -> void:
 		for animation in [&"attack_02", &"attack_03"]:
 			if definition.sprite_frames != null and definition.sprite_frames.has_animation(animation) and not used_animations.has(animation):
 				missing_attack_use.append("%s/%s" % [definition.unit_id, animation])
-	_check(missing_ultimate.is_empty(), "每名英雄都有一个满蓝大招")
+	var allowed_no_ultimate: Array[String] = ["elite_orc"]
+	_check(missing_ultimate == allowed_no_ultimate,
+		"除精锐兽人（第三技能留空）外，每名英雄都有一个满蓝大招")
 	_check(bad_mana.is_empty(), "普通技能只受 CD，不再消耗蓝量")
 	_check(missing_attack_use.is_empty(), "所有现有 attack02/attack03 动画都被技能使用")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.HEAL), "技能数据包含治疗效果")
@@ -1316,13 +1319,18 @@ func _test_wizard_and_elite_orc() -> void:
 	await get_tree().process_frame
 
 	var elite_def := UnitCatalog.get_definition(&"elite_orc")
-	var sweep: CombatActionDefinition = elite_def.actions[1]
-	var heavy: CombatActionDefinition = elite_def.actions[2]
+	var sweep: CombatActionDefinition = elite_def.actions[2]
+	var hunt: CombatActionDefinition = elite_def.actions[1]
 	_check(sweep.animation == &"attack_02" and sweep.target_mode == CombatActionDefinition.TargetMode.DIRECTION
-		and sweep.movement_kind() == ActionMovementDefinition.Kind.ADVANCE and sweep.movement_speed() > 0.0 and sweep.effects.size() == 4,
+		and sweep.movement_kind() == ActionMovementDefinition.Kind.ADVANCE and sweep.movement_speed() > 0.0
+		and sweep.effects.size() == 4 and sweep.display_name == "巨斧狂袭",
 		"attack02 向人群推进并连续攻击")
-	_check(heavy.animation == &"attack_03" and heavy.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
-		and heavy.effects[0].damage_ratio >= 3.0, "attack03 是高伤害单体大招")
+	_check(hunt.animation == &"attack_03" and hunt.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
+		and is_equal_approx(hunt.effects[0].damage_ratio, 1.5) and hunt.mana_cost == 0.0,
+		"attack03 是冷酷捕猎：0 蓝重击当前目标")
+	_check(elite_def.actions.size() == 3 and elite_def.passive != null
+		and elite_def.passive.hp_threshold_status != null,
+		"精锐兽人两主动加狂怒被动，第三格留空")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"elite_orc")
@@ -1355,18 +1363,37 @@ func _test_wizard_and_elite_orc() -> void:
 	elite.position = Vector2(start_x, elite.position.y)
 	enemies[0].position = elite.position + Vector2(75, 0)
 	enemies[1].position = elite.position + Vector2(95, 40)
-	elite.mana = elite.max_mana
 	elite.target = enemies[0]
-	elite.planned_action = heavy
+	elite.planned_action = hunt
 	var target_hp := enemies[0].hp
 	var other_hp := enemies[1].hp
 	elite.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(0.8).timeout
-	var expected_heavy_damage := minf(target_hp,
-		elite.attack_damage * heavy.effects[0].damage_ratio * (1.0 - enemies[0].armor))
-	_check(target_hp - enemies[0].hp >= expected_heavy_damage - 0.1
+	var expected_hunt_damage := minf(target_hp,
+		elite.attack_damage * hunt.effects[0].damage_ratio * (1.0 - enemies[0].armor))
+	_check(target_hp - enemies[0].hp >= expected_hunt_damage - 0.1
 		and is_equal_approx(enemies[1].hp, other_hp),
-		"attack03 仅对目标造成高额伤害")
+		"冷酷捕猎仅对当前目标造成 1.5 AD")
+
+	# 狂怒：生命低于 50% 时攻击 +50%、10% 吸血，并显示 Rage 循环特效。
+	elite.hp = elite.max_hp * 0.4
+	elite.sync_conditional_passives()
+	_check(elite.status_controller.has_status(&"elite_orc_rage"), "生命低于 50% 时触发狂怒")
+	_check(is_equal_approx(elite.current_attack_damage(), elite.attack_damage * 1.5),
+		"狂怒提高 50% 攻击力")
+	var rage_fx := elite.status_controller.get_vfx(&"elite_orc_rage")
+	_check(rage_fx is RageStatusFx and rage_fx.is_playing(), "狂怒使用 Seething 状态特效")
+	battle.hud.set_selected_unit(elite)
+	await get_tree().process_frame
+	_check(battle.hud.skill_status.text.contains("狂怒") and battle.hud.skill_status.text.contains("生效中"),
+		"观察镜显示狂怒生效中")
+	var hp_before := elite.hp
+	enemies[1].take_damage(20.0, elite, null, true)
+	_check(is_equal_approx(elite.hp - hp_before, 2.0), "狂怒按造成伤害的 10% 吸血")
+	elite.heal(elite.max_hp * 0.3)
+	_check(not elite.status_controller.has_status(&"elite_orc_rage"), "生命回到 50% 以上后狂怒结束")
+	_check(is_equal_approx(elite.current_attack_damage(), elite.attack_damage),
+		"狂怒结束后攻击恢复基础值")
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
@@ -1560,8 +1587,8 @@ func _test_orc_rider_tank() -> void:
 	_check(block.animation == &"block" and block.effects[0].kind == ActionEffectDefinition.Kind.GUARD,
 		"block 动画对应格挡技能")
 	_check(cyclone.animation == &"attack_03" and cyclone.mana_cost >= definition.max_mana
-		and cyclone.effects[1].kind == ActionEffectDefinition.Kind.SHIELD,
-		"attack03 是满蓝环斩与护盾大招")
+		and cyclone.effects.size() == 1 and definition.passive.skill_hit_shield_ratio == 0.05,
+		"attack03 是满蓝环斩，技能命中触发被动护盾")
 
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
@@ -1604,6 +1631,8 @@ func _test_orc_rider_tank() -> void:
 		"冲撞前进约 180 像素后停止")
 	_check(enemies[0].hp < before_hp and enemies[0].global_position.x > start.x + 270.0,
 		"冲撞命中目标并将其击退")
+	_check(absf(rider.shield - rider.max_hp * 0.05) < 1.0,
+		"冲撞技能命中触发 5% 最大生命护盾")
 
 	rider.hp = rider.max_hp * 0.5
 	rider.target = enemies[0]
@@ -1618,6 +1647,8 @@ func _test_orc_rider_tank() -> void:
 	await get_tree().create_timer(1.3).timeout
 
 	rider.position = start
+	rider.shield = 0.0
+	rider.shield_time = 0.0
 	enemies[0].position = start + Vector2(90.0, 0.0)
 	enemies[1].position = start + Vector2(120.0, 60.0)
 	enemies[2].position = start + Vector2(280.0, 100.0)
@@ -1630,11 +1661,11 @@ func _test_orc_rider_tank() -> void:
 	var hp_far: float = enemies[2].hp
 	rider.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(0.9).timeout
-	var two_target_shield: float = rider.max_hp * 0.24
+	var two_target_shield: float = rider.max_hp * 0.10
 	_check(enemies[0].hp < hp_near and is_equal_approx(enemies[2].hp, hp_far),
 		"环斩只命中周围范围内的敌人")
 	_check(absf(rider.shield - two_target_shield) < 1.0 and rider.shield_time > 0.0,
-		"命中两名敌人获得 24% 最大生命护盾")
+		"命中两名敌人获得 10% 最大生命护盾")
 	var hp_before_absorb: float = rider.hp
 	var shield_before_absorb: float = rider.shield
 	rider.take_damage(20.0, enemies[0])
@@ -1649,8 +1680,8 @@ func _test_orc_rider_tank() -> void:
 	rider.action_cooldowns[cyclone.action_id] = 0.0
 	rider.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(0.9).timeout
-	_check(absf(rider.shield - rider.max_hp * 0.48) < 1.0,
-		"四目标叠加护盾不超过 48% 最大生命")
+	_check(absf(rider.shield - (shield_before_absorb - 20.0 * (1.0 - rider.armor) + rider.max_hp * 0.20)) < 1.0,
+		"四目标每次命中叠加 5% 最大生命护盾")
 	await get_tree().create_timer(6.1).timeout
 	_check(is_zero_approx(rider.shield) and is_zero_approx(rider.shield_time),
 		"护盾持续时间结束后消失")
@@ -2166,7 +2197,7 @@ func _test_skill_effects() -> void:
 	if orc != null and bear != null and far_enemy != null:
 		for unit in cc_battle.units:
 			unit.brain.enabled = false
-		# 目标太远时，贯甲突刺不应参与决策（它是自身圆形 AOE）。
+		# 目标太远时，贯甲突刺不应参与决策（它是朝向目标的直线 AOE）。
 		orc.position = Vector2(700, 650)
 		bear.position = Vector2(700, 300)
 		far_enemy.position = Vector2(1200, 300)
@@ -2196,7 +2227,7 @@ func _test_skill_effects() -> void:
 				"贯甲突刺造成伤害与击退")
 			_check(bear.stun_time <= 0.0, "贯甲突刺不再造成眩晕")
 			_check(far_enemy.stun_time <= 0.0 and is_equal_approx(far_enemy.hp, far_hp),
-				"贯甲突刺不命中圆形范围外敌人")
+				"贯甲突刺不命中直线范围外敌人")
 
 		# 暂停时 HUD 应继续处理点击选人。
 		get_tree().paused = true
@@ -2213,6 +2244,153 @@ func _test_skill_effects() -> void:
 	await get_tree().create_timer(2.6).timeout
 	GameState.reset_lineups()
 	cc_battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_armored_orc_kit() -> void:
+	print("\n[重甲兽人] 直线贯甲/护盾格挡/被动再生")
+	var definition := UnitCatalog.get_definition(&"armored_orc")
+	var bash: CombatActionDefinition = null
+	var block: CombatActionDefinition = null
+	var quakeslam: CombatActionDefinition = null
+	for action in definition.actions:
+		if action.action_id == &"armored_orc_bash":
+			bash = action
+		elif action.action_id == &"armored_orc_block":
+			block = action
+		elif action.action_id == &"armored_orc_quakeslam":
+			quakeslam = action
+	_check(bash != null and block != null and quakeslam != null, "重甲兽人技能数据齐全")
+	var bash_damage: ActionEffectDefinition = null
+	var bash_displace: ActionEffectDefinition = null
+	if bash != null:
+		for effect in bash.effects:
+			if effect.kind == ActionEffectDefinition.Kind.DAMAGE:
+				bash_damage = effect
+			elif effect.kind == ActionEffectDefinition.Kind.DISPLACE:
+				bash_displace = effect
+	_check(bash_damage != null and bash_damage.shape == ActionEffectDefinition.Shape.RECT
+		and bash_damage.length > 0.0 and bash_damage.width > 0.0
+		and bash_damage.ignore_shield,
+		"贯甲突刺是矩形直线伤害并忽略护盾")
+	_check(bash != null and bash.target_mode == CombatActionDefinition.TargetMode.ENEMY
+		and bash_damage != null and is_equal_approx(bash.action_range, bash_damage.length),
+		"贯甲突刺以敌人为方向目标，释放距离与直线长度一致")
+	_check(bash_displace != null
+		and bash_displace.shape == ActionEffectDefinition.Shape.RECT
+		and bash_damage != null
+		and is_equal_approx(bash_displace.length, bash_damage.length)
+		and is_equal_approx(bash_displace.width, bash_damage.width),
+		"贯甲突刺的击退范围与伤害直线一致")
+	var block_effect: ActionEffectDefinition = block.effects[0] if block != null and not block.effects.is_empty() else null
+	_check(block_effect != null and block_effect.kind == ActionEffectDefinition.Kind.SHIELD
+		and is_equal_approx(block_effect.shield_self_ratio, 0.2)
+		and block_effect.duration > 0.0,
+		"格挡改为立即获得 20% 最大生命护盾")
+	_check(block_effect != null and block_effect.kind != ActionEffectDefinition.Kind.GUARD,
+		"格挡不再使用免伤 GUARD 效果")
+	var quake_damage: ActionEffectDefinition = null
+	var quake_stun: ActionEffectDefinition = null
+	if quakeslam != null:
+		for effect in quakeslam.effects:
+			if effect.kind == ActionEffectDefinition.Kind.DAMAGE:
+				quake_damage = effect
+			elif effect.kind == ActionEffectDefinition.Kind.STATUS:
+				quake_stun = effect
+	_check(quake_damage != null and quake_damage.shape == ActionEffectDefinition.Shape.CIRCLE
+		and quake_damage.center_on_self and is_equal_approx(quake_damage.radius, 150.0)
+		and quake_stun != null and is_equal_approx(quake_stun.status_duration, 1.0),
+		"裂地盾击保持自身圆形 1.8 AD 与 1 秒眩晕")
+	var passive := definition.passive
+	_check(passive != null and is_equal_approx(passive.hp_regen_ratio_per_second, 0.02),
+		"重甲兽人被动每秒回复 2% 最大生命")
+	_check(definition.skill_description_text().contains("最大生命 20% 的护盾")
+		and definition.skill_description_text().contains("每秒回复 2% 最大生命"),
+		"技能详情显示护盾格挡与被动回复数值")
+
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"armored_orc")
+	GameState.set_slot(1, 0, &"werebear")
+	GameState.set_slot(1, 1, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var orc: Unit = null
+	var bear: Unit = null
+	var soldier: Unit = null
+	for unit in battle.units:
+		unit.brain.enabled = false
+		if unit.team == 0:
+			orc = unit
+		elif unit.definition.unit_id == &"werebear":
+			bear = unit
+		else:
+			soldier = unit
+	_check(orc != null and bear != null and soldier != null, "重甲兽人测试生成双方单位")
+	if orc == null or bear == null or soldier == null or bash == null or block == null:
+		GameState.reset_lineups()
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	orc.position = Vector2(700, 650)
+	bear.position = Vector2(790, 650)
+	soldier.position = Vector2(700, 820)
+
+	# 格挡：低血量时立即获得护盾，并且不再进入免伤状态。
+	orc.hp = orc.max_hp * 0.5
+	orc.health_bar.set_ratio(0.5)
+	orc.target = bear
+	orc.planned_action = block
+	orc.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.2).timeout
+	_check(orc.guard_time <= 0.0, "格挡期间不再进入无敌免伤")
+	_check(is_equal_approx(orc.shield, orc.max_hp * 0.2) and orc.shield_time > 0.0,
+		"格挡立即获得 20% 最大生命护盾")
+	var hp_with_shield := orc.hp
+	var shield_before_hit := orc.shield
+	orc.take_damage(10.0, bear)
+	_check(is_equal_approx(orc.hp, hp_with_shield) and orc.shield < shield_before_hit,
+		"护盾先于生命吸收伤害")
+
+	# 被动：每秒按最大生命 2% 回复。
+	orc.hp = orc.max_hp * 0.5
+	orc.health_bar.set_ratio(0.5)
+	var hp_before_regen := orc.hp
+	orc._physics_process(1.0)
+	_check(is_equal_approx(orc.hp, hp_before_regen + orc.max_hp * 0.02),
+		"被动每秒回复 2% 最大生命")
+	# 等格挡动作结束，避免与同状态的贯甲突刺冲突。
+	await get_tree().create_timer(1.1).timeout
+
+	# 贯甲突刺：直线命中并击退，护盾不吸收伤害，直线外敌人不受影响。
+	orc.hp = orc.max_hp
+	orc.health_bar.set_ratio(1.0)
+	orc.shield = 0.0
+	orc.shield_time = 0.0
+	bear.shield = 20.0
+	bear.shield_time = 10.0
+	bear.health_bar.set_shield_ratio(20.0 / bear.max_hp)
+	soldier.shield = 20.0
+	soldier.shield_time = 10.0
+	var bear_hp := bear.hp
+	var bear_shield := bear.shield
+	var soldier_hp := soldier.hp
+	var soldier_shield := soldier.shield
+	var bear_x := bear.global_position.x
+	orc.target = bear
+	orc.planned_action = bash
+	orc.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.7).timeout
+	_check(bear.hp < bear_hp, "贯甲突刺对直线上的敌人造成伤害")
+	_check(is_equal_approx(bear.shield, bear_shield), "贯甲突刺无视并保留目标护盾")
+	_check(bear.global_position.x > bear_x, "贯甲突刺击退直线上的敌人")
+	_check(is_equal_approx(soldier.hp, soldier_hp) and is_equal_approx(soldier.shield, soldier_shield),
+		"贯甲突刺不命中直线外的敌人")
+
+	await get_tree().create_timer(1.5).timeout
+	GameState.reset_lineups()
+	battle.queue_free()
 	await get_tree().process_frame
 
 
@@ -2342,7 +2520,7 @@ func _test_status_framework() -> void:
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 10, "状态目录包含 10 种状态（含嘲讽与剑士攻速/热诚）")
+	_check(StatusCatalog.count() == 11, "状态目录包含 11 种状态（含嘲讽、剑士攻速/热诚与狂怒）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,

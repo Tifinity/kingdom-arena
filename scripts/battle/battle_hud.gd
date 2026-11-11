@@ -239,8 +239,9 @@ func _update_status_icons(statuses: Array) -> void:
 			stack_label.add_theme_font_size_override("font_size", 11)
 			stack_label.add_theme_color_override("font_color", Color("#e7c46b"))
 			box.add_child(stack_label)
-		box.tooltip_text = "%s · 剩余 %.1f 秒" % [
-			data.get("display_name", "状态"), float(data.get("remaining", 0.0))
+		box.tooltip_text = "%s · %s" % [
+			data.get("display_name", "状态"),
+			"常驻" if bool(data.get("persistent", false)) else "剩余 %.1f 秒" % float(data.get("remaining", 0.0)),
 		]
 		status_row.add_child(box)
 
@@ -369,9 +370,16 @@ func _update_inspector() -> void:
 			action.detail_text(selected_unit.current_attack_damage()),
 		])
 	if definition.passive != null:
-		var passive_remaining := definition.passive.remaining(selected_unit.status_controller)
-		var passive_state := "常驻" if definition.passive.heal_bonus_ratio > 0.0 else ("生效中 %.1fs" % passive_remaining if passive_remaining > 0.0 else "未生效")
-		skill_lines.append("%s · 被动 · %s\n%s" % [definition.passive.display_name, passive_state, definition.passive.detail_text()])
+		var passive: PassiveDefinition = definition.passive
+		var passive_state := "未生效"
+		if passive.hp_threshold_status != null:
+			passive_state = "生效中" if passive.threshold_active(selected_unit.status_controller) else "未生效"
+		elif passive.heal_bonus_ratio > 0.0 or passive.hp_regen_ratio_per_second > 0.0:
+			passive_state = "常驻"
+		else:
+			var passive_remaining := passive.remaining(selected_unit.status_controller)
+			passive_state = "生效中 %.1fs" % passive_remaining if passive_remaining > 0.0 else "未生效"
+		skill_lines.append("%s · 被动 · %s\n%s" % [passive.display_name, passive_state, passive.detail_text()])
 	skill_status.text = "\n".join(PackedStringArray(skill_lines))
 	inspector_state.text = snapshot.state
 	if snapshot.state_key == "action" and snapshot.get("action_name", "—") != "—":

@@ -13,14 +13,18 @@
 
 剑士「热诚决斗」位于 `resources/passives/swordsman_zeal_duel.tres`：`PassiveDefinition.skill_hit_stacks_status` 指向 `swordsman_zeal` 状态，每次**技能伤害命中**施加一层；状态使用 `STACK` 叠加、持续 6 秒、上限 5 层，每层提供 5% 攻速。满 5 层时，`ZealDuelBehavior.modify_damage()` 让每次动作伤害额外 +5。普攻不叠层，DoT 周期伤害也不叠层；动作目标规则可用 `ActionTargetingDefinition.Selection.LOWEST_HP_ENEMY` 指定“范围内最低血量敌人”。
 
+精锐兽人「狂怒」位于 `resources/passives/elite_orc_rage.tres`：`PassiveDefinition.hp_threshold` 为 0.5，`hp_threshold_status` 指向不会自然到期的 `persistent` 状态 `elite_orc_rage`。`Unit` 在 `heal()` / `take_damage()` 结算后调用 `sync_conditional_passives()`，生命低于 50% 时施加、回到 50% 以上时移除；状态以 `StatModifierBehavior` 把 `attack_damage` 乘 1.5，并用 `lifesteal_bonus` 提供 0.1 吸血。伤害扣除护甲与护盾后，`Unit._apply_lifesteal()` 按实际伤害的该比例回复攻击者生命。状态特效 `scenes/fx/rage_status.tscn` 是 pixelfx `status/seething` 的“纯光环”版：导出时用空角色遮罩跳过替身身体，只保留怒纹、蒸汽、应激线和红光，精灵表由 `tools/export_rage_status.mjs` 生成。
+
 
 骑士格挡使用通用 `GUARD` 效果；成功格挡后的奖励护盾由 `resources/actions/knight_block.tres` 的 `guard_reward_shield_ratio` 和 `guard_reward_shield_duration` 控制。其他单位可用不同奖励、格挡时长、触发条件与冷却形成差异，不需要在单位脚本中写分支。
+
+重甲兽人的「格挡」不再使用 `GUARD`，而是 `SHIELD` 效果的 `shield_self_ratio = 0.2`：低血量时立即获得最大生命 20% 的护盾，持续 4 秒，期间不再免疫伤害。它的被动资源 `resources/passives/armored_orc_regen.tres` 使用 `hp_regen_ratio_per_second = 0.02`，由 `Unit._physics_process()` 每帧按最大生命比例回复，生命上限与回复比例都会实时参与计算。
 
 | 单位 | 格挡定位 | 状态 |
 | --- | --- | --- |
 | 骑士 | 挡住伤害后获得自身最大生命 8% 护盾，持续 3 秒 | 已实现 |
 | 圣殿骑士 | 圣盾守护：冲入敌群、范围嘲讽并按敌人数获得护盾 | 已实现，替代原格挡 |
-| 重甲兽人 | 成功格挡后强化下一次普攻，突出反击 | 设计建议，未实现 |
+| 重甲兽人 | 举盾立即获得自身最大生命 20% 护盾，持续 4 秒，不再免伤 | 已实现，替代原格挡 |
 | 兽人骑兵 | 格挡时间略长，但冷却更长；脱离格挡后加速切入 | 设计建议，未实现 |
 | 骷髅 | 低血量时维持较长格挡，不产生额外护盾 | 设计建议，未实现 |
 
@@ -64,7 +68,11 @@ Hero Lab 保存的 `user://hero_stat_overrides.cfg` 会覆盖 `.tres` 基础属�
 | 命中时机 | `effect_*` 的 `trigger_frame`；从 0 开始计数，受动作动画帧率影响 |
 | 骑士双连斩 | `resources/actions/knight_cleave.tres` 中两个伤害效果的 `damage_ratio`，当前为 1.2、1.5；`trigger_frame` 为 4、7 |
 | 格挡成功奖励 | 格挡效果的 `guard_reward_shield_ratio`、`guard_reward_shield_duration`，仅实际挡住伤害才在格挡结束时给护盾 |
+| 自施固定护盾 | `SHIELD` 效果的 `shield_self_ratio` 与 `duration`；按命中人数叠加仍用 `shield_per_target_ratio` / `shield_max_ratio` |
+| 穿透护盾 | 伤害/投射物效果的 `ignore_shield = true`，伤害仍受护甲影响 |
 | 开战被动 | `UnitDefinition.passive` 指向被动资源；状态资源的 `base_power`、`duration` 控制属性加成和持续时间 |
+| 常驻生命回复 | 被动的 `hp_regen_ratio_per_second`，0.02 表示每秒回复最大生命的 2% |
+| 低血量被动与吸血 | 被动的 `hp_threshold`、`hp_threshold_status`；状态行为的 `stat`/`mode` 与 `lifesteal_bonus` |
 | 治疗、护盾、击退、召唤 | `effect_*` 的 `heal_amount`/`heal_ratio`、`shield_*`、`knockback`、`summon_*` |
 | 冲锋、推进、闪现 | 动作内 `movement` 的 `kind`、`speed`、`distance`、`target_gap` |
 | 最远目标选择 | 动作内 `targeting.selection`；`FARTHEST` 选最远敌人 |

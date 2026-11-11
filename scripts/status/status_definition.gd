@@ -21,6 +21,8 @@ enum StackPolicy {
 @export var tags: Array[StringName] = []
 
 @export var duration := 1.0
+## true 时状态不会自然到期，由施加者按条件手动移除（例如狂怒的低血量状态）。
+@export var persistent := false
 ## 0 表示不进行周期结算。
 @export var tick_interval := 0.0
 @export var max_stacks := 1
@@ -34,6 +36,8 @@ enum StackPolicy {
 @export var behavior: StatusBehavior
 ## 可选的状态表现场景；由 UnitStatusController 创建和释放。
 @export var vfx_scene: PackedScene
+## true 时特效锚定在单位原点（脚底），忽略血条位置与 vfx_offset。
+@export var vfx_at_origin := false
 ## 相对于单位血条的偏移。
 @export var vfx_offset := Vector2(0.0, -22.0)
 

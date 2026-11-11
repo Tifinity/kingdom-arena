@@ -221,6 +221,8 @@ def _write_effect_resource(effect_id: str, effect: dict) -> str:
         f'burn_dps_ratio = {effect.get("burn_dps_ratio", 0.0):.2f}',
         f'shield_per_target_ratio = {effect.get("shield_per_target_ratio", 0.0):.2f}',
         f'shield_max_ratio = {effect.get("shield_max_ratio", 0.0):.2f}',
+        *([f'shield_self_ratio = {effect["shield_self_ratio"]:.2f}'] if effect.get("shield_self_ratio", 0.0) > 0.0 else []),
+        *(['ignore_shield = true'] if effect.get("ignore_shield", False) else []),
         f'guard_reward_shield_ratio = {effect.get("guard_reward_shield_ratio", 0.0):.2f}',
         f'guard_reward_shield_duration = {effect.get("guard_reward_shield_duration", 0.0):.2f}',
         f'heal_amount = {effect.get("heal_amount", 0.0):.1f}',
@@ -371,6 +373,7 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         heal_amount=0.0, heal_ratio=0.0, summon_id="", summon_count=1, knockback=0.0,
         burn_duration=0.0, burn_dps_ratio=0.0,
         shield_per_target_ratio=0.0, shield_max_ratio=0.0,
+        shield_self_ratio=0.0, ignore_shield=False,
         requires_action_hit=False, guard_reward_shield_ratio=0.0,
         guard_reward_shield_duration=0.0) -> dict:
     return {
@@ -386,6 +389,8 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         "burn_duration": burn_duration, "burn_dps_ratio": burn_dps_ratio,
         "shield_per_target_ratio": shield_per_target_ratio,
         "shield_max_ratio": shield_max_ratio,
+        "shield_self_ratio": shield_self_ratio,
+        "ignore_shield": ignore_shield,
         "guard_reward_shield_ratio": guard_reward_shield_ratio,
         "guard_reward_shield_duration": guard_reward_shield_duration,
         "requires_action_hit": requires_action_hit,
@@ -532,29 +537,34 @@ def _skills_for(unit: Unit) -> list[dict]:
                              [_fx(shape=2, ratio=1.9, frame=4, radius=rng + 10.0, half=65.0)],
                              12.0, 10, rng, rng, mana=100.0))
     elif slug == "elite_orc":
-        skills.append(_skill("elite_orc_rend", "血牙斩", "attack_02",
+        skills.append(_skill("elite_orc_cruel_hunt", "冷酷捕猎", "attack_03",
+                             [_fx(shape=0, ratio=1.5, frame=5)],
+                             7.0, 7, rng, rng,
+                             description="重击当前目标，造成 {damage_0}单体伤害。"))
+        skills.append(_skill("elite_orc_rend", "巨斧狂袭", "attack_02",
                              [_fx(shape=4, ratio=0.42, frame=frame, length=165.0, width=125.0)
                               for frame in [3, 5, 7, 9]],
                              6.0, 7, 165.0, rng, target_mode=4, advance=220.0,
                              description="朝敌人最密集的方向推进，连续挥砍 4 次。"))
-        skills.append(_skill("elite_orc_bloodmoon", "血月狂斩", "attack_03",
-                             [_fx(shape=0, ratio=3.5, frame=5)],
-                             14.0, 10, rng, rng, mana=100.0,
-                             description="对单个敌人发动重斩，造成 {damage_0}单体伤害。"))
     elif slug == "armored_orc":
         skills.append(_skill("armored_orc_bash", "贯甲突刺", "attack_02",
-                             [_fx(shape=1, ratio=1.2, frame=5, radius=110.0, center_self=True),
-                              _fx(kind=6, shape=1, frame=5, radius=110.0, center_self=True,
+                             [_fx(shape=4, ratio=1.2, frame=5, length=190.0, width=76.0,
+                                  ignore_shield=True),
+                              _fx(kind=6, shape=4, frame=5, length=190.0, width=76.0,
                                   knockback=35.0)],
-                             7.0, 7, 0.0, rng, target_mode=2,
-                             description="长矛向前突刺，对近身敌人造成伤害并击退。"))
+                             7.0, 7, 190.0, rng, target_mode=0,
+                             description="长矛向前突刺，对直线范围内敌人造成 {damage_0} 伤害并击退，无视护盾。"))
         skills.append(_skill("armored_orc_quakeslam", "裂地盾击", "attack_03",
                              [_fx(shape=1, ratio=1.8, frame=6, radius=150.0, center_self=True),
                               _fx(kind=5, shape=1, frame=6, radius=150.0, center_self=True,
                                   status_kind=0, status_duration=1.0, requires_action_hit=True)],
                              16.0, 10, 0.0, rng, mana=100.0, target_mode=2,
                              description="以盾牌砸向地面释放冲击波，对范围内敌人造成伤害，并眩晕所有被命中的敌人 1 秒。"))
-        skills.append(_guard_action("armored_orc_block", "格挡"))
+        skills.append(_skill("armored_orc_block", "格挡", "block",
+                             [_fx(kind=4, shape=3, frame=0, shield_self_ratio=0.2, duration=4.0)],
+                             12.0, 6, 0.0, 0.0, category=2, target_mode=2,
+                             action_duration=1.0, max_hp=0.55,
+                             description="举盾防御，立即获得最大生命 {shield_self_percent}% 的护盾，持续 {shield_duration} 秒。"))
     elif slug == "orc_rider":
         skills.append(_skill("orc_rider_ram", "裂阵冲撞", "attack_01",
                              [_fx(shape=0, ratio=1.45, frame=4, knockback=70.0)],
@@ -567,11 +577,9 @@ def _skills_for(unit: Unit) -> list[dict]:
                              action_duration=1.2, max_hp=0.70,
                              description="生命低于 70% 时格挡 1.2 秒，期间免疫伤害。"))
         skills.append(_skill("orc_rider_cyclone", "裂阵回旋", "attack_03",
-                             [_fx(shape=1, ratio=1.6, frame=6, radius=170.0, center_self=True),
-                              _fx(kind=4, shape=3, frame=7, duration=6.0,
-                                  shield_per_target_ratio=0.12, shield_max_ratio=0.48)],
+                             [_fx(shape=1, ratio=1.6, frame=6, radius=170.0, center_self=True)],
                              15.0, 10, 0.0, rng, mana=100.0, target_mode=2,
-                             description="环斩周围敌人；每命中 1 人获得 12% 最大生命护盾，最多 48%，持续 6 秒。"))
+                             description="环斩周围敌人，造成范围伤害。"))
     elif slug == "skeleton":
         skills.append(_skill("skeleton_cleave", "骨刃斩", "attack_02",
                              [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 8.0, half=60.0)],
@@ -1007,6 +1015,9 @@ def build_character(unit: Unit) -> tuple[float, str]:
     passive_paths = {
         "knight": "knight_morale",
         "swordsman": "swordsman_zeal_duel",
+        "elite_orc": "elite_orc_rage",
+        "armored_orc": "armored_orc_regen",
+        "orc_rider": "orc_rider_shield",
     }
     passive_path = passive_paths.get(unit.slug, "")
     passive_id = str(6 + len(action_paths)) if passive_path else ""

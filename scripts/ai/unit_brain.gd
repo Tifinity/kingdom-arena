@@ -435,8 +435,10 @@ func _evaluate_plan(action: CombatActionDefinition, candidate: Unit, direction: 
 					support += 0.35
 		elif effect.kind == ActionEffectDefinition.Kind.SHIELD:
 			var nearby: int = unit.battle.units_in_circle(unit, unit.global_position, effect.radius).size()
-			var shield_gain: float = minf(unit.max_hp * effect.shield_per_target_ratio * nearby,
-				maxf(0.0, unit.max_hp * effect.shield_max_ratio - unit.shield))
+			var shield_cap := maxf(effect.shield_max_ratio, effect.shield_self_ratio)
+			var shield_gain: float = minf(
+				unit.max_hp * (effect.shield_self_ratio + effect.shield_per_target_ratio * nearby),
+				maxf(0.0, unit.max_hp * shield_cap - unit.shield))
 			support += shield_gain / maxf(unit.attack_damage, 1.0)
 	var expected_damage := 0.0
 	var kills := 0

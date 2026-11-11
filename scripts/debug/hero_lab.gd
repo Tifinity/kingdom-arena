@@ -301,7 +301,8 @@ func _refresh_status_list() -> void:
 			has_debuff = true
 		var stacks := int(status.get("stacks", 1))
 		var stack_text := " ×%d" % stacks if stacks > 1 else ""
-		parts.append("%s %.1fs%s" % [str(status.get("display_name", "状态")), float(status.get("remaining", 0.0)), stack_text])
+		var duration_text := "常驻" if bool(status.get("persistent", false)) else "%.1fs" % float(status.get("remaining", 0.0))
+		parts.append("%s %s%s" % [str(status.get("display_name", "状态")), duration_text, stack_text])
 	buffs_label.text = "状态：" + " · ".join(PackedStringArray(parts))
 	buffs_label.add_theme_color_override("font_color", Color("#ff9a8a") if has_debuff else Color("#d8b877"))
 
@@ -361,6 +362,10 @@ func _refresh_skill_states() -> void:
 			else:
 				passive_card.set_live_state("热诚 0/%d" % stacks_status.max_stacks,
 					TrainingSkillCard.COOLDOWN_COLOR)
+		elif passive_card.passive.hp_threshold_status != null:
+			var active := passive_card.passive.threshold_active(hero.status_controller)
+			passive_card.set_live_state("生效中" if active else "未生效",
+				TrainingSkillCard.PASSIVE_COLOR if active else TrainingSkillCard.COOLDOWN_COLOR)
 		elif passive_card.passive.remaining(hero.status_controller) > 0.0:
 			passive_card.set_live_state("生效中 %.1fs" % passive_card.passive.remaining(hero.status_controller),
 				TrainingSkillCard.PASSIVE_COLOR)
@@ -438,6 +443,7 @@ func _prepare_hero_for_cast(action: CombatActionDefinition) -> void:
 	if hero.hp_ratio() < action.min_self_hp_ratio:
 		hero.hp = minf(hero.max_hp, hero.max_hp * (action.min_self_hp_ratio + 0.02))
 	hero.health_bar.set_ratio(hero.hp / hero.max_hp)
+	hero.sync_conditional_passives()
 
 
 func _has_wounded_ally() -> bool:
@@ -547,9 +553,10 @@ func _fill_mana() -> void:
 func _apply_wound() -> void:
 	if not is_instance_valid(hero):
 		return
-	hero.hp = maxf(1.0, hero.max_hp * 0.5)
+	hero.hp = maxf(1.0, hero.max_hp * 0.45)
 	hero.health_bar.set_ratio(hero.hp / hero.max_hp)
-	_show_toast("英雄已受伤，可演示治疗与防御技能")
+	hero.sync_conditional_passives()
+	_show_toast("英雄生命降至 45%，可演示低血量被动、治疗与防御技能")
 	_refresh_live()
 
 
