@@ -1,7 +1,7 @@
 class_name RageStatusFx
 extends Node2D
 
-## pixelfx status/rage 的纯光环循环：怒纹、蒸汽、地裂、火星和红光。
+## pixelfx status/seething 的纯光环循环：怒纹、蒸汽、应激线和红光。
 ## 由 UnitStatusController 在“狂怒”状态生效期间创建，条件结束后释放。
 ## 精灵表与导出脚本见 tools/export_rage_status.mjs。
 

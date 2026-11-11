@@ -812,8 +812,8 @@
       }
     ],
     "pixelfx": {
-      "id": "status/rage",
-      "name": "Rage",
+      "id": "status/seething",
+      "name": "Seething",
       "fps": 30,
       "loop": true,
       "frames": 36,

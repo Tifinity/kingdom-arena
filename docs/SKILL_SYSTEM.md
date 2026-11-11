@@ -13,7 +13,7 @@
 
 剑士「热诚决斗」位于 `resources/passives/swordsman_zeal_duel.tres`：`PassiveDefinition.skill_hit_stacks_status` 指向 `swordsman_zeal` 状态，每次**技能伤害命中**施加一层；状态使用 `STACK` 叠加、持续 6 秒、上限 5 层，每层提供 5% 攻速。满 5 层时，`ZealDuelBehavior.modify_damage()` 让每次动作伤害额外 +5。普攻不叠层，DoT 周期伤害也不叠层；动作目标规则可用 `ActionTargetingDefinition.Selection.LOWEST_HP_ENEMY` 指定“范围内最低血量敌人”。
 
-精锐兽人「狂怒」位于 `resources/passives/elite_orc_rage.tres`：`PassiveDefinition.hp_threshold` 为 0.5，`hp_threshold_status` 指向不会自然到期的 `persistent` 状态 `elite_orc_rage`。`Unit` 在 `heal()` / `take_damage()` 结算后调用 `sync_conditional_passives()`，生命低于 50% 时施加、回到 50% 以上时移除；状态以 `StatModifierBehavior` 把 `attack_damage` 乘 1.5，并用 `lifesteal_bonus` 提供 0.1 吸血。伤害扣除护甲与护盾后，`Unit._apply_lifesteal()` 按实际伤害的该比例回复攻击者生命。状态特效 `scenes/fx/rage_status.tscn` 是 pixelfx `status/rage` 的“纯光环”版：导出时用空角色遮罩跳过替身身体，只保留怒纹、蒸汽、地裂和红光，精灵表由 `tools/export_rage_status.mjs` 生成。
+精锐兽人「狂怒」位于 `resources/passives/elite_orc_rage.tres`：`PassiveDefinition.hp_threshold` 为 0.5，`hp_threshold_status` 指向不会自然到期的 `persistent` 状态 `elite_orc_rage`。`Unit` 在 `heal()` / `take_damage()` 结算后调用 `sync_conditional_passives()`，生命低于 50% 时施加、回到 50% 以上时移除；状态以 `StatModifierBehavior` 把 `attack_damage` 乘 1.5，并用 `lifesteal_bonus` 提供 0.1 吸血。伤害扣除护甲与护盾后，`Unit._apply_lifesteal()` 按实际伤害的该比例回复攻击者生命。状态特效 `scenes/fx/rage_status.tscn` 是 pixelfx `status/seething` 的“纯光环”版：导出时用空角色遮罩跳过替身身体，只保留怒纹、蒸汽、应激线和红光，精灵表由 `tools/export_rage_status.mjs` 生成。
 
 
 骑士格挡使用通用 `GUARD` 效果；成功格挡后的奖励护盾由 `resources/actions/knight_block.tres` 的 `guard_reward_shield_ratio` 和 `guard_reward_shield_duration` 控制。其他单位可用不同奖励、格挡时长、触发条件与冷却形成差异，不需要在单位脚本中写分支。
