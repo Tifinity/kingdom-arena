@@ -530,15 +530,15 @@ def _skills_for(unit: Unit) -> list[dict]:
                              [_fx(shape=2, ratio=1.9, frame=4, radius=rng + 10.0, half=65.0)],
                              12.0, 10, rng, rng, mana=100.0))
     elif slug == "elite_orc":
-        skills.append(_skill("elite_orc_rend", "血牙斩", "attack_02",
+        skills.append(_skill("elite_orc_cruel_hunt", "冷酷捕猎", "attack_03",
+                             [_fx(shape=0, ratio=1.5, frame=5)],
+                             7.0, 7, rng, rng,
+                             description="重击当前目标，造成 {damage_0}单体伤害。"))
+        skills.append(_skill("elite_orc_rend", "巨斧狂袭", "attack_02",
                              [_fx(shape=4, ratio=0.42, frame=frame, length=165.0, width=125.0)
                               for frame in [3, 5, 7, 9]],
                              6.0, 7, 165.0, rng, target_mode=4, advance=220.0,
                              description="朝敌人最密集的方向推进，连续挥砍 4 次。"))
-        skills.append(_skill("elite_orc_bloodmoon", "血月狂斩", "attack_03",
-                             [_fx(shape=0, ratio=3.5, frame=5)],
-                             14.0, 10, rng, rng, mana=100.0,
-                             description="对单个敌人发动重斩，造成 {damage_0}单体伤害。"))
     elif slug == "armored_orc":
         skills.append(_skill("armored_orc_bash", "贯甲突刺", "attack_02",
                              [_fx(shape=1, ratio=1.2, frame=5, radius=110.0, center_self=True),
@@ -992,6 +992,7 @@ def build_character(unit: Unit) -> tuple[float, str]:
     passive_paths = {
         "knight": "knight_morale",
         "swordsman": "swordsman_zeal_duel",
+        "elite_orc": "elite_orc_rage",
     }
     passive_path = passive_paths.get(unit.slug, "")
     passive_id = str(6 + len(action_paths)) if passive_path else ""

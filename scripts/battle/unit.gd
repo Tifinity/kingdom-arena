@@ -206,6 +206,28 @@ func current_attack_speed() -> float:
 	return maxf(speed, 0.05)
 
 
+## 造成伤害后的吸血比例；狂怒等状态把 0 累加成 0.1。
+func current_lifesteal() -> float:
+	return status_controller.modify_lifesteal(0.0) if status_controller != null else 0.0
+
+
+## 生命跨过阈值时同步低血量被动（例如狂怒）。
+## hp 变化只走 heal/take_damage，因此在这里统一检查即可。
+func sync_conditional_passives() -> void:
+	if definition == null or definition.passive == null or status_controller == null:
+		return
+	var passive: PassiveDefinition = definition.passive
+	var status: StatusDefinition = passive.hp_threshold_status
+	if status == null:
+		return
+	var below_threshold := alive and hp > 0.0 and passive.hp_threshold > 0.0 and hp_ratio() < passive.hp_threshold
+	var active := status_controller.has_status(status.id)
+	if below_threshold and not active:
+		status_controller.apply(status, self)
+	elif not below_threshold and active:
+		status_controller.remove_status(status.id)
+
+
 func current_attack_interval() -> float:
 	return 1.0 / current_attack_speed()
 
@@ -595,9 +617,11 @@ func heal(amount: float, healer: Unit = null) -> void:
 	hp = minf(max_hp, hp + amount)
 	health_bar.set_ratio(hp / max_hp)
 	if hp > before:
-		battle.spawn_heal_text(get_hit_point(), hp - before)
+		if battle != null:
+			battle.spawn_heal_text(get_hit_point(), hp - before)
 		if healer != null:
 			healer.last_heal_amount += hp - before
+		sync_conditional_passives()
 
 
 func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
@@ -797,6 +821,7 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 		visual.modulate = Color(1.0, 0.58, 0.58, 1.0)
 		if battle != null:
 			battle.on_damage_dealt(self, source, recorded)
+		_apply_lifesteal(recorded, source)
 		return
 	if guard_time > 0.0:
 		# 格挡期间完全免伤，也不进入受击硬直。
@@ -824,10 +849,21 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 	_flash_left = 0.09
 	visual.modulate = Color(1.0, 0.58, 0.58, 1.0)
 	battle.on_damage_dealt(self, source, amount)
+	_apply_lifesteal(amount, source)
+	sync_conditional_passives()
 
 	if hp <= 0.0:
 		die(source)
 		return
+
+
+## 吸血：伤害结算后按攻击者的吸血比例回复其生命。
+func _apply_lifesteal(damage: float, source: Unit) -> void:
+	if damage <= 0.0 or source == null or source == self or not is_instance_valid(source) or not source.alive:
+		return
+	var ratio := source.current_lifesteal()
+	if ratio > 0.0:
+		source.heal(damage * ratio)
 
 
 func die(killer: Unit) -> void:

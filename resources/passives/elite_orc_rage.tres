@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/status/elite_orc_rage.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "狂怒"
+description = "生命低于 50% 时，攻击力提升 50%，并获得 10% 吸血：造成伤害的 10% 回复自身生命。"
+hp_threshold = 0.5
+hp_threshold_status = ExtResource("2")

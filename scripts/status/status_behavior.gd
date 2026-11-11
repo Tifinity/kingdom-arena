@@ -44,6 +44,11 @@ func modify_stat(_instance: StatusInstance, _stat: StringName, value: float) -> 
 	return value
 
 
+## 吸血比例：单位造成伤害后按该比例回复生命；0 表示不吸血。
+func modify_lifesteal(_instance: StatusInstance, value: float) -> float:
+	return value
+
+
 ## 在动作伤害命中结算前修正伤害；is_basic 标识是否普通攻击。
 func modify_damage(_instance: StatusInstance, amount: float, _is_basic: bool) -> float:
 	return amount
