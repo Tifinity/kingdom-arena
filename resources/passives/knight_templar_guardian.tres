@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "圣殿守护"
+description = "自身及 {armor_aura_radius} 像素内友军护甲 +{armor_aura_percent} 个百分点；同名光环不叠加。"
+armor_aura_radius = 120.0
+armor_aura_bonus = 0.04

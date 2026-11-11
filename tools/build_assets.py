@@ -231,6 +231,7 @@ def _write_effect_resource(effect_id: str, effect: dict) -> str:
         f'summon_count = {effect.get("summon_count", 1)}',
         f'knockback = {effect.get("knockback", 0.0):.1f}',
         f'projectile_kind = {effect["projectile_kind"]}',
+        f'straight_projectile = {"true" if effect.get("straight_projectile", False) else "false"}',
         f'duration = {effect.get("duration", 0.0):.2f}',
     ]
     if effect.get("scene_id"):
@@ -375,7 +376,7 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         shield_per_target_ratio=0.0, shield_max_ratio=0.0,
         shield_self_ratio=0.0, ignore_shield=False,
         requires_action_hit=False, guard_reward_shield_ratio=0.0,
-        guard_reward_shield_duration=0.0) -> dict:
+        guard_reward_shield_duration=0.0, straight_projectile=False) -> dict:
     return {
         "kind": kind, "shape": shape, "trigger_frame": frame,
         "damage_ratio": ratio, "radius": radius, "half_angle": half,
@@ -394,6 +395,7 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         "guard_reward_shield_ratio": guard_reward_shield_ratio,
         "guard_reward_shield_duration": guard_reward_shield_duration,
         "requires_action_hit": requires_action_hit,
+        "straight_projectile": straight_projectile,
     }
 
 
@@ -408,7 +410,8 @@ def _skill(action_id: str, name: str, animation: str, effects: list[dict],
            min_range: float = 0.0, preferred_min_range: float = 0.0,
            teleport_to_target: bool = False,
            teleport_gap: float = 10.0, movement_kind: int = 0,
-           targeting_selection: int = 0, animation_speed: float = 1.0) -> dict:
+           targeting_selection: int = 0, animation_speed: float = 1.0,
+           leap_height: float = 0.0) -> dict:
     return {
         "id": action_id, "name": name, "animation": animation,
         "effects": effects, "cooldown": cooldown, "priority": priority,
@@ -424,6 +427,7 @@ def _skill(action_id: str, name: str, animation: str, effects: list[dict],
         "max_hp": max_hp,
         "description": description,
         "animation_speed": animation_speed,
+        "leap_height": leap_height,
     }
 
 
@@ -440,12 +444,18 @@ def _skills_for(unit: Unit) -> list[dict]:
     skills: list[dict] = []
 
     if slug == "soldier":
-        skills.append(_skill("soldier_cleave", "横斩", "attack_02",
-                             [_fx(shape=2, ratio=1.25, frame=4, radius=rng + 10.0, half=60.0)],
-                             6.0, 7, rng, rng))
-        skills.append(_skill("soldier_thrust", "破阵突刺", "attack_03",
-                             [_fx(shape=4, ratio=2.0, frame=6, length=170.0, width=44.0)],
-                             14.0, 10, 180.0, rng, mana=100.0))
+        skills.append(_skill("soldier_jump_slash", "跳劈", "attack_02",
+                             [_fx(shape=0, ratio=1.0, frame=4)],
+                             7.0, 8, 340.0, rng, min_range=125.0,
+                             movement_kind=4, advance=700.0, advance_distance=340.0,
+                             teleport_gap=0.0, targeting_selection=5, leap_height=80.0,
+                             description="跳向中距离内护甲最低的敌人，造成 1.0 AD 单体伤害。"))
+        skills.append(_skill("soldier_backstep_shot", "后撤射击", "move",
+                             [_fx(kind=1, shape=0, ratio=1.3, frame=4, projectile=1,
+                                  straight_projectile=True)],
+                             10.0, 8, 330.0, rng, movement_kind=5,
+                             advance=420.0, advance_distance=100.0,
+                             description="向后位移 100 像素，再直线射出一箭，造成 1.3 AD 单体伤害。"))
     elif slug == "archer":
         skills.append(_skill("archer_piercing_shot", "贯云箭", "attack_02",
                              [_fx(shape=4, ratio=2.1, frame=9, length=360.0, width=40.0)],
@@ -691,6 +701,8 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
     is_ranged = unit.attack_kind == 1
     basic_effect = _fx(kind=1 if is_ranged else 0, shape=0, frame=trigger_frame,
                        ratio=1.0, projectile=unit.projectile_kind if is_ranged else 0)
+    if unit.slug == "soldier":
+        basic_effect["damage_ratio"] = 1.2
     basic_range = unit.attack_range
     basic_display_name = "普通攻击"
     if unit.slug == "necromancer":
@@ -706,8 +718,19 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
         RES_ACTIONS / f"{basic_name}.tres", basic_name, basic_display_name, 0, 0,
         basic_animation, basic_range, 1.0 / max(unit.attack_speed, 0.05),
         0, basic_effect,
+        description="近战距离挥剑，造成 1.2 AD 伤害。" if unit.slug == "soldier" else "",
     )
     actions = [f"res://resources/actions/{basic_name}.tres"]
+    if unit.slug == "soldier":
+        ranged_name = "soldier_ranged_basic"
+        _write_action(
+            RES_ACTIONS / f"{ranged_name}.tres", ranged_name, "弓箭普攻", 0, 0,
+            "idle", 430.0, 1.1, 0,
+            _fx(kind=1, shape=0, frame=2, ratio=1.0, projectile=1,
+                straight_projectile=True), min_range=125.0,
+            description="远距离射出一箭，造成 1.0 AD 单体伤害。",
+        )
+        actions.append(f"res://resources/actions/{ranged_name}.tres")
     for spec in _skills_for(unit):
         path = RES_ACTIONS / f"{spec['id']}.tres"
         _write_action(
@@ -723,7 +746,7 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
             movement_kind_override=spec["movement_kind"], targeting_selection=spec["targeting_selection"],
             description=spec["description"],
             animation_speed=spec["animation_speed"],
-            leap_height=100.0 if spec["id"] == "werebear_quake" else 0.0,
+            leap_height=100.0 if spec["id"] == "werebear_quake" else spec["leap_height"],
             requires_wounded_ally=spec["requires_wounded_ally"],
         )
         actions.append(f"res://resources/actions/{spec['id']}.tres")
@@ -1018,6 +1041,9 @@ def build_character(unit: Unit) -> tuple[float, str]:
         "elite_orc": "elite_orc_rage",
         "armored_orc": "armored_orc_regen",
         "orc_rider": "orc_rider_shield",
+        "soldier": "soldier_dual_weapons",
+        "knight_templar": "knight_templar_guardian",
+        "werebear": "werebear_thick_hide",
     }
     passive_path = passive_paths.get(unit.slug, "")
     passive_id = str(6 + len(action_paths)) if passive_path else ""

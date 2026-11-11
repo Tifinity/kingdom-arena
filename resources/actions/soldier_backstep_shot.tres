@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="3"]
+
+[sub_resource type="Resource" id="arrow"]
+script = ExtResource("2")
+kind = 1
+shape = 0
+trigger_frame = 4
+damage_ratio = 1.3
+projectile_kind = 1
+straight_projectile = true
+
+[sub_resource type="Resource" id="backstep"]
+script = ExtResource("3")
+kind = 5
+speed = 420.0
+distance = 100.0
+
+[resource]
+script = ExtResource("1")
+action_id = &"soldier_backstep_shot"
+display_name = "后撤射击"
+description = "向后位移 100 像素，再直线射出一箭，造成 1.3 AD 单体伤害。"
+category = 1
+target_mode = 0
+animation = &"move"
+action_range = 330.0
+cooldown = 10.0
+priority = 8
+movement = SubResource("backstep")
+effects = [SubResource("arrow")]

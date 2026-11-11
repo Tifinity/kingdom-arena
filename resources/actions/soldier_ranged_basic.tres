@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+
+[sub_resource type="Resource" id="arrow"]
+script = ExtResource("2")
+kind = 1
+shape = 0
+trigger_frame = 2
+damage_ratio = 1.0
+projectile_kind = 1
+straight_projectile = true
+
+[resource]
+script = ExtResource("1")
+action_id = &"soldier_ranged_basic"
+display_name = "弓箭普攻"
+description = "远距离射出一箭，造成 1.0 AD 单体伤害。"
+category = 0
+target_mode = 0
+animation = &"idle"
+action_range = 430.0
+min_range = 125.0
+cooldown = 1.1
+priority = 0
+effects = [SubResource("arrow")]

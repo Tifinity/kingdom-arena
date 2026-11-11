@@ -43,6 +43,7 @@ func _run_all() -> void:
 	await _test_lancer_charge()
 	await _test_orc_rider_tank()
 	await _test_werebear_skills()
+	await _test_new_passives_and_soldier()
 	await _test_werewolf_combo()
 	await _test_armored_skeleton_basic_and_ultimate()
 	await _test_axeman_skills()
@@ -135,11 +136,13 @@ func _test_catalog() -> void:
 		for animation in [&"attack_02", &"attack_03"]:
 			if definition.sprite_frames != null and definition.sprite_frames.has_animation(animation) and not used_animations.has(animation):
 				missing_attack_use.append("%s/%s" % [definition.unit_id, animation])
-	var allowed_no_ultimate: Array[String] = ["elite_orc"]
+	var allowed_no_ultimate: Array[String] = ["elite_orc", "soldier"]
+	missing_ultimate.sort()
+	allowed_no_ultimate.sort()
 	_check(missing_ultimate == allowed_no_ultimate,
-		"除精锐兽人（第三技能留空）外，每名英雄都有一个满蓝大招")
+		"精锐兽人与士兵第三技能留空，其余英雄都有满蓝大招")
 	_check(bad_mana.is_empty(), "普通技能只受 CD，不再消耗蓝量")
-	_check(missing_attack_use.is_empty(), "所有现有 attack02/attack03 动画都被技能使用")
+	_check(missing_attack_use == ["soldier/attack_03"], "除士兵未使用的 attack03 外，现有技能动画均被使用")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.HEAL), "技能数据包含治疗效果")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.SUMMON), "技能数据包含召唤效果")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.SHIELD), "技能数据包含护盾效果")
@@ -1569,6 +1572,111 @@ func _test_werebear_skills() -> void:
 	await get_tree().process_frame
 
 
+func _test_new_passives_and_soldier() -> void:
+	print("\n[新被动与士兵] 光环、厚皮、跳劈、后撤射击、双武器")
+	var soldier_def := UnitCatalog.get_definition(&"soldier")
+	var jump: CombatActionDefinition = soldier_def.actions[2]
+	var backshot: CombatActionDefinition = soldier_def.actions[3]
+	_check(soldier_def.actions.size() == 4 and soldier_def.passive != null
+		and jump.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_ARMOR_ENEMY
+		and jump.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT
+		and backshot.movement_kind() == ActionMovementDefinition.Kind.RETREAT,
+		"士兵保留近远程普攻、跳劈和后撤射击，技能3留空")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight_templar")
+	GameState.set_slot(0, 1, &"knight_templar")
+	GameState.set_slot(0, 2, &"soldier")
+	GameState.set_slot(0, 3, &"werebear")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var templars: Array[Unit] = []
+	var soldier: Unit = null
+	var bear: Unit = null
+	var enemies: Array[Unit] = []
+	for fighter in battle.units:
+		fighter.brain.enabled = false
+		if fighter.team == 1:
+			enemies.append(fighter)
+		elif fighter.definition.unit_id == &"knight_templar":
+			templars.append(fighter)
+		elif fighter.definition.unit_id == &"werebear":
+			bear = fighter
+		else:
+			soldier = fighter
+	if templars.size() != 2 or soldier == null or bear == null or enemies.size() != 2:
+		_check(false, "被动和士兵测试单位生成成功")
+		GameState.reset_lineups()
+		battle.queue_free()
+		return
+	var origin := battle.field_min + Vector2(350.0, 300.0)
+	templars[0].position = origin
+	templars[1].position = origin + Vector2(15.0, 0.0)
+	soldier.position = origin + Vector2(45.0, 0.0)
+	bear.position = origin + Vector2(280.0, 100.0)
+	enemies[0].position = origin + Vector2(240.0, 0.0)
+	enemies[1].position = origin + Vector2(290.0, 65.0)
+	_check(is_equal_approx(soldier.current_armor(), soldier.armor + 0.04)
+		and is_equal_approx(templars[0].current_armor(), templars[0].armor + 0.04),
+		"两个同名圣殿光环不叠加，施放者自身也受益")
+	templars[0].position += Vector2(-400.0, 0.0)
+	templars[1].position += Vector2(-400.0, 0.0)
+	_check(is_equal_approx(soldier.current_armor(), soldier.armor), "离开 120 像素光环后护甲恢复")
+	bear.hp = bear.max_hp * 0.49
+	bear.sync_conditional_passives()
+	_check(is_equal_approx(bear.current_armor(), bear.armor + 0.06), "熊人低于半血时厚皮增加 6 个百分点护甲")
+	bear.hp = bear.max_hp * 0.5
+	bear.sync_conditional_passives()
+	_check(is_equal_approx(bear.current_armor(), bear.armor), "熊人回到半血时厚皮消失")
+	enemies[0].armor = 0.3
+	enemies[1].armor = 0.02
+	_check(soldier.brain._lowest_armor_enemy_in_range(jump, enemies) == enemies[1],
+		"跳劈锁定中距离内护甲最低的敌人")
+	var initial_hp := enemies[1].hp
+	soldier.target = enemies[1]
+	soldier.planned_action = jump
+	soldier.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(1.0).timeout
+	_check(soldier.position.distance_to(enemies[1].position) < 100.0
+		and absf(initial_hp - enemies[1].hp - soldier.attack_damage * (1.0 - enemies[1].armor)) < 0.5,
+		"跳劈落到目标身旁并造成 1.0 AD 单体伤害")
+	soldier.state_machine.transition_to(&"idle", true)
+	soldier.position = origin + Vector2(45.0, 0.0)
+	enemies[0].position = origin + Vector2(240.0, 0.0)
+	var before_retreat := soldier.position
+	var before_shot_hp := enemies[0].hp
+	soldier.target = enemies[0]
+	soldier.planned_action = backshot
+	soldier.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.18).timeout
+	_check(soldier.position.distance_to(before_retreat) > 35.0
+		and is_equal_approx(enemies[0].hp, before_shot_hp), "后撤射击先位移再发箭")
+	await get_tree().create_timer(0.9).timeout
+	_check(absf(before_shot_hp - enemies[0].hp - soldier.attack_damage * 1.3 * (1.0 - enemies[0].armor)) < 0.5,
+		"后撤射出的直线箭造成 1.3 AD 单体伤害")
+	soldier.state_machine.transition_to(&"idle", true)
+	soldier.action_cooldowns[jump.action_id] = 99.0
+	soldier.action_cooldowns[backshot.action_id] = 99.0
+	soldier.brain._observe()
+	soldier.brain._judge()
+	var far_plan: ActionPlan = soldier.brain._select_action()
+	_check(far_plan != null and far_plan.action.action_id == &"soldier_ranged_basic",
+		"远距离自动使用弓箭普攻")
+	soldier.position = enemies[0].position - Vector2(65.0, 0.0)
+	soldier.brain._observe()
+	soldier.brain._judge()
+	var near_plan: ActionPlan = soldier.brain._select_action()
+	_check(near_plan != null and near_plan.action.action_id == &"soldier_basic"
+		and is_equal_approx(near_plan.action.effects[0].damage_ratio, 1.2),
+		"近战距离自动使用 1.2 AD 挥剑普攻")
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
 func _test_orc_rider_tank() -> void:
 	print("\n[兽人骑兵] 抗线、冲撞与护盾")
 	var definition := UnitCatalog.get_definition(&"orc_rider")
@@ -2520,7 +2628,7 @@ func _test_status_framework() -> void:
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 11, "状态目录包含 11 种状态（含嘲讽、剑士攻速/热诚与狂怒）")
+	_check(StatusCatalog.count() == 12, "状态目录包含 12 种状态（含厚皮）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,

@@ -18,11 +18,17 @@ extends Resource
 @export var hp_threshold_status: StatusDefinition
 ## 常驻生命回复：每秒回复最大生命的该比例（0.02 表示每秒 2%）。
 @export var hp_regen_ratio_per_second := 0.0
+## 同队光环：范围内护甲增加的百分点。同名来源只取最高值。
+@export var armor_aura_radius := 0.0
+@export var armor_aura_bonus := 0.0
 
 
 func detail_text() -> String:
 	var rendered := description
 	rendered = rendered.replace("{hp_regen_percent}", _number_text(hp_regen_ratio_per_second * 100.0))
+	rendered = rendered.replace("{armor_aura_radius}", _number_text(armor_aura_radius))
+	rendered = rendered.replace("{armor_aura_percent}", _number_text(armor_aura_bonus * 100.0))
+	rendered = rendered.replace("{hp_threshold_percent}", _number_text(hp_threshold * 100.0))
 	for index in battle_start_statuses.size():
 		var status := battle_start_statuses[index]
 		if status == null:

@@ -18,6 +18,7 @@ var kind := 0
 var tint := Color.WHITE
 var effect: ActionEffectDefinition
 var is_skill := false
+var straight_flight := false
 var speed := 900.0
 var life := 2.6
 
@@ -42,6 +43,7 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 		)
 	)
 	effect = p_effect
+	straight_flight = effect != null and effect.straight_projectile
 	is_skill = p_source.current_cast != null and p_source.current_cast.action.category == CombatActionDefinition.Category.SKILL
 	global_position = p_source.get_muzzle_point()
 
@@ -101,6 +103,19 @@ func _physics_process(delta: float) -> void:
 		_set_effect_frame(mini(2, int(_travel_elapsed * 12.0)))
 
 	if target != null and is_instance_valid(target) and target.alive:
+		if straight_flight:
+			var next_position := global_position + _velocity * delta
+			var segment := next_position - global_position
+			var aim := target.get_hit_point()
+			var progress := clampf((aim - global_position).dot(segment) / maxf(segment.length_squared(), 0.001), 0.0, 1.0)
+			var nearest := global_position + segment * progress
+			if aim.distance_to(nearest) <= target.body_radius * 0.6 + 10.0:
+				global_position = nearest
+				_hit()
+				return
+			global_position = next_position
+			queue_redraw()
+			return
 		var aim := target.get_hit_point()
 		var offset := aim - global_position
 		var step := speed * delta

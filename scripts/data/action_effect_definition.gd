@@ -72,6 +72,8 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 
 ## 投射物类型：0 无，1 箭矢，2 法术。
 @export var projectile_kind: int = 0
+## 箭矢沿发射时的方向直线飞行；默认投射物仍追踪目标。
+@export var straight_projectile := false
 
 ## 投射物、AOE、治疗等视觉场景；可选。
 @export var effect_scene: PackedScene

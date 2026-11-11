@@ -289,6 +289,10 @@ func _select_action() -> ActionPlan:
 					var lowest := _lowest_hp_enemy_in_range(action, enemies)
 					if lowest != null:
 						candidates.append(lowest)
+				elif action.targeting != null and action.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_ARMOR_ENEMY:
+					var softest := _lowest_armor_enemy_in_range(action, enemies)
+					if softest != null:
+						candidates.append(softest)
 				else:
 					for enemy in enemies:
 						candidates.append(enemy)
@@ -390,6 +394,20 @@ func _lowest_hp_enemy_in_range(action: CombatActionDefinition, enemies: Array) -
 				continue
 		if lowest == null or enemy.hp_ratio() < lowest.hp_ratio():
 			lowest = enemy as Unit
+	return lowest
+
+
+func _lowest_armor_enemy_in_range(action: CombatActionDefinition, enemies: Array) -> Unit:
+	var lowest: Unit = null
+	for enemy in enemies:
+		if not is_instance_valid(enemy) or not enemy.alive:
+			continue
+		var distance := unit.global_position.distance_to(enemy.global_position)
+		if distance < action.min_range or distance > action.action_range + enemy.body_radius + unit.body_radius * 0.35 + 6.0:
+			continue
+		if lowest == null or enemy.current_armor() < lowest.current_armor() - 0.001 \
+				or (is_equal_approx(enemy.current_armor(), lowest.current_armor()) and distance < unit.global_position.distance_to(lowest.global_position)):
+			lowest = enemy
 	return lowest
 
 
