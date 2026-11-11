@@ -9,3 +9,5 @@ enum Kind { NONE, ADVANCE, TELEPORT, CHARGE, DASH_TO_POINT }
 @export var speed := 0.0
 @export var distance := 0.0
 @export var target_gap := 10.0
+## 冲向施法点时角色腾空的视觉高度；0 表示贴地移动。
+@export var leap_height := 0.0

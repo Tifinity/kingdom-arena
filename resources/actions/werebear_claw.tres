@@ -6,11 +6,11 @@
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
 kind = 0
-shape = 2
+shape = 0
 trigger_frame = 6
-damage_ratio = 1.40
-radius = 106.0
-half_angle = 62.0
+damage_ratio = 0.90
+radius = 0.0
+half_angle = 0.0
 length = 0.0
 width = 0.0
 center_on_self = false
@@ -25,15 +25,23 @@ knockback = 0.0
 projectile_kind = 0
 duration = 0.00
 
+[sub_resource type="Resource" id="effect_1"]
+script = ExtResource("2")
+kind = 0
+shape = 0
+trigger_frame = 9
+damage_ratio = 0.90
+
 [resource]
 script = ExtResource("1")
 action_id = &"werebear_claw"
-display_name = "裂林爪击"
+display_name = "暴怒双爪"
+description = "连续攻击两次，每次对单体造成 0.9 AD 伤害。"
 category = 1
 target_mode = 0
 animation = &"attack_02"
 animation_speed = 1.0
-action_range = 106.0
+action_range = 94.0
 min_range = 0.0
 cooldown = 7.00
 mana_cost = 0.0
@@ -44,4 +52,4 @@ advance_speed = 0.0
 min_targets = 1
 requires_wounded_ally = false
 priority = 7
-effects = [SubResource("effect_0")]
+effects = [SubResource("effect_0"), SubResource("effect_1")]

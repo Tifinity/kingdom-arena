@@ -457,6 +457,11 @@ func _position_hero_for_demo(action: CombatActionDefinition, _cast_target: Unit)
 		CombatActionDefinition.TargetMode.ENEMY:
 			if action.movement_kind() == ActionMovementDefinition.Kind.CHARGE:
 				desired = 300.0
+			elif hero.definition.attack_kind == UnitDefinition.AttackKind.MELEE \
+					and action.movement_kind() == ActionMovementDefinition.Kind.NONE \
+					and distance > action.action_range * 0.8:
+				# 近战单体招式贴近训练靶，避免宽松施放距离让动画在目标外挥空。
+				desired = _desired_cast_distance(action)
 			elif not hero.is_target_in_action_range(action, 8.0):
 				desired = _desired_cast_distance(action)
 		CombatActionDefinition.TargetMode.DIRECTION:

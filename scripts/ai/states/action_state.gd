@@ -6,6 +6,8 @@ extends UnitState
 
 var _action: CombatActionDefinition
 var _cast: ActionCast
+var _visual_start_y := 0.0
+var _leap_distance := 0.0
 
 
 func enter(_previous: StringName) -> void:
@@ -28,6 +30,7 @@ func enter(_previous: StringName) -> void:
 	_cast = ActionCast.create(plan)
 	if _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT:
 		_cast.point = unit.battle.clamp_unit_position(_cast.point)
+		_leap_distance = unit.global_position.distance_to(_cast.point)
 	unit.current_cast = _cast
 	unit.spend_mana(_action)
 	unit.begin_action_effects()
@@ -54,6 +57,7 @@ func enter(_previous: StringName) -> void:
 		_cast.charge_destination = _cast.target.global_position
 	unit.face_direction(_cast.direction.x)
 	unit.visual.speed_scale = maxf(_action.animation_speed, 0.05)
+	_visual_start_y = unit.visual.position.y
 	unit.play_animation(_action.animation, true)
 
 	var frames := 1
@@ -103,6 +107,9 @@ func update(delta: float) -> void:
 		var remaining := _cast.point - unit.global_position
 		if remaining.length_squared() > 1.0:
 			unit.advance_step(remaining.normalized(), minf(_action.movement_speed() * delta, remaining.length()) / maxf(delta, 0.0001), delta)
+		if _action.movement.leap_height > 0.0:
+			var travel_ratio := 1.0 - clampf(unit.global_position.distance_to(_cast.point) / maxf(_leap_distance, 1.0), 0.0, 1.0)
+			unit.visual.position.y = _visual_start_y - sin(travel_ratio * PI) * _action.movement.leap_height
 	elif _action.movement_kind() == ActionMovementDefinition.Kind.ADVANCE and _action.movement_speed() > 0.0:
 		var step_distance := _action.movement_speed() * delta
 		if _action.movement_distance() > 0.0:
@@ -156,5 +163,6 @@ func _charge_hit_segment(start: Vector2, finish: Vector2) -> void:
 
 func exit() -> void:
 	unit.visual.speed_scale = 1.0
+	unit.visual.position.y = _visual_start_y
 	unit.current_cast = null
 	_cast = null

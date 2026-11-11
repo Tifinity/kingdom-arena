@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/werebear_frames.tres" id="2"]
@@ -6,6 +6,7 @@
 [ext_resource type="Resource" path="res://resources/actions/werebear_basic.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/actions/werebear_claw.tres" id="5"]
 [ext_resource type="Resource" path="res://resources/actions/werebear_quake.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/actions/werebear_roar.tres" id="9"]
 [ext_resource type="PackedScene" path="res://scenes/units/werebear_visual.tscn" id="7"]
 [ext_resource type="Resource" path="res://resources/behaviors/werebear.tres" id="8"]
 
@@ -34,7 +35,7 @@ foot_offset = 7.0
 character_height = 18.0
 body_radius = 42.0
 accent_color = Color(0.490, 0.698, 1.000, 1)
-actions = [ExtResource("4"), ExtResource("5"), ExtResource("6")]
+actions = [ExtResource("4"), ExtResource("5"), ExtResource("9"), ExtResource("6")]
 behavior_profile = ExtResource("8")
 visual_scene = ExtResource("7")
 sprite_frames = ExtResource("2")

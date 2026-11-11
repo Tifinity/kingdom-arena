@@ -42,6 +42,7 @@ func _run_all() -> void:
 	await _test_wizard_and_elite_orc()
 	await _test_lancer_charge()
 	await _test_orc_rider_tank()
+	await _test_werebear_skills()
 	await _test_werewolf_combo()
 	await _test_armored_skeleton_basic_and_ultimate()
 	await _test_axeman_skills()
@@ -1452,6 +1453,92 @@ func _test_lancer_charge() -> void:
 	_check(is_equal_approx(enemies[0].hp, expired_hp), "火焰结束后不再扣血")
 	GameState.reset_lineups()
 	battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_werebear_skills() -> void:
+	print("\n[熊人] 双爪、怒吼与震落")
+	var definition := UnitCatalog.get_definition(&"werebear")
+	var claw: CombatActionDefinition = definition.actions[1]
+	var roar: CombatActionDefinition = definition.actions[2]
+	var quake: CombatActionDefinition = definition.actions[3]
+	_check(claw.effects.size() == 2 and is_equal_approx(claw.effects[0].damage_ratio, 0.9)
+		and is_equal_approx(claw.effects[1].damage_ratio, 0.9), "暴怒双爪有两次单体 0.9 AD 命中")
+	_check(roar.cooldown == 10.0 and roar.effects[0].shape == ActionEffectDefinition.Shape.CIRCLE
+		and roar.effects[0].status_power == 0.5 and roar.effects[0].status_duration == 2.0
+		and roar.effects[0].effect_scene != null and roar.animation == &"idle"
+		and roar.effects[0].trigger_frame == 0,
+		"怒吼范围减速 50%，持续 2 秒")
+	_check(quake.select_densest_cluster() and quake.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT
+		and quake.effects[0].effect_scene != null and quake.effects[1].status_duration == 0.5,
+		"天声震落跳向密集敌群并配置落地特效与眩晕")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"werebear")
+	for index in 3:
+		GameState.set_slot(1, index, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var bear: Unit = null
+	var enemies: Array[Unit] = []
+	for fighter in battle.units:
+		fighter.brain.enabled = false
+		if fighter.team == 0:
+			bear = fighter
+		else:
+			enemies.append(fighter)
+	if bear == null or enemies.size() != 3:
+		_check(false, "熊人与三名目标生成成功")
+		GameState.reset_lineups()
+		battle.queue_free()
+		return
+	var start := battle.field_min + Vector2(220.0, 220.0)
+	bear.position = start
+	enemies[0].position = start + Vector2(85.0, 0.0)
+	enemies[1].position = start + Vector2(280.0, 0.0)
+	enemies[2].position = start + Vector2(295.0, 45.0)
+	bear.target = enemies[0]
+	bear.planned_action = claw
+	var first_hp: float = enemies[0].hp
+	bear.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(1.2).timeout
+	_check(absf(first_hp - enemies[0].hp - bear.attack_damage * 1.8 * (1.0 - enemies[0].armor)) < 1.0,
+		"暴怒双爪实际命中同一目标两次")
+	bear.planned_action = roar
+	bear.target = enemies[0]
+	var roar_position := bear.position
+	bear.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.7).timeout
+	_check(bear.position.is_equal_approx(roar_position), "怒吼原地站立释放")
+	_check(enemies[0].status_controller.has_status(&"slow") and not enemies[1].status_controller.has_status(&"slow"),
+		"怒吼只减速周围敌人")
+	_check(is_equal_approx(enemies[0].slow_factor, 0.5)
+		and enemies[0].status_controller.get_vfx(&"slow") != null,
+		"怒吼减速实际降低移速并显示圆圈")
+	bear.state_machine.transition_to(&"idle", true)
+	bear.mana = bear.max_mana
+	bear.planned_action = quake
+	bear.target = enemies[1]
+	bear.planned_point = (enemies[1].position + enemies[2].position) * 0.5
+	bear.planned_has_point = true
+	var quake_hp: float = enemies[1].hp
+	bear.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.65).timeout
+	_check(bear.position.distance_to(bear.planned_point) < 25.0 and enemies[1].hp < quake_hp
+		and enemies[1].status_controller.has_status(&"stun"), "天声震落落到敌群并造成伤害和眩晕")
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+	var lab = load("res://scenes/debug/hero_lab.tscn").instantiate()
+	add_child(lab)
+	await get_tree().process_frame
+	lab._select_definition(definition)
+	lab.hero.brain.enabled = false
+	lab._cast_action(claw)
+	await get_tree().create_timer(0.8).timeout
+	_check(lab.battle.training_damage() > 0.0, "试炼场暴怒双爪命中稻草人")
+	lab.queue_free()
 	await get_tree().process_frame
 
 
