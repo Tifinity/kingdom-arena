@@ -5,31 +5,32 @@
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
-shape = 1
+shape = 4
 trigger_frame = 5
 damage_ratio = 1.2
-radius = 110.0
-center_on_self = true
+length = 190.0
+width = 76.0
+ignore_shield = true
 
 [sub_resource type="Resource" id="effect_1"]
 script = ExtResource("2")
 kind = 6
-shape = 1
+shape = 4
 trigger_frame = 5
 damage_ratio = 0.0
-radius = 110.0
-center_on_self = true
+length = 190.0
+width = 76.0
 knockback = 35.0
 
 [resource]
 script = ExtResource("1")
 action_id = &"armored_orc_bash"
 display_name = "贯甲突刺"
-description = "长矛向前突刺，对近身敌人造成伤害并击退。"
+description = "长矛向前突刺，对直线范围内敌人造成 {damage_0} 伤害并击退，无视护盾。"
 category = 1
-target_mode = 2
+target_mode = 0
 animation = &"attack_02"
-action_range = 0.0
+action_range = 190.0
 cooldown = 7.0
 priority = 7
 effects = Array[ExtResource("2")]([SubResource("effect_0"), SubResource("effect_1")])

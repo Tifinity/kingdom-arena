@@ -221,6 +221,8 @@ def _write_effect_resource(effect_id: str, effect: dict) -> str:
         f'burn_dps_ratio = {effect.get("burn_dps_ratio", 0.0):.2f}',
         f'shield_per_target_ratio = {effect.get("shield_per_target_ratio", 0.0):.2f}',
         f'shield_max_ratio = {effect.get("shield_max_ratio", 0.0):.2f}',
+        *([f'shield_self_ratio = {effect["shield_self_ratio"]:.2f}'] if effect.get("shield_self_ratio", 0.0) > 0.0 else []),
+        *(['ignore_shield = true'] if effect.get("ignore_shield", False) else []),
         f'guard_reward_shield_ratio = {effect.get("guard_reward_shield_ratio", 0.0):.2f}',
         f'guard_reward_shield_duration = {effect.get("guard_reward_shield_duration", 0.0):.2f}',
         f'heal_amount = {effect.get("heal_amount", 0.0):.1f}',
@@ -267,6 +269,7 @@ def _write_action(
     movement_kind_override: int = 0,
     targeting_selection: int = 0,
     animation_speed: float = 1.0,
+    leap_height: float = 0.0,
 ) -> None:
     # 运行中的技能平衡以 .tres 为准；默认只补齐缺失文件。
     if path.exists() and not REBUILD_ACTIONS:
@@ -325,6 +328,7 @@ def _write_action(
             f'speed = {charge_speed if charge_to_farthest else advance_speed:.1f}',
             f'distance = {advance_distance:.1f}',
             f'target_gap = {teleport_gap:.1f}',
+            f'leap_height = {leap_height:.1f}',
             '',
         ]
     if targeting_selection:
@@ -369,6 +373,7 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         heal_amount=0.0, heal_ratio=0.0, summon_id="", summon_count=1, knockback=0.0,
         burn_duration=0.0, burn_dps_ratio=0.0,
         shield_per_target_ratio=0.0, shield_max_ratio=0.0,
+        shield_self_ratio=0.0, ignore_shield=False,
         requires_action_hit=False, guard_reward_shield_ratio=0.0,
         guard_reward_shield_duration=0.0) -> dict:
     return {
@@ -384,6 +389,8 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         "burn_duration": burn_duration, "burn_dps_ratio": burn_dps_ratio,
         "shield_per_target_ratio": shield_per_target_ratio,
         "shield_max_ratio": shield_max_ratio,
+        "shield_self_ratio": shield_self_ratio,
+        "ignore_shield": ignore_shield,
         "guard_reward_shield_ratio": guard_reward_shield_ratio,
         "guard_reward_shield_duration": guard_reward_shield_duration,
         "requires_action_hit": requires_action_hit,
@@ -541,18 +548,23 @@ def _skills_for(unit: Unit) -> list[dict]:
                              description="朝敌人最密集的方向推进，连续挥砍 4 次。"))
     elif slug == "armored_orc":
         skills.append(_skill("armored_orc_bash", "贯甲突刺", "attack_02",
-                             [_fx(shape=1, ratio=1.2, frame=5, radius=110.0, center_self=True),
-                              _fx(kind=6, shape=1, frame=5, radius=110.0, center_self=True,
+                             [_fx(shape=4, ratio=1.2, frame=5, length=190.0, width=76.0,
+                                  ignore_shield=True),
+                              _fx(kind=6, shape=4, frame=5, length=190.0, width=76.0,
                                   knockback=35.0)],
-                             7.0, 7, 0.0, rng, target_mode=2,
-                             description="长矛向前突刺，对近身敌人造成伤害并击退。"))
+                             7.0, 7, 190.0, rng, target_mode=0,
+                             description="长矛向前突刺，对直线范围内敌人造成 {damage_0} 伤害并击退，无视护盾。"))
         skills.append(_skill("armored_orc_quakeslam", "裂地盾击", "attack_03",
                              [_fx(shape=1, ratio=1.8, frame=6, radius=150.0, center_self=True),
                               _fx(kind=5, shape=1, frame=6, radius=150.0, center_self=True,
                                   status_kind=0, status_duration=1.0, requires_action_hit=True)],
                              16.0, 10, 0.0, rng, mana=100.0, target_mode=2,
                              description="以盾牌砸向地面释放冲击波，对范围内敌人造成伤害，并眩晕所有被命中的敌人 1 秒。"))
-        skills.append(_guard_action("armored_orc_block", "格挡"))
+        skills.append(_skill("armored_orc_block", "格挡", "block",
+                             [_fx(kind=4, shape=3, frame=0, shield_self_ratio=0.2, duration=4.0)],
+                             12.0, 6, 0.0, 0.0, category=2, target_mode=2,
+                             action_duration=1.0, max_hp=0.55,
+                             description="举盾防御，立即获得最大生命 {shield_self_percent}% 的护盾，持续 {shield_duration} 秒。"))
     elif slug == "orc_rider":
         skills.append(_skill("orc_rider_ram", "裂阵冲撞", "attack_01",
                              [_fx(shape=0, ratio=1.45, frame=4, knockback=70.0)],
@@ -565,11 +577,9 @@ def _skills_for(unit: Unit) -> list[dict]:
                              action_duration=1.2, max_hp=0.70,
                              description="生命低于 70% 时格挡 1.2 秒，期间免疫伤害。"))
         skills.append(_skill("orc_rider_cyclone", "裂阵回旋", "attack_03",
-                             [_fx(shape=1, ratio=1.6, frame=6, radius=170.0, center_self=True),
-                              _fx(kind=4, shape=3, frame=7, duration=6.0,
-                                  shield_per_target_ratio=0.12, shield_max_ratio=0.48)],
+                             [_fx(shape=1, ratio=1.6, frame=6, radius=170.0, center_self=True)],
                              15.0, 10, 0.0, rng, mana=100.0, target_mode=2,
-                             description="环斩周围敌人；每命中 1 人获得 12% 最大生命护盾，最多 48%，持续 6 秒。"))
+                             description="环斩周围敌人，造成范围伤害。"))
     elif slug == "skeleton":
         skills.append(_skill("skeleton_cleave", "骨刃斩", "attack_02",
                              [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 8.0, half=60.0)],
@@ -626,14 +636,26 @@ def _skills_for(unit: Unit) -> list[dict]:
                              14.0, 10, 180.0, rng, mana=100.0,
                              description="喷吐酸液，对目标周围敌人造成伤害并减速，同时附加可叠层的中毒。"))
     elif slug == "werebear":
-        skills.append(_skill("werebear_claw", "裂林爪击", "attack_02",
-                             [_fx(shape=2, ratio=1.4, frame=6, radius=rng + 12.0, half=62.0)],
-                             7.0, 7, rng, rng))
-        skills.append(_skill("werebear_quake", "裂地", "attack_03",
-                             [_fx(shape=1, ratio=1.8, frame=6, radius=160.0, center_self=True),
-                              _fx(kind=5, shape=0, frame=6, status_kind=0,
-                                  status_duration=1.0)],
-                             16.0, 10, 0.0, rng, mana=100.0, target_mode=2))
+        skills.append(_skill("werebear_claw", "暴怒双爪", "attack_02",
+                             [_fx(shape=0, ratio=0.9, frame=6),
+                              _fx(shape=0, ratio=0.9, frame=9)],
+                             7.0, 7, rng, rng,
+                             description="连续攻击两次，每次对单体造成 0.9 AD 伤害。"))
+        skills.append(_skill("werebear_roar", "怒吼", "idle",
+                             [_fx(kind=5, shape=1, frame=0, radius=160.0, center_self=True,
+                                  status_kind=1, status_duration=2.0, status_power=0.5)],
+                             10.0, 8, 0.0, rng, target_mode=2,
+                             description="使周围 160 像素内敌人减速 50%，持续 2 秒。"))
+        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/simple_roar_ring.tscn"
+        skills.append(_skill("werebear_quake", "天声震落", "attack_03",
+                             [_fx(shape=1, ratio=1.3, frame=6, radius=160.0),
+                              _fx(kind=5, shape=1, frame=6, radius=160.0, status_kind=0,
+                                  status_duration=0.5, requires_action_hit=True)],
+                             16.0, 10, 340.0, rng, mana=100.0, target_mode=3,
+                             movement_kind=4, advance=850.0, advance_distance=340.0,
+                             targeting_selection=2,
+                             description="跳向敌人最密集处，落地对范围内敌人造成 1.3 AD 伤害并眩晕 0.5 秒。"))
+        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/ground_pound.tscn"
     elif slug == "werewolf":
         skills.append(_skill("werewolf_rend", "血月连斩", "attack_02",
                              [_fx(shape=0, ratio=1.0, frame=7),
@@ -701,6 +723,7 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
             movement_kind_override=spec["movement_kind"], targeting_selection=spec["targeting_selection"],
             description=spec["description"],
             animation_speed=spec["animation_speed"],
+            leap_height=100.0 if spec["id"] == "werebear_quake" else 0.0,
             requires_wounded_ally=spec["requires_wounded_ally"],
         )
         actions.append(f"res://resources/actions/{spec['id']}.tres")
@@ -993,6 +1016,8 @@ def build_character(unit: Unit) -> tuple[float, str]:
         "knight": "knight_morale",
         "swordsman": "swordsman_zeal_duel",
         "elite_orc": "elite_orc_rage",
+        "armored_orc": "armored_orc_regen",
+        "orc_rider": "orc_rider_shield",
     }
     passive_path = passive_paths.get(unit.slug, "")
     passive_id = str(6 + len(action_paths)) if passive_path else ""

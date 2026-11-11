@@ -127,7 +127,8 @@ func _hit() -> void:
 	if target != null and is_instance_valid(target) and target.alive:
 		var shooter: Unit = source if is_instance_valid(source) else null
 		var blocked := target.is_guarding()
-		target.take_damage(damage, shooter, global_position)
+		var pierces_shield := effect != null and effect.ignore_shield
+		target.take_damage(damage, shooter, global_position, false, pierces_shield)
 		if is_instance_valid(shooter):
 			shooter.register_damage_hit(target, is_skill)
 		ActionImpact.apply_on_hit(effect, shooter, target, blocked)

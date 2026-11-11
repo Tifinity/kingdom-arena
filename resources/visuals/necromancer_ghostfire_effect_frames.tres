@@ -1,6 +1,6 @@
-[gd_resource type="SpriteFrames" format=3]
+[gd_resource type="SpriteFrames" format=3 uid="uid://c7ggpn0s72uhw"]
 
-[ext_resource type="Texture2D" path="res://assets/magic/necromancer_attack02_effect.png" id="1"]
+[ext_resource type="Texture2D" uid="uid://bh53fred5powx" path="res://assets/magic/necromancer_attack02_effect.png" id="1"]
 
 [sub_resource type="AtlasTexture" id="frame_0"]
 atlas = ExtResource("1")

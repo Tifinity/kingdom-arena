@@ -110,6 +110,7 @@ func detail_text(attack_damage: float = -1.0) -> String:
 	var rendered_description := description
 	var has_damage_placeholder := false
 	var damage_index := 0
+	var ignores_shield := false
 	for effect in effects:
 		match effect.kind:
 			ActionEffectDefinition.Kind.DAMAGE, ActionEffectDefinition.Kind.PROJECTILE:
@@ -130,11 +131,27 @@ func detail_text(attack_damage: float = -1.0) -> String:
 					damage_parts.append(damage_text)
 					damage_counts[damage_text] = 0
 				damage_counts[damage_text] += 1
+				if effect.ignore_shield:
+					ignores_shield = true
 			ActionEffectDefinition.Kind.HEAL:
 				parts.append("治疗友军")
 			ActionEffectDefinition.Kind.SHIELD:
-				parts.append("每命中一名敌人获得 %.0f%% 最大生命护盾，最多 %.0f%%，持续 %.0f 秒" % [
-					effect.shield_per_target_ratio * 100.0, effect.shield_max_ratio * 100.0, effect.duration])
+				var shield_texts: Array[String] = []
+				if effect.shield_self_ratio > 0.0:
+					shield_texts.append("获得 %.0f%% 最大生命护盾" % (effect.shield_self_ratio * 100.0))
+				if effect.shield_per_target_ratio > 0.0:
+					shield_texts.append("每命中一名敌人获得 %.0f%% 最大生命护盾，最多 %.0f%%" % [
+						effect.shield_per_target_ratio * 100.0, effect.shield_max_ratio * 100.0])
+				var shield_text := "，".join(PackedStringArray(shield_texts))
+				if shield_text.is_empty():
+					shield_text = "获得护盾"
+				if effect.duration > 0.0:
+					shield_text += "，持续 %.1f 秒" % effect.duration
+				parts.append(shield_text)
+				rendered_description = rendered_description.replace("{shield_self_percent}", _number_text(effect.shield_self_ratio * 100.0))
+				rendered_description = rendered_description.replace("{shield_duration}", _number_text(effect.duration))
+				rendered_description = rendered_description.replace("{shield_per_target_percent}", _number_text(effect.shield_per_target_ratio * 100.0))
+				rendered_description = rendered_description.replace("{shield_max_percent}", _number_text(effect.shield_max_ratio * 100.0))
 			ActionEffectDefinition.Kind.GUARD:
 				parts.append("格挡 %.1f 秒" % effect.duration)
 				rendered_description = rendered_description.replace("{guard_duration}", _number_text(effect.duration))
@@ -155,6 +172,8 @@ func detail_text(attack_damage: float = -1.0) -> String:
 				parts.append(status_text)
 			ActionEffectDefinition.Kind.DISPLACE:
 				parts.append("击退 %.0f 像素" % effect.knockback)
+	if ignores_shield:
+		parts.append("无视护盾")
 	if movement_kind() == ActionMovementDefinition.Kind.ADVANCE:
 		parts.push_front("突进 %.0f 像素" % movement_distance() if movement_distance() > 0.0 else "边移动边攻击")
 	if movement_kind() == ActionMovementDefinition.Kind.CHARGE:
