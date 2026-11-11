@@ -19,6 +19,8 @@ var hp := 100.0
 var max_mana := 100.0
 var mana := 100.0
 var mana_regen := 8.0
+## 常驻生命回复比例：每秒回复最大生命 × 该比例（来自被动）。
+var hp_regen_ratio := 0.0
 var guard_time := 0.0
 var guard_blocked_hit := false
 var guard_reward_shield_ratio := 0.0
@@ -116,6 +118,7 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	max_mana = p_definition.max_mana
 	mana = clampf(p_definition.starting_mana, 0.0, max_mana)
 	mana_regen = p_definition.mana_regen
+	hp_regen_ratio = p_definition.passive.hp_regen_ratio_per_second if p_definition.passive != null else 0.0
 	attack_damage = p_definition.attack_damage
 	attack_interval = p_definition.attack_interval()
 	attack_range = p_definition.attack_range
@@ -289,6 +292,10 @@ func _physics_process(delta: float) -> void:
 	for key in action_cooldowns.keys():
 		action_cooldowns[key] = maxf(0.0, float(action_cooldowns[key]) - delta)
 	mana = minf(max_mana, mana + mana_regen * delta)
+	if hp_regen_ratio > 0.0 and hp < max_hp:
+		hp = minf(max_hp, hp + max_hp * hp_regen_ratio * delta)
+		health_bar.set_ratio(hp / max_hp)
+		sync_conditional_passives()
 	if guard_time > 0.0:
 		guard_time = maxf(0.0, guard_time - delta)
 		if guard_time <= 0.0:
@@ -589,9 +596,13 @@ func register_damage_hit(victim: Unit, is_skill := false) -> void:
 	if not alive or not is_skill or victim == null or not is_instance_valid(victim):
 		return
 	var passive: PassiveDefinition = definition.passive if definition != null else null
-	if passive == null or passive.skill_hit_stacks_status == null or status_controller == null:
+	if passive == null:
 		return
-	status_controller.apply(passive.skill_hit_stacks_status, self)
+	if passive.skill_hit_stacks_status != null and status_controller != null:
+		status_controller.apply(passive.skill_hit_stacks_status, self)
+	if passive.skill_hit_shield_ratio > 0.0:
+		apply_shield(max_hp * passive.skill_hit_shield_ratio,
+			passive.skill_hit_shield_duration, max_hp)
 
 
 ## 对动作伤害应用状态提供的伤害修正（例如满层热诚的固定额外伤害）。
@@ -658,7 +669,7 @@ func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 	var damage := current_attack_damage() * maxf(effect.damage_ratio, 0.0)
 	damage = apply_status_damage_bonus(damage, not is_skill)
 	_record_action_hit(victim)
-	victim.take_damage(damage, self, impact)
+	victim.take_damage(damage, self, impact, false, effect.ignore_shield)
 	register_damage_hit(victim, is_skill)
 	ActionImpact.apply_on_hit(effect, self, victim, blocked)
 	battle.spawn_hit_spark(impact, accent_color, 1.2)
@@ -704,8 +715,12 @@ func _resolve_legacy_action_effect(action: CombatActionDefinition, effect: Actio
 		ActionEffectDefinition.Kind.GUARD:
 			apply_guard(effect.duration, effect.guard_reward_shield_ratio, effect.guard_reward_shield_duration)
 		ActionEffectDefinition.Kind.SHIELD:
-			apply_shield(max_hp * effect.shield_per_target_ratio * (current_cast.hit_targets.size() if current_cast != null else 0),
-				effect.duration, max_hp * effect.shield_max_ratio)
+			var hit_count := current_cast.hit_targets.size() if current_cast != null else 0
+			var shield_amount := max_hp * (effect.shield_self_ratio + effect.shield_per_target_ratio * hit_count)
+			var shield_cap := max_hp * effect.shield_max_ratio
+			if effect.shield_self_ratio > 0.0:
+				shield_cap = maxf(shield_cap, max_hp * effect.shield_self_ratio)
+			apply_shield(shield_amount, effect.duration, shield_cap)
 		ActionEffectDefinition.Kind.HEAL:
 			_resolve_heal_effect(effect)
 		ActionEffectDefinition.Kind.STATUS:
@@ -747,7 +762,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 			battle.spawn_hit_spark(impact, accent_color, 1.2)
 		_record_action_hit(victim)
 		var blocked := victim.is_guarding()
-		victim.take_damage(damage, self, impact)
+		victim.take_damage(damage, self, impact, false, effect.ignore_shield)
 		register_damage_hit(victim, action.category == CombatActionDefinition.Category.SKILL)
 		ActionImpact.apply_on_hit(effect, self, victim, blocked)
 		if effect.shape == ActionEffectDefinition.Shape.SINGLE and victim.alive and effect.knockback > 0.0:

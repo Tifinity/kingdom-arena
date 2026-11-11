@@ -10,6 +10,7 @@
 [ext_resource type="Resource" uid="uid://wppu4j6vgo1b" path="res://resources/actions/armored_orc_block.tres" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/units/armored_orc_visual.tscn" id="8"]
 [ext_resource type="Resource" uid="uid://blr1paoxd22ai" path="res://resources/behaviors/armored_orc.tres" id="9"]
+[ext_resource type="Resource" path="res://resources/passives/armored_orc_regen.tres" id="10"]
 
 [resource]
 script = ExtResource("1")
@@ -29,6 +30,7 @@ armor = 0.20
 attack_windup = 0.42
 behavior_profile = ExtResource("9")
 actions = Array[ExtResource("1_ofpmm")]([ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7")])
+passive = ExtResource("10")
 visual_scene = ExtResource("8")
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")

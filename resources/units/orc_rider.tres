@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/orc_rider_frames.tres" id="2"]
@@ -9,6 +9,7 @@
 [ext_resource type="Resource" path="res://resources/actions/orc_rider_block.tres" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/units/orc_rider_visual.tscn" id="8"]
 [ext_resource type="Resource" path="res://resources/behaviors/orc_rider.tres" id="9"]
+[ext_resource type="Resource" path="res://resources/passives/orc_rider_shield.tres" id="10"]
 
 [resource]
 script = ExtResource("1")
@@ -18,7 +19,7 @@ title = "荒野壁垒"
 faction = 1
 role = "坦克"
 roster_order = 12
-description = "荒野阵营最坚韧的骑兵，突进顶开敌人，环斩时以命中人数凝聚护盾。"
+description = "荒野阵营最坚韧的骑兵，突进顶开敌人，技能命中后凝聚护盾。"
 max_hp = 195.0
 attack_damage = 11.0
 attack_speed = 0.70
@@ -37,6 +38,7 @@ character_height = 29.0
 body_radius = 37.8
 accent_color = Color(0.490, 0.698, 1.000, 1)
 actions = [ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7")]
+passive = ExtResource("10")
 behavior_profile = ExtResource("9")
 visual_scene = ExtResource("8")
 sprite_frames = ExtResource("2")

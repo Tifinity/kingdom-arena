@@ -29,37 +29,11 @@ knockback = 0.0
 projectile_kind = 0
 duration = 0.00
 
-[sub_resource type="Resource" id="effect_1"]
-script = ExtResource("2")
-kind = 4
-shape = 3
-trigger_frame = 7
-damage_ratio = 0.00
-radius = 0.0
-half_angle = 0.0
-length = 0.0
-width = 0.0
-center_on_self = false
-status_kind = 0
-status_duration = 0.00
-status_power = 0.00
-burn_duration = 0.00
-burn_dps_ratio = 0.00
-shield_per_target_ratio = 0.12
-shield_max_ratio = 0.48
-heal_amount = 0.0
-heal_ratio = 0.00
-summon_unit_id = &""
-summon_count = 1
-knockback = 0.0
-projectile_kind = 0
-duration = 6.00
-
 [resource]
 script = ExtResource("1")
 action_id = &"orc_rider_cyclone"
 display_name = "裂阵回旋"
-description = "环斩周围敌人；每命中 1 人获得 12% 最大生命护盾，最多 48%，持续 6 秒。"
+description = "环斩周围敌人，造成范围伤害。"
 category = 1
 target_mode = 2
 animation = &"attack_03"
@@ -78,4 +52,4 @@ charge_speed = 0.0
 min_targets = 1
 requires_wounded_ally = false
 priority = 10
-effects = [SubResource("effect_0"), SubResource("effect_1")]
+effects = [SubResource("effect_0")]

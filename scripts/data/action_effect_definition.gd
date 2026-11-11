@@ -47,6 +47,11 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 ## 护盾总量最多叠加到最大生命值 × shield_max_ratio，duration 控制持续秒数。
 @export var shield_per_target_ratio := 0.0
 @export var shield_max_ratio := 0.0
+## 不依赖命中目标的固定护盾：按自身最大生命比例立即获得（例如重甲兽人的格挡）。
+@export var shield_self_ratio := 0.0
+
+## 伤害是否穿透护盾，直接扣除生命（仍然受护甲影响）。
+@export var ignore_shield := false
 
 ## 格挡成功后的奖励护盾：按最大生命计算，在格挡结束时获得。
 @export var guard_reward_shield_ratio := 0.0
