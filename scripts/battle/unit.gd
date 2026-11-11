@@ -198,7 +198,16 @@ func current_attack_damage() -> float:
 
 
 func current_armor() -> float:
-	return clampf(status_controller.modify_stat(&"armor", armor), 0.0, 0.8) if status_controller != null else armor
+	var value := status_controller.modify_stat(&"armor", armor) if status_controller != null else armor
+	var aura_bonus := 0.0
+	if battle != null and alive:
+		for ally in battle.living_units(team):
+			if ally.definition == null or ally.definition.passive == null:
+				continue
+			var passive: PassiveDefinition = ally.definition.passive
+			if passive.armor_aura_radius > 0.0 and global_position.distance_to(ally.global_position) <= passive.armor_aura_radius:
+				aura_bonus = maxf(aura_bonus, passive.armor_aura_bonus)
+	return clampf(value + aura_bonus, 0.0, 0.8)
 
 
 ## 攻速会受 buff/debuff 的 attack_speed 乘区影响；基础普攻冷却使用当前值。
@@ -707,7 +716,9 @@ func _resolve_legacy_action_effect(action: CombatActionDefinition, effect: Actio
 		ActionEffectDefinition.Kind.DAMAGE:
 			_resolve_damage_effect(action, effect, damage)
 		ActionEffectDefinition.Kind.PROJECTILE:
-			if cast_target != null and is_instance_valid(cast_target) and cast_target.alive and is_target_in_action_range(action, 24.0, false):
+			if cast_target != null and is_instance_valid(cast_target) and cast_target.alive \
+					and (action.movement_kind() == ActionMovementDefinition.Kind.RETREAT
+					or is_target_in_action_range(action, 24.0, false)):
 				damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
 				battle.spawn_projectile(self, cast_target, damage, effect.projectile_kind, accent_color, effect)
 		ActionEffectDefinition.Kind.VISUAL:

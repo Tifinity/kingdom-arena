@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="StatusDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/status/status_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/status/behaviors/stat_modifier_behavior.gd" id="2"]
+
+[sub_resource type="Resource" id="behavior"]
+script = ExtResource("2")
+stat = &"armor"
+mode = 1
+
+[resource]
+script = ExtResource("1")
+id = &"werebear_thick_hide"
+display_name = "厚皮"
+description = "生命低于 50% 时护甲增加 6 个百分点。"
+tags = Array[StringName]([&"buff", &"armor"])
+duration = 0.0
+persistent = true
+base_power = 0.06
+behavior = SubResource("behavior")

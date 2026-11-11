@@ -29,6 +29,9 @@ func enter(_previous: StringName) -> void:
 
 	_cast = ActionCast.create(plan)
 	if _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT:
+		if _action.target_mode == CombatActionDefinition.TargetMode.ENEMY and _cast.target != null:
+			var approach := (_cast.target.global_position - unit.global_position).normalized()
+			_cast.point = _cast.target.global_position - approach * (_action.movement.target_gap + unit.body_radius + _cast.target.body_radius)
 		_cast.point = unit.battle.clamp_unit_position(_cast.point)
 		_leap_distance = unit.global_position.distance_to(_cast.point)
 	unit.current_cast = _cast
@@ -118,6 +121,13 @@ func update(delta: float) -> void:
 			var before := unit.global_position
 			unit.advance_step(_cast.direction, step_distance / maxf(delta, 0.0001), delta)
 			_cast.advanced_distance += before.distance_to(unit.global_position)
+	elif _action.movement_kind() == ActionMovementDefinition.Kind.RETREAT and _action.movement_speed() > 0.0:
+		var step_distance := minf(_action.movement_speed() * delta,
+			maxf(0.0, _action.movement_distance() - _cast.advanced_distance))
+		if step_distance > 0.0:
+			var before := unit.global_position
+			unit.advance_step(-_cast.direction, step_distance / maxf(delta, 0.0001), delta)
+			_cast.advanced_distance += before.distance_to(unit.global_position)
 
 	var fps := 10.0
 	if unit.definition.sprite_frames != null and unit.definition.sprite_frames.has_animation(_action.animation):
@@ -129,6 +139,10 @@ func update(delta: float) -> void:
 			break
 		if _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT \
 				and unit.global_position.distance_to(_cast.point) > 18.0 \
+				and _cast.elapsed < _cast.duration + 0.4:
+			break
+		if _action.movement_kind() == ActionMovementDefinition.Kind.RETREAT \
+				and _cast.advanced_distance < _action.movement_distance() - 1.0 \
 				and _cast.elapsed < _cast.duration + 0.4:
 			break
 		if not (_action.movement_kind() == ActionMovementDefinition.Kind.CHARGE and effect.kind == ActionEffectDefinition.Kind.DAMAGE):

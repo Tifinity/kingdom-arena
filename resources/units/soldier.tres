@@ -1,13 +1,15 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/soldier_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/soldier.png" id="3"]
 [ext_resource type="Resource" path="res://resources/actions/soldier_basic.tres" id="4"]
-[ext_resource type="Resource" path="res://resources/actions/soldier_cleave.tres" id="5"]
-[ext_resource type="Resource" path="res://resources/actions/soldier_thrust.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/actions/soldier_jump_slash.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/actions/soldier_backstep_shot.tres" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/units/soldier_visual.tscn" id="7"]
 [ext_resource type="Resource" path="res://resources/behaviors/soldier.tres" id="8"]
+[ext_resource type="Resource" path="res://resources/actions/soldier_ranged_basic.tres" id="9"]
+[ext_resource type="Resource" path="res://resources/passives/soldier_dual_weapons.tres" id="10"]
 
 [resource]
 script = ExtResource("1")
@@ -17,7 +19,7 @@ title = "王庭新兵"
 faction = 0
 role = "战士"
 roster_order = 0
-description = "攻守均衡的近战新兵，适合放在前排吸收第一波冲锋。"
+description = "持剑与弓的王庭新兵，远处射箭，近身挥剑。"
 max_hp = 130.0
 attack_damage = 11.0
 attack_speed = 0.90
@@ -34,7 +36,8 @@ foot_offset = 10.0
 character_height = 22.0
 body_radius = 31.5
 accent_color = Color(0.941, 0.702, 0.420, 1)
-actions = [ExtResource("4"), ExtResource("5"), ExtResource("6")]
+actions = [ExtResource("4"), ExtResource("9"), ExtResource("5"), ExtResource("6")]
+passive = ExtResource("10")
 behavior_profile = ExtResource("8")
 visual_scene = ExtResource("7")
 sprite_frames = ExtResource("2")
