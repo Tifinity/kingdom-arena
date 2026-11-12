@@ -653,6 +653,8 @@ func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
 		return
 	var duration := effect.status_duration if effect.status_duration > 0.0 else definition.duration
 	var power := effect.status_power if effect.status_power > 0.0 else definition.base_power
+	if effect.status_power_attack_ratio > 0.0 and source != null and is_instance_valid(source):
+		power = source.current_attack_damage() * effect.status_power_attack_ratio
 	status_controller.apply(definition, source, {
 		"duration": duration,
 		"power": power,
@@ -838,6 +840,12 @@ func is_guarding() -> bool:
 func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, ignore_armor := false, ignore_shield := false) -> void:
 	if not alive or raw_amount <= 0.0:
 		return
+	if source != null and is_instance_valid(source) and source != self and source.definition != null:
+		var source_passive: PassiveDefinition = source.definition.passive
+		if source_passive != null and source_passive.bonus_damage_ratio > 0.0 \
+				and source_passive.bonus_damage_target_status != &"" and status_controller != null \
+				and status_controller.has_status(source_passive.bonus_damage_target_status):
+			raw_amount *= 1.0 + source_passive.bonus_damage_ratio
 	if is_training_dummy():
 		# 稻草人只记录伤害与飘字，不扣血、不进硬直、不死亡；护甲与格挡照常显示。
 		var recorded := raw_amount if ignore_armor else raw_amount * (1.0 - current_armor())

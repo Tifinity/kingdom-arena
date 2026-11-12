@@ -21,6 +21,9 @@ extends Resource
 ## 同队光环：范围内护甲增加的百分点。同名来源只取最高值。
 @export var armor_aura_radius := 0.0
 @export var armor_aura_bonus := 0.0
+## 对带有指定状态的目标造成伤害时的额外倍率。
+@export var bonus_damage_target_status: StringName = &""
+@export var bonus_damage_ratio := 0.0
 
 
 func detail_text() -> String:
@@ -29,6 +32,7 @@ func detail_text() -> String:
 	rendered = rendered.replace("{armor_aura_radius}", _number_text(armor_aura_radius))
 	rendered = rendered.replace("{armor_aura_percent}", _number_text(armor_aura_bonus * 100.0))
 	rendered = rendered.replace("{hp_threshold_percent}", _number_text(hp_threshold * 100.0))
+	rendered = rendered.replace("{bonus_damage_percent}", _number_text(bonus_damage_ratio * 100.0))
 	for index in battle_start_statuses.size():
 		var status := battle_start_statuses[index]
 		if status == null:

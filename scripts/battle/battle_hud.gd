@@ -374,7 +374,8 @@ func _update_inspector() -> void:
 		var passive_state := "未生效"
 		if passive.hp_threshold_status != null:
 			passive_state = "生效中" if passive.threshold_active(selected_unit.status_controller) else "未生效"
-		elif passive.heal_bonus_ratio > 0.0 or passive.hp_regen_ratio_per_second > 0.0:
+		elif passive.heal_bonus_ratio > 0.0 or passive.hp_regen_ratio_per_second > 0.0 \
+				or passive.bonus_damage_ratio > 0.0:
 			passive_state = "常驻"
 		else:
 			var passive_remaining := passive.remaining(selected_unit.status_controller)

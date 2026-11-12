@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "追猎"
+description = "对流血目标造成的伤害提高 {bonus_damage_percent}%。"
+bonus_damage_target_status = &"bleed"
+bonus_damage_ratio = 0.12
