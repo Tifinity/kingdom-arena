@@ -271,6 +271,8 @@ def _write_action(
     targeting_selection: int = 0,
     animation_speed: float = 1.0,
     leap_height: float = 0.0,
+    charge_setup_distance: float = 0.0,
+    charge_pass_distance: float = 0.0,
 ) -> None:
     # 运行中的技能平衡以 .tres 为准；默认只补齐缺失文件。
     if path.exists() and not REBUILD_ACTIONS:
@@ -330,6 +332,8 @@ def _write_action(
             f'distance = {advance_distance:.1f}',
             f'target_gap = {teleport_gap:.1f}',
             f'leap_height = {leap_height:.1f}',
+            f'charge_setup_distance = {charge_setup_distance:.1f}',
+            f'charge_pass_distance = {charge_pass_distance:.1f}',
             '',
         ]
     if targeting_selection:
@@ -747,6 +751,8 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
             description=spec["description"],
             animation_speed=spec["animation_speed"],
             leap_height=100.0 if spec["id"] == "werebear_quake" else spec["leap_height"],
+            charge_setup_distance=220.0 if unit.slug == "lancer" else 0.0,
+            charge_pass_distance=70.0 if unit.slug == "lancer" else 0.0,
             requires_wounded_ally=spec["requires_wounded_ally"],
         )
         actions.append(f"res://resources/actions/{spec['id']}.tres")

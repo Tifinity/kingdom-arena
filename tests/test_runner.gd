@@ -41,6 +41,7 @@ func _run_all() -> void:
 	await _test_smart_knight()
 	await _test_wizard_and_elite_orc()
 	await _test_lancer_charge()
+	await _test_lancer_charge_setup()
 	await _test_orc_rider_tank()
 	await _test_werebear_skills()
 	await _test_new_passives_and_soldier()
@@ -1481,6 +1482,78 @@ func _test_lancer_charge() -> void:
 	_check(is_zero_approx(enemies[0].burn_time), "火焰在配置的持续时间后结束")
 	await get_tree().create_timer(0.6).timeout
 	_check(is_equal_approx(enemies[0].hp, expired_hp), "火焰结束后不再扣血")
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_lancer_charge_setup() -> void:
+	print("\n[枪兵] 两次冲锋先拉开距离并穿过目标")
+	var definition := UnitCatalog.get_definition(&"lancer")
+	var pierce: CombatActionDefinition = definition.actions[1]
+	var flame: CombatActionDefinition = definition.actions[2]
+	_check(pierce.movement.charge_setup_distance == 220.0 and flame.movement.charge_setup_distance == 220.0
+		and pierce.movement.charge_pass_distance == 70.0 and flame.movement.charge_pass_distance == 70.0,
+		"两种冲锋共用准备距离和穿越终点")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"lancer")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var lancer: Unit = battle.living_units(0)[0]
+	var enemies: Array[Unit] = battle.living_units(1)
+	battle.battle_active = true
+	for enemy in enemies:
+		enemy.brain.enabled = false
+	var start := battle.field_min + Vector2(450.0, 280.0)
+	for action in [pierce, flame]:
+		lancer.state_machine.transition_to(&"idle", true)
+		lancer.position = start
+		enemies[0].position = start + Vector2(95.0, 0.0)
+		enemies[1].position = start + Vector2(150.0, 0.0)
+		lancer.action_cooldowns[pierce.action_id] = 0.0
+		lancer.action_cooldowns[flame.action_id] = 0.0
+		lancer.mana = lancer.max_mana if action == flame else 0.0
+		if action == pierce:
+			lancer.action_cooldowns[flame.action_id] = 99.0
+		lancer.brain.enabled = true
+		var casts_before := battle.action_casts
+		lancer.brain.force_think()
+		_check(lancer.brain.intent == UnitBrain.Intent.KITE and lancer.planned_action == action,
+			"%s 就绪后先后撤" % action.display_name)
+		await get_tree().create_timer(0.42).timeout
+		_check(lancer.position.x < start.x - 20.0 and battle.action_casts == casts_before,
+			"%s 拉开距离时不提前释放（位移 %.1f，施放 %d）" % [action.display_name,
+				start.x - lancer.position.x, battle.action_casts - casts_before])
+		lancer.brain.enabled = false
+		lancer.position = start - Vector2(240.0, 0.0)
+		lancer.target = enemies[1]
+		lancer.planned_target = enemies[1]
+		lancer.planned_action = action
+		lancer.planned_direction = Vector2.RIGHT
+		lancer.state_machine.transition_to(&"action", true)
+		var endpoint := lancer.current_cast.charge_destination
+		_check(endpoint.x > enemies[1].position.x + enemies[1].body_radius
+			and absf(endpoint.y - enemies[1].position.y) < 1.0,
+			"%s 的终点在目标身后、与起点和目标共线" % action.display_name)
+		await get_tree().create_timer(1.0).timeout
+		_check(lancer.position.x > enemies[1].position.x + enemies[1].body_radius,
+			"%s 实际冲过目标" % action.display_name)
+	lancer.state_machine.transition_to(&"idle", true)
+	lancer.position = Vector2(battle.field_min.x, start.y)
+	enemies[0].position = lancer.position + Vector2(95.0, 0.0)
+	enemies[1].position = lancer.position + Vector2(150.0, 0.0)
+	lancer.mana = 0.0
+	lancer.action_cooldowns[pierce.action_id] = 0.0
+	lancer.action_cooldowns[flame.action_id] = 99.0
+	lancer.brain.enabled = true
+	lancer.brain.force_think()
+	_check(lancer.brain.intent == UnitBrain.Intent.ACTION and lancer.planned_action == pierce,
+		"贴近战场边界无法后撤时仍能释放冲锋")
+	lancer.brain.enabled = false
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame

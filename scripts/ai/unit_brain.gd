@@ -214,6 +214,23 @@ func _should_kite() -> bool:
 	return unit.distance_to_target() < unit.attack_range * 0.42
 
 
+func kite_goal_distance() -> float:
+	if planned_action != null and planned_action.movement_kind() == ActionMovementDefinition.Kind.CHARGE:
+		return planned_action.movement.charge_setup_distance
+	return unit.kite_stop_distance()
+
+
+func _can_prepare_charge(charge_target: Unit, setup_distance: float) -> bool:
+	var away := unit.global_position - charge_target.global_position
+	var missing := setup_distance - away.length()
+	if missing <= 0.0 or unit.battle == null:
+		return false
+	if away.length_squared() < 0.001:
+		away = Vector2(float(unit.facing), 0.0)
+	var possible: Vector2 = unit.battle.clamp_unit_position(unit.global_position + away.normalized() * missing)
+	return unit.global_position.distance_to(possible) > 4.0
+
+
 # --- D：决策 ------------------------------------------------------------
 
 func _decide() -> void:
@@ -242,8 +259,14 @@ func _decide() -> void:
 		planned_has_point = plan.has_point
 		if planned_action.target_mode in [CombatActionDefinition.TargetMode.ENEMY, CombatActionDefinition.TargetMode.POINT]:
 			target = plan.target
-		intent = Intent.ACTION
-		intent_reason = "使用 %s（%s，%s）" % [planned_action.display_name, planned_action.category_label(), plan_reason]
+		if planned_action.movement_kind() == ActionMovementDefinition.Kind.CHARGE \
+				and planned_action.movement.charge_setup_distance > 0.0 \
+				and _can_prepare_charge(plan.target, planned_action.movement.charge_setup_distance):
+			intent = Intent.KITE
+			intent_reason = "为 %s 拉开冲锋距离" % planned_action.display_name
+		else:
+			intent = Intent.ACTION
+			intent_reason = "使用 %s（%s，%s）" % [planned_action.display_name, planned_action.category_label(), plan_reason]
 	elif _should_kite():
 		intent = Intent.KITE
 		intent_reason = "距离过近，后撤拉开射程"

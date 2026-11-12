@@ -54,7 +54,7 @@ func _update_kite(delta: float) -> void:
 	if not unit.has_live_target():
 		machine.transition_to(&"idle")
 		return
-	if unit.distance_to_target() >= unit.kite_stop_distance():
+	if unit.distance_to_target() >= unit.brain.kite_goal_distance():
 		machine.transition_to(&"idle")
 		return
 

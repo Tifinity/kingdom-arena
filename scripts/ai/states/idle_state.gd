@@ -28,7 +28,7 @@ func update(_delta: float) -> void:
 			if unit.can_execute_planned_action():
 				machine.transition_to(&"action")
 		UnitBrain.Intent.KITE:
-			if unit.has_live_target() and unit.distance_to_target() < unit.attack_range * 0.70:
+			if unit.has_live_target() and unit.distance_to_target() < unit.brain.kite_goal_distance():
 				machine.transition_to(&"move")
 		UnitBrain.Intent.ADVANCE:
 			if unit.has_live_target() and not unit.is_target_in_range(0.0):

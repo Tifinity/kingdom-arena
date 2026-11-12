@@ -57,7 +57,10 @@ func enter(_previous: StringName) -> void:
 	_cast.direction = direction.normalized()
 	unit.planned_direction = _cast.direction
 	if _action.movement_kind() == ActionMovementDefinition.Kind.CHARGE and unit.has_live_target():
-		_cast.charge_destination = _cast.target.global_position
+		var charge_line := (_cast.target.global_position - unit.global_position).normalized()
+		_cast.direction = charge_line
+		_cast.charge_destination = unit.battle.clamp_unit_position(
+			_cast.target.global_position + charge_line * (_action.movement.charge_pass_distance + _cast.target.body_radius + unit.body_radius))
 	unit.face_direction(_cast.direction.x)
 	unit.visual.speed_scale = maxf(_action.animation_speed, 0.05)
 	_visual_start_y = unit.visual.position.y

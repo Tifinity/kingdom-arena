@@ -11,3 +11,6 @@ enum Kind { NONE, ADVANCE, TELEPORT, CHARGE, DASH_TO_POINT, RETREAT }
 @export var target_gap := 10.0
 ## 冲向施法点时角色腾空的视觉高度；0 表示贴地移动。
 @export var leap_height := 0.0
+## 冲锋前与目标保持的最小距离，以及冲过目标后的延伸距离。
+@export var charge_setup_distance := 0.0
+@export var charge_pass_distance := 0.0
