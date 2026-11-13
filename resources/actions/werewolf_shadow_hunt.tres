@@ -1,0 +1,74 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="movement_script"]
+[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="targeting_script"]
+
+[sub_resource type="Resource" id="effect_0"]
+script = ExtResource("2")
+kind = 0
+shape = 0
+trigger_frame = 0
+damage_ratio = 1.00
+radius = 0.0
+half_angle = 0.0
+length = 0.0
+width = 0.0
+center_on_self = false
+status_kind = 0
+status_duration = 0.00
+status_power = 0.00
+status_power_attack_ratio = 0.00
+status_stacks = 1
+requires_action_hit = false
+burn_duration = 0.00
+burn_dps_ratio = 0.00
+shield_per_target_ratio = 0.00
+shield_max_ratio = 0.00
+guard_reward_shield_ratio = 0.00
+guard_reward_shield_duration = 0.00
+heal_amount = 0.0
+heal_ratio = 0.00
+summon_unit_id = &""
+summon_count = 1
+knockback = 0.0
+projectile_kind = 0
+straight_projectile = false
+duration = 0.00
+
+[sub_resource type="Resource" id="movement"]
+script = ExtResource("movement_script")
+kind = 2
+speed = 0.0
+distance = 0.0
+target_gap = 10.0
+leap_height = 0.0
+
+[sub_resource type="Resource" id="targeting"]
+script = ExtResource("targeting_script")
+selection = 6
+
+[resource]
+script = ExtResource("1")
+action_id = &"werewolf_shadow_hunt"
+display_name = "猎影突袭"
+description = "闪现到 300 像素内当前生命值最低的敌人身前，立即进行一次普通攻击。"
+category = 1
+target_mode = 0
+animation = &"attack_01"
+animation_speed = 1.00
+action_range = 300.0
+min_range = 0.0
+preferred_min_range = 0.0
+cooldown = 8.00
+mana_cost = 0.0
+action_duration = 0.00
+min_self_hp_ratio = 0.00
+max_self_hp_ratio = 1.00
+movement = SubResource("movement")
+targeting = SubResource("targeting")
+min_targets = 1
+requires_wounded_ally = false
+priority = 8
+effects = [SubResource("effect_0")]

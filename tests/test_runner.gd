@@ -45,6 +45,7 @@ func _run_all() -> void:
 	await _test_werebear_skills()
 	await _test_new_passives_and_soldier()
 	await _test_werewolf_combo()
+	await _test_werewolf_new_skills()
 	await _test_armored_skeleton_basic_and_ultimate()
 	await _test_axeman_skills()
 	await _test_action_framework()
@@ -1809,16 +1810,18 @@ func _test_orc_rider_tank() -> void:
 func _test_werewolf_combo() -> void:
 	print("\n[狼人] 血月连斩")
 	var definition := UnitCatalog.get_definition(&"werewolf")
-	var combo: CombatActionDefinition = definition.actions[1]
+	var combo: CombatActionDefinition = definition.actions[3]
 	_check(combo.display_name == "血月连斩" and combo.animation == &"attack_02"
 		and combo.movement_kind() == ActionMovementDefinition.Kind.TELEPORT and combo.preferred_min_range >= 130.0
 		and combo.mana_cost >= definition.max_mana,
 		"血月连斩使用 attack02，满蓝闪现到目标身前")
-	_check(combo.effects.size() == 4 and combo.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
-		and combo.effects[3].status_kind == ActionEffectDefinition.StatusKind.BLEED
-		and combo.effects[3].requires_action_hit,
-		"三段单体伤害后仅对命中目标附加流血")
-	_check(definition.sprite_frames.get_frame_count(&"attack_02") > combo.effects[3].trigger_frame,
+	_check(combo.effects.size() == 6 and combo.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
+		and is_equal_approx(combo.effects[0].damage_ratio, 0.6)
+		and combo.effects[5].status_kind == ActionEffectDefinition.StatusKind.BLEED
+		and combo.effects[5].requires_action_hit
+		and is_equal_approx(combo.effects[5].status_power_attack_ratio, 0.3),
+		"五段 0.6 AD 单体伤害后仅对命中目标附加流血")
+	_check(definition.sprite_frames.get_frame_count(&"attack_02") > combo.effects[5].trigger_frame,
 		"所有连斩结算帧都处于实际动画内")
 
 	GameState.clear_lineup(0)
@@ -1839,13 +1842,14 @@ func _test_werewolf_combo() -> void:
 	enemies[0].position = start + Vector2(230.0, 0.0)
 	enemies[1].position = start + Vector2(70.0, 70.0)
 	enemies[2].position = start + Vector2(470.0, 0.0)
+	enemies[0].hp = 75.0
 	wolf.mana = 0.0
 	wolf.brain.force_think()
 	_check(wolf.planned_action != combo, "空蓝时不会选择血月连斩")
 	wolf.mana = wolf.max_mana
 	wolf.brain.force_think()
 	_check(wolf.planned_action == combo and wolf.target == enemies[0],
-		"满蓝时选择中距离敌人并释放血月连斩")
+		"满蓝时选择范围内当前血量最低敌人并释放血月连斩")
 	wolf.brain.enabled = false
 	wolf.target = enemies[0]
 	wolf.planned_action = combo
@@ -1856,14 +1860,15 @@ func _test_werewolf_combo() -> void:
 		and wolf.global_position.x > start.x + 110.0,
 		"狼人立即闪现到目标身前的近战位置")
 	await get_tree().create_timer(0.9).timeout
-	_check(battle.action_hits == 3 and enemies[0].hp < target_hp - wolf.attack_damage * 2.5,
-		"血月连斩对单体连续命中三次并造成高额伤害")
+	var combo_damage := wolf.attack_damage * 5.0 * 0.6 * (1.0 - enemies[0].current_armor())
+	_check(battle.action_hits == 5 and enemies[0].hp <= target_hp - combo_damage + 0.5,
+		"血月连斩对单体连续命中五次")
 	_check(is_equal_approx(enemies[1].hp, other_hp), "附近其他敌人不受连斩伤害")
 	_check(enemies[0].bleed_time > 0.0 and is_zero_approx(enemies[1].bleed_time),
 		"只有被连斩命中的目标流血")
 	var after_direct: float = enemies[0].hp
 	await get_tree().create_timer(0.6).timeout
-	_check(enemies[0].hp < after_direct and battle.action_hits == 3,
+	_check(enemies[0].hp < after_direct and battle.action_hits == 5,
 		"流血持续跳伤且不重复计入连斩命中")
 
 	wolf.position = start
@@ -1880,8 +1885,8 @@ func _test_werewolf_combo() -> void:
 	await get_tree().create_timer(0.9).timeout
 	_check(is_equal_approx(enemies[2].hp, missed_hp) and is_zero_approx(enemies[2].bleed_time),
 		"目标离开近战距离后，落空的连斩不会附加流血")
-	await get_tree().create_timer(2.8).timeout
-	_check(is_zero_approx(enemies[0].bleed_time), "流血在四秒后结束")
+	await get_tree().create_timer(4.0).timeout
+	_check(is_zero_approx(enemies[0].bleed_time), "流血在五秒后结束")
 	wolf.position = start
 	enemies[0].position = start + Vector2(500.0, 300.0)
 	enemies[1].position = start + Vector2(500.0, -250.0)
@@ -1893,6 +1898,81 @@ func _test_werewolf_combo() -> void:
 	_check(wolf.planned_action == combo and wolf.target == enemies[2],
 		"没有中距离目标时也会对贴身敌人释放连斩")
 	wolf.brain.enabled = false
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_werewolf_new_skills() -> void:
+	print("\n[狼人] 猎影突袭、血痕爪与追猎")
+	var definition := UnitCatalog.get_definition(&"werewolf")
+	var hunt: CombatActionDefinition = definition.actions[1]
+	var claw: CombatActionDefinition = definition.actions[2]
+	_check(definition.passive != null and definition.passive.bonus_damage_target_status == &"bleed"
+		and is_equal_approx(definition.passive.bonus_damage_ratio, 0.12)
+		and definition.passive.detail_text().contains("12%"), "追猎被动已接入并显示 12% 流血增伤")
+	_check(hunt.cooldown == 8.0 and hunt.movement_kind() == ActionMovementDefinition.Kind.TELEPORT
+		and hunt.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_CURRENT_HP_ENEMY
+		and hunt.effects[0].trigger_frame == 0 and hunt.effects[0].damage_ratio == 1.0,
+		"猎影突袭闪现后立即造成一次普通攻击伤害")
+	_check(claw.cooldown == 10.0 and claw.effects.size() == 2
+		and is_equal_approx(claw.effects[0].damage_ratio, 0.9)
+		and claw.effects[1].status_duration == 2.0
+		and is_equal_approx(claw.effects[1].status_power_attack_ratio, 0.5),
+		"血痕爪造成 0.9 AD，流血每秒造成 0.5 AD")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"werewolf")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"werebear")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var wolf: Unit = battle.living_units(0)[0]
+	var enemies: Array[Unit] = battle.living_units(1)
+	for enemy in enemies:
+		enemy.brain.enabled = false
+	var start := battle.field_min + Vector2(260.0, 220.0)
+	wolf.position = start
+	enemies[0].position = start + Vector2(240.0, 0.0)
+	enemies[1].position = start + Vector2(150.0, 90.0)
+	enemies[0].hp = 80.0
+	_check(wolf.brain._lowest_current_hp_enemy_in_range(hunt, enemies) == enemies[0]
+		and wolf.brain._lowest_current_hp_enemy_in_range(definition.actions[3], enemies) == enemies[0],
+		"两次闪现都选 300 像素内当前生命值最低的敌人")
+	wolf.brain.enabled = false
+	wolf.target = enemies[0]
+	wolf.planned_action = hunt
+	var before_hunt := enemies[0].hp
+	wolf.state_machine.transition_to(&"action", true)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(wolf.position.distance_to(enemies[0].position) < 100.0
+		and absf(before_hunt - enemies[0].hp - wolf.attack_damage * (1.0 - enemies[0].current_armor())) < 0.5,
+		"猎影突袭闪到目标身前并立即命中一次")
+	wolf.state_machine.transition_to(&"idle", true)
+	wolf.position = enemies[1].position - Vector2(72.0, 0.0)
+	wolf.target = enemies[1]
+	wolf.planned_action = claw
+	var before_claw := enemies[1].hp
+	wolf.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.65).timeout
+	var claw_damage := wolf.attack_damage * 0.9 * (1.0 - enemies[1].current_armor())
+	_check(enemies[1].hp <= before_claw - claw_damage + 0.5
+		and enemies[1].status_controller.has_status(&"bleed")
+		and absf(enemies[1].status_controller.power(&"bleed") - wolf.attack_damage * 0.5) < 0.1,
+		"血痕爪命中后施加随 AD 变化的流血")
+	enemies[1].status_controller.remove_status(&"bleed")
+	var normal_hp := enemies[1].hp
+	enemies[1].take_damage(10.0, wolf)
+	var normal_damage := normal_hp - enemies[1].hp
+	enemies[1].status_controller.apply(StatusCatalog.get_definition(&"bleed"), wolf, {"power": 1.0})
+	var bleeding_hp := enemies[1].hp
+	enemies[1].take_damage(10.0, wolf)
+	var pursuit_damage := bleeding_hp - enemies[1].hp
+	_check(absf(normal_damage - 10.0 * (1.0 - enemies[1].current_armor())) < 0.1
+		and absf(pursuit_damage - normal_damage * 1.12) < 0.1,
+		"追猎仅在目标流血时提高实际伤害 12%")
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame

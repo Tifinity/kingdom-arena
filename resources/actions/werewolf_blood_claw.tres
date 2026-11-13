@@ -1,0 +1,90 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+
+[sub_resource type="Resource" id="effect_0"]
+script = ExtResource("2")
+kind = 0
+shape = 0
+trigger_frame = 4
+damage_ratio = 0.90
+radius = 0.0
+half_angle = 0.0
+length = 0.0
+width = 0.0
+center_on_self = false
+status_kind = 0
+status_duration = 0.00
+status_power = 0.00
+status_power_attack_ratio = 0.00
+status_stacks = 1
+requires_action_hit = false
+burn_duration = 0.00
+burn_dps_ratio = 0.00
+shield_per_target_ratio = 0.00
+shield_max_ratio = 0.00
+guard_reward_shield_ratio = 0.00
+guard_reward_shield_duration = 0.00
+heal_amount = 0.0
+heal_ratio = 0.00
+summon_unit_id = &""
+summon_count = 1
+knockback = 0.0
+projectile_kind = 0
+straight_projectile = false
+duration = 0.00
+
+[sub_resource type="Resource" id="effect_1"]
+script = ExtResource("2")
+kind = 5
+shape = 0
+trigger_frame = 4
+damage_ratio = 0.00
+radius = 0.0
+half_angle = 0.0
+length = 0.0
+width = 0.0
+center_on_self = false
+status_kind = 2
+status_duration = 2.00
+status_power = 0.00
+status_power_attack_ratio = 0.50
+status_stacks = 1
+requires_action_hit = true
+burn_duration = 0.00
+burn_dps_ratio = 0.00
+shield_per_target_ratio = 0.00
+shield_max_ratio = 0.00
+guard_reward_shield_ratio = 0.00
+guard_reward_shield_duration = 0.00
+heal_amount = 0.0
+heal_ratio = 0.00
+summon_unit_id = &""
+summon_count = 1
+knockback = 0.0
+projectile_kind = 0
+straight_projectile = false
+duration = 0.00
+
+[resource]
+script = ExtResource("1")
+action_id = &"werewolf_blood_claw"
+display_name = "血痕爪"
+description = "单体造成 0.9 AD 伤害，并使其流血 2 秒，每秒受到 0.5 AD 伤害。"
+category = 1
+target_mode = 0
+animation = &"attack_01"
+animation_speed = 1.00
+action_range = 76.0
+min_range = 0.0
+preferred_min_range = 0.0
+cooldown = 10.00
+mana_cost = 0.0
+action_duration = 0.00
+min_self_hp_ratio = 0.00
+max_self_hp_ratio = 1.00
+min_targets = 1
+requires_wounded_ally = false
+priority = 7
+effects = [SubResource("effect_0"), SubResource("effect_1")]

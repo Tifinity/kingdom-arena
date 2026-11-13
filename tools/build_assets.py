@@ -215,6 +215,7 @@ def _write_effect_resource(effect_id: str, effect: dict) -> str:
         *([f'status_id = &"{effect["status_id"]}"'] if effect.get("status_id") else []),
         f'status_duration = {effect.get("status_duration", 0.0):.2f}',
         f'status_power = {effect.get("status_power", 0.0):.2f}',
+        f'status_power_attack_ratio = {effect.get("status_power_attack_ratio", 0.0):.2f}',
         f'status_stacks = {effect.get("status_stacks", 1)}',
         f'requires_action_hit = {"true" if effect.get("requires_action_hit", False) else "false"}',
         f'burn_duration = {effect.get("burn_duration", 0.0):.2f}',
@@ -370,6 +371,7 @@ def _write_action(
 def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         length=0.0, width=0.0, projectile=0, duration=0.0, center_self=False,
         status_kind=0, status_duration=0.0, status_power=0.0,
+        status_power_attack_ratio=0.0,
         status_id="", status_stacks=1,
         heal_amount=0.0, heal_ratio=0.0, summon_id="", summon_count=1, knockback=0.0,
         burn_duration=0.0, burn_dps_ratio=0.0,
@@ -383,7 +385,8 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         "length": length, "width": width, "projectile_kind": projectile,
         "duration": duration, "center_on_self": center_self,
         "status_kind": status_kind, "status_duration": status_duration,
-        "status_power": status_power, "status_id": status_id,
+        "status_power": status_power, "status_power_attack_ratio": status_power_attack_ratio,
+        "status_id": status_id,
         "status_stacks": status_stacks, "heal_amount": heal_amount,
         "heal_ratio": heal_ratio, "summon_unit_id": summon_id,
         "summon_count": summon_count, "knockback": knockback,
@@ -667,16 +670,27 @@ def _skills_for(unit: Unit) -> list[dict]:
                              description="跳向敌人最密集处，落地对范围内敌人造成 1.3 AD 伤害并眩晕 0.5 秒。"))
         skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/ground_pound.tscn"
     elif slug == "werewolf":
+        skills.append(_skill("werewolf_shadow_hunt", "猎影突袭", "attack_01",
+                             [_fx(shape=0, ratio=1.0, frame=0)],
+                             8.0, 8, 300.0, rng, teleport_to_target=True,
+                             targeting_selection=6,
+                             description="闪现到 300 像素内当前生命值最低的敌人身前，立即进行一次普通攻击。"))
+        skills.append(_skill("werewolf_blood_claw", "血痕爪", "attack_01",
+                             [_fx(shape=0, ratio=0.9, frame=4),
+                              _fx(kind=5, shape=0, frame=4, status_kind=2,
+                                  status_duration=2.0, status_power_attack_ratio=0.5,
+                                  requires_action_hit=True)],
+                             10.0, 7, rng, rng,
+                             description="单体造成 0.9 AD 伤害，并使其流血 2 秒，每秒受到 0.5 AD 伤害。"))
         skills.append(_skill("werewolf_rend", "血月连斩", "attack_02",
-                             [_fx(shape=0, ratio=1.0, frame=7),
-                              _fx(shape=0, ratio=1.15, frame=9),
-                              _fx(shape=0, ratio=1.35, frame=11),
-                              _fx(kind=5, shape=0, frame=11, status_kind=2,
-                                  status_duration=4.0, status_power=3.0,
+                             [_fx(shape=0, ratio=0.6, frame=frame) for frame in [5, 7, 9, 11, 12]] +
+                             [_fx(kind=5, shape=0, frame=12, status_kind=2,
+                                  status_duration=5.0, status_power_attack_ratio=0.3,
                                   requires_action_hit=True)],
                              14.0, 10, 300.0, rng, mana=100.0,
                              preferred_min_range=130.0, teleport_to_target=True,
-                             description="优先闪现至中距离目标身前连续斩击 3 次，共造成 {total_damage}单体伤害，并使其流血 4 秒。"))
+                             targeting_selection=6,
+                             description="闪现到 300 像素内当前生命值最低的敌人身前连续斩击 5 次，共造成 {total_damage}单体伤害，并使其流血 5 秒，每秒受到 0.3 AD 伤害。"))
 
     # 所有以自身为原点的扇形/矩形技能，action_range 与实际伤害形状完全一致。
     for spec in skills:
@@ -1044,6 +1058,7 @@ def build_character(unit: Unit) -> tuple[float, str]:
         "soldier": "soldier_dual_weapons",
         "knight_templar": "knight_templar_guardian",
         "werebear": "werebear_thick_hide",
+        "werewolf": "werewolf_pursuit",
     }
     passive_path = passive_paths.get(unit.slug, "")
     passive_id = str(6 + len(action_paths)) if passive_path else ""
