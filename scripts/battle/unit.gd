@@ -374,14 +374,29 @@ func target_reach(extra := 0.0) -> float:
 	return attack_range + target_radius + body_radius * 0.35 + extra
 
 
+func basic_target_reach(extra := 0.0) -> float:
+	# 单一普攻为扇形/直线时，推进判定要与动作的实际命中范围一致。
+	var basic_action: CombatActionDefinition = null
+	for action in actions:
+		if action == null or action.category != CombatActionDefinition.Category.BASIC:
+			continue
+		if basic_action != null:
+			basic_action = null
+			break
+		basic_action = action
+	var aoe_reach := action_aoe_reach(basic_action)
+	if aoe_reach > 0.0:
+		var target_radius := target.body_radius if has_live_target() else 0.0
+		return (aoe_reach + target_radius + extra) * AOE_CAST_BUFFER
+	return target_reach(extra)
+
+
 func is_target_in_range(extra := 0.0) -> bool:
-	if not has_live_target():
-		return false
-	return distance_to_target() <= target_reach(extra)
+	return has_live_target() and distance_to_target() <= basic_target_reach(extra)
 
 
 func desired_stop_distance() -> float:
-	return maxf(target_reach(-12.0), 40.0)
+	return maxf(basic_target_reach(-12.0), 40.0)
 
 
 ## 每名英雄围绕目标占据不同的位置：同排英雄沿 Y 轴错开，
@@ -391,7 +406,7 @@ func desired_combat_position() -> Vector2:
 		return definition.behavior_profile.movement.desired_position(self)
 	if not has_live_target():
 		return global_position
-	var stop := maxf(target_reach(-18.0), 54.0)
+	var stop := maxf(basic_target_reach(-18.0), 54.0)
 	var lateral_span := minf(50.0, stop * 0.36)
 	var lateral := (2.0 - float(slot)) / 2.0 * lateral_span
 	var forward := sqrt(maxf(stop * stop - lateral * lateral, 0.0)) * 0.92

@@ -6,11 +6,11 @@
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
 kind = 0
-shape = 0
+shape = 2
 trigger_frame = 6
 damage_ratio = 1.00
-radius = 0.0
-half_angle = 0.0
+radius = 80.0
+half_angle = 35.0
 length = 0.0
 width = 0.0
 center_on_self = false

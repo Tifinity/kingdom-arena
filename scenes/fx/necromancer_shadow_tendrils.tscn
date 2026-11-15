@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="SpriteFrames" path="res://resources/visuals/necromancer_shadow_tendrils_frames.tres" id="1"]
+[ext_resource type="Script" path="res://scripts/fx/necromancer_shadow_tendrils_fx.gd" id="2"]
+
+[node name="NecromancerShadowTendrils" type="AnimatedSprite2D"]
+texture_filter = 1
+z_index = 12
+scale = Vector2(1.6, 1.6)
+sprite_frames = ExtResource("1")
+script = ExtResource("2")

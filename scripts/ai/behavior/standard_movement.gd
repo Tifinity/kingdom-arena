@@ -14,7 +14,7 @@ extends MovementStrategy
 func desired_position(unit: Unit) -> Vector2:
 	if not unit.has_live_target() or unit.battle == null:
 		return unit.global_position
-	var stop := maxf(unit.target_reach(-18.0) * preferred_range_ratio, 54.0)
+	var stop := maxf(unit.basic_target_reach(-18.0) * preferred_range_ratio, 54.0)
 	var span := minf(lateral_span, stop * 0.36)
 	var lateral := (2.0 - float(unit.slot)) / 2.0 * span + flank_y_bias
 	var forward := sqrt(maxf(stop * stop - lateral * lateral, 0.0)) * forward_ratio

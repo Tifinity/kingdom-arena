@@ -143,7 +143,7 @@ func _test_catalog() -> void:
 	_check(missing_ultimate == allowed_no_ultimate,
 		"精锐兽人与士兵第三技能留空，其余英雄都有满蓝大招")
 	_check(bad_mana.is_empty(), "普通技能只受 CD，不再消耗蓝量")
-	_check(missing_attack_use == ["soldier/attack_03"], "除士兵未使用的 attack03 外，现有技能动画均被使用")
+	_check(missing_attack_use.is_empty(), "所有现有攻击动画都已由动作使用")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.HEAL), "技能数据包含治疗效果")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.SUMMON), "技能数据包含召唤效果")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.SHIELD), "技能数据包含护盾效果")
@@ -168,7 +168,7 @@ func _test_catalog() -> void:
 
 	var expected_ranged := {
 		&"archer": 510.0, &"priest": 465.0, &"wizard": 540.0,
-		&"skeleton_archer": 495.0, &"necromancer": 525.0,
+		&"skeleton_archer": 495.0,
 	}
 	var ranged_range_ok := true
 	var ranged_basic_ok := true
@@ -179,12 +179,12 @@ func _test_catalog() -> void:
 			continue
 		var basic: CombatActionDefinition = null
 		for action in definition.actions:
-			if action.action_id == (&"%s_basic" % unit_id) or action.action_id == &"necromancer_ghostfire":
+			if action.action_id == (&"%s_basic" % unit_id):
 				basic = action
 		if basic == null or not is_equal_approx(basic.action_range, expected_ranged[unit_id]):
 			ranged_basic_ok = false
 	_check(ranged_range_ok, "所有远程单位的射程为原来的 1.5 倍")
-	_check(ranged_basic_ok, "所有远程单位的基础攻击距离同步为 1.5 倍")
+	_check(ranged_basic_ok, "远程单位的基础攻击距离同步")
 
 	var knight_definition := UnitCatalog.get_definition(&"knight")
 	var archer_definition := UnitCatalog.get_definition(&"archer")
@@ -1581,7 +1581,11 @@ func _test_new_passives_and_soldier() -> void:
 	_check(soldier_def.actions.size() == 4 and soldier_def.passive != null
 		and jump.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_ARMOR_ENEMY
 		and jump.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT
-		and backshot.movement_kind() == ActionMovementDefinition.Kind.RETREAT,
+		and backshot.movement_kind() == ActionMovementDefinition.Kind.RETREAT
+		and soldier_def.actions[1].animation == &"attack_03"
+		and backshot.animation == &"attack_03"
+		and soldier_def.actions[1].effects[0].trigger_frame == 7
+		and backshot.effects[0].trigger_frame == 7,
 		"士兵保留近远程普攻、跳劈和后撤射击，技能3留空")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
@@ -1654,7 +1658,8 @@ func _test_new_passives_and_soldier() -> void:
 	soldier.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(0.18).timeout
 	_check(soldier.position.distance_to(before_retreat) > 35.0
-		and is_equal_approx(enemies[0].hp, before_shot_hp), "后撤射击先位移再发箭")
+		and is_equal_approx(enemies[0].hp, before_shot_hp)
+		and soldier.current_animation() == &"attack_03", "后撤射击播放远程攻击动画，先位移再发箭")
 	await get_tree().create_timer(0.9).timeout
 	_check(absf(before_shot_hp - enemies[0].hp - soldier.attack_damage * 1.3 * (1.0 - enemies[0].armor)) < 0.5,
 		"后撤射出的直线箭造成 1.3 AD 单体伤害")
@@ -1666,6 +1671,16 @@ func _test_new_passives_and_soldier() -> void:
 	var far_plan: ActionPlan = soldier.brain._select_action()
 	_check(far_plan != null and far_plan.action.action_id == &"soldier_ranged_basic",
 		"远距离自动使用弓箭普攻")
+	if far_plan != null:
+		var arrows_before := battle.projectiles_fired
+		soldier.target = far_plan.target
+		soldier.planned_action = far_plan.action
+		soldier.state_machine.transition_to(&"action", true)
+		await get_tree().process_frame
+		_check(soldier.current_animation() == &"attack_03", "弓箭普攻播放远程攻击动画")
+		await get_tree().create_timer(0.65).timeout
+		_check(battle.projectiles_fired > arrows_before, "弓箭普攻在攻击动画出手帧射箭")
+		soldier.state_machine.transition_to(&"idle", true)
 	soldier.position = enemies[0].position - Vector2(65.0, 0.0)
 	soldier.brain._observe()
 	soldier.brain._judge()
@@ -2708,7 +2723,7 @@ func _test_status_framework() -> void:
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 12, "状态目录包含 12 种状态（含厚皮）")
+	_check(StatusCatalog.count() == 13, "状态目录包含 13 种状态（含暗影侵蚀）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,
@@ -2856,11 +2871,12 @@ func _test_damage_no_interrupt() -> void:
 
 
 func _test_necromancer() -> void:
-	print("\n[8] 死灵法师镰刀/鬼火/召唤")
+	print("\n[8] 死灵法师镰刀/幽火/召唤/暗影触手")
 	var necro_definition := UnitCatalog.get_definition(&"necromancer")
 	var scythe: CombatActionDefinition = null
 	var ghostfire: CombatActionDefinition = null
 	var summon: CombatActionDefinition = null
+	var tendrils: CombatActionDefinition = null
 	for action in necro_definition.actions:
 		if action.action_id == &"necromancer_basic":
 			scythe = action
@@ -2868,55 +2884,96 @@ func _test_necromancer() -> void:
 			ghostfire = action
 		elif action.action_id == &"necromancer_summon":
 			summon = action
-	_check(scythe != null and ghostfire != null and summon != null, "死灵法师拥有镰刀/鬼火/召唤三个 Action")
-	if scythe == null or ghostfire == null or summon == null:
+		elif action.action_id == &"necromancer_shadow_tendrils":
+			tendrils = action
+	_check(scythe != null and ghostfire != null and summon != null and tendrils != null, "死灵法师拥有四个指定动作")
+	if scythe == null or ghostfire == null or summon == null or tendrils == null:
 		return
 	_check(scythe.animation == &"attack_01" and scythe.action_range <= 80.0
-		and not scythe.effects.is_empty() and scythe.effects[0].kind == ActionEffectDefinition.Kind.DAMAGE,
-		"近战使用 attack01 镰刀")
-	_check(ghostfire.animation == &"attack_02" and ghostfire.min_range >= 100.0
+		and not scythe.effects.is_empty() and scythe.effects[0].shape == ActionEffectDefinition.Shape.CONE
+		and is_equal_approx(scythe.effects[0].damage_ratio, 1.0),
+		"attack01 小扇形造成 1.0 AD")
+	_check(is_equal_approx(necro_definition.attack_range, scythe.action_range)
+		and not necro_definition.is_ranged() and is_equal_approx(ghostfire.action_range, 525.0),
+		"死灵法师按镰刀射程近战移动，幽火保留远程施法距离")
+	_check(ghostfire.animation == &"attack_02" and ghostfire.category == CombatActionDefinition.Category.SKILL
 		and not ghostfire.effects.is_empty() and ghostfire.effects[0].kind == ActionEffectDefinition.Kind.DAMAGE
-		and ghostfire.effects[0].effect_scene != null,
-		"远程使用 attack02 在目标位置生成鬼火")
-	_check(not summon.effects.is_empty() and summon.effects[0].kind == ActionEffectDefinition.Kind.SUMMON
+		and ghostfire.effects[0].shape == ActionEffectDefinition.Shape.CIRCLE
+		and is_equal_approx(ghostfire.effects[0].damage_ratio, 0.6) and ghostfire.effects[0].effect_scene != null,
+		"attack02 幽火圆形范围造成 0.6 AD")
+	_check(summon.animation == &"summon" and not summon.effects.is_empty() and summon.effects[0].kind == ActionEffectDefinition.Kind.SUMMON
 		and summon.effects[0].summon_count == 1 and summon.effects[0].effect_scene != null,
-		"大招召唤 1 只骷髅并带魔法阵特效")
+		"summon 动画召唤 1 只骷髅并带魔法阵特效")
+	_check(tendrils.animation == &"attack_02" and not tendrils.effects.is_empty()
+		and tendrils.effects[0].shape == ActionEffectDefinition.Shape.CIRCLE
+		and tendrils.effects[0].status_id == &"shadow_tendrils"
+		and is_equal_approx(tendrils.effects[0].status_duration, 3.0)
+		and is_equal_approx(tendrils.effects[0].status_power_attack_ratio, 1.2)
+		and tendrils.effects[0].effect_scene != null,
+		"attack02 暗影触手在圆形范围持续 3 秒，每秒 1.2 AD")
 
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"necromancer")
 	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"soldier")
 	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
 	add_child(battle)
 	await get_tree().process_frame
 	var necro: Unit = null
 	var target: Unit = null
+	var second_target: Unit = null
 	for unit in battle.units:
 		if unit.team == 0:
 			necro = unit
-		else:
+		elif target == null:
 			target = unit
+		else:
+			second_target = unit
 	if necro != null and target != null:
 		for unit in battle.units:
 			unit.brain.enabled = false
+		target.max_hp = 1000.0
+		target.hp = target.max_hp
+		if second_target != null:
+			second_target.max_hp = 1000.0
+			second_target.hp = second_target.max_hp
 		necro.target = target
 		necro.position = Vector2(700, 650)
 		target.position = necro.position + Vector2(60, 0)
-		_check(not necro.is_target_in_action_range(ghostfire, 0.0) and necro.is_target_in_action_range(scythe, 0.0),
-			"近距离鬼火不可用，镰刀可用")
+		_check(necro.is_target_in_action_range(ghostfire, 0.0) and necro.is_target_in_action_range(scythe, 0.0),
+			"近距离幽火和镰刀均可用")
 		target.position = necro.position + Vector2(160, 0)
 		_check(necro.is_target_in_action_range(ghostfire, 0.0) and not necro.is_target_in_action_range(scythe, 0.0),
-			"远距离鬼火可用，镰刀不可用")
+			"远距离幽火可用，镰刀不可用")
+		if second_target != null:
+			second_target.position = target.position + Vector2(35, 0)
+			var cone_targets := ActionTargetQuery.enemies(necro, scythe.effects[0], target, Vector2.RIGHT)
+			_check(cone_targets.is_empty(), "镰刀扇形不命中远处敌人")
 
 		# 鬼火实际发射并命中。
 		var hp_before := target.hp
+		var second_hp_before := second_target.hp if second_target != null else 0.0
 		var projectiles_before := battle.projectiles_fired
+		necro.mana = necro.max_mana
 		necro.target = target
 		necro.planned_action = ghostfire
 		necro.state_machine.transition_to(&"action", true)
 		await get_tree().create_timer(0.9).timeout
 		_check(battle.projectiles_fired == projectiles_before and target.hp < hp_before,
-			"鬼火直接在目标位置生成并命中，不发射飞行物")
+			"幽火直接在目标位置生成并命中，不发射飞行物")
+		_check(second_target != null and second_target.hp < second_hp_before,
+			"幽火命中圆形范围内的第二个敌人")
+
+		necro.mana = necro.max_mana
+		necro.planned_action = tendrils
+		necro.state_machine.transition_to(&"action", true)
+		await get_tree().create_timer(0.9).timeout
+		_check(target.status_controller.has_tag(&"shadow") and second_target.status_controller.has_tag(&"shadow"),
+			"暗影触手给圆形范围内所有敌人施加持续伤害")
+		var dot_hp_before := target.hp
+		await get_tree().create_timer(0.6).timeout
+		_check(target.hp < dot_hp_before, "暗影触手持续扣血")
 
 		# 召唤完整流程：魔法阵 + 骷髅 summon 动画 + 正常行动。
 		necro.mana = necro.max_mana
@@ -2933,6 +2990,28 @@ func _test_necromancer() -> void:
 		_check(summoned != null and not summoned.brain.enabled, "召唤骷髅先播放 summon 动画")
 		await get_tree().create_timer(1.1).timeout
 		_check(summoned != null and summoned.brain.enabled, "召唤动画结束后骷髅恢复行动")
+		if summoned != null:
+			summoned.brain.enabled = false
+			summoned.position = Vector2(250, 800)
+		# 所有法术冷却时，AI 必须主动走近并用 attack01 普攻。
+		for spell in [ghostfire, summon, tendrils]:
+			necro.action_cooldowns[spell.action_id] = 99.0
+		necro.action_cooldowns[scythe.action_id] = 0.0
+		necro.mana = 0.0
+		var arena_y := (battle.field_min.y + battle.field_max.y) * 0.5
+		necro.position = Vector2(700, arena_y)
+		target.position = Vector2(950, arena_y)
+		target.status_controller.clear_all()
+		target.hp = target.max_hp
+		if second_target != null:
+			second_target.position = Vector2(1250, arena_y + 100.0)
+		var distance_before := necro.global_position.distance_to(target.global_position)
+		var melee_hp_before := target.hp
+		necro.brain.enabled = true
+		await get_tree().create_timer(3.6).timeout
+		_check(necro.global_position.distance_to(target.global_position) < distance_before - 100.0,
+			"法术冷却时死灵法师主动接近敌人")
+		_check(target.hp < melee_hp_before, "接近后以镰刀普攻命中敌人")
 	await get_tree().create_timer(3.2).timeout
 	GameState.reset_lineups()
 	battle.queue_free()

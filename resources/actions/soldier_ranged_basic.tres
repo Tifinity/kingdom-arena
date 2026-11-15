@@ -7,7 +7,7 @@
 script = ExtResource("2")
 kind = 1
 shape = 0
-trigger_frame = 2
+trigger_frame = 7
 damage_ratio = 1.0
 projectile_kind = 1
 straight_projectile = true
@@ -19,7 +19,7 @@ display_name = "弓箭普攻"
 description = "远距离射出一箭，造成 1.0 AD 单体伤害。"
 category = 0
 target_mode = 0
-animation = &"idle"
+animation = &"attack_03"
 action_range = 430.0
 min_range = 125.0
 cooldown = 1.1
