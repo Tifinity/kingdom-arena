@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/status/armored_axeman_dread.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "战栗"
+description = "普通攻击和技能命中时，使目标护甲降低 {on_hit_status_power_percent} 个百分点，持续 {on_hit_status_duration} 秒。"
+on_hit_status = ExtResource("2")

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/fx/armor_up_glow_fx.gd" id="1"]
+
+[node name="ArmorUpGlow" type="Node2D"]
+script = ExtResource("1")

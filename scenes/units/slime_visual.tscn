@@ -60,6 +60,9 @@ monitorable = false
 shape = SubResource("attack_shape")
 debug_color = Color(0.35, 0.7, 1, 0.45)
 
+[node name="Muzzle" type="Marker2D" parent="."]
+position = Vector2(18.86, -35.19)
+
 [node name="FootMarker" type="Marker2D" parent="." unique_id=481682707]
 
 [node name="HitPoint" type="Marker2D" parent="." unique_id=526917807]

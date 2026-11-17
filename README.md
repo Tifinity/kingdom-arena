@@ -58,6 +58,16 @@
 状态特效取自 pixelfx `status/seething`，导出时跳过替身身体，只保留怒纹、蒸汽与应激线；
 生命回到阈值以上时，攻击加成、吸血和特效一起移除。重新导出见 `tools/export_rage_status.mjs`。
 
+### 盔甲护身
+
+![重甲斧兵盔甲护身](artifacts/armored_axeman_armor_guard.png)
+
+重甲斧兵的防御技能：对自身提高 20 个百分点护甲，持续 6 秒。状态表现使用 Sprite Shader
+`shaders/armor_up_glow.gdshader`：对当前动作帧的 alpha 做多方向采样，在身体外侧生成
+金色轮廓、暖色光晕和绕身体旋转的高光；状态结束时恢复单位原材质。
+Shader 会随待机、移动、攻击动作自动变化，不需要额外精灵表。
+重新截取见 `tools/armor_up_glow_capture.tscn`。
+
 ### 格挡
 
 ![格挡](artifacts/block.png)
@@ -174,6 +184,7 @@ scenes/units/<id>_visual.tscn       每个英雄的视觉节点：
   ├─ TeamRing / SelectionRing
   ├─ Body (AnimatedSprite2D)        ← 拖这里调整动画位置/缩放
   ├─ HealthBar                      ← 拖这里调整血条位置
+  ├─ Muzzle                         ← 拖这里调整投射物出手点
   └─ FootMarker / HitPoint
 
 resources/units/<id>.tres           UnitDefinition（数值、Action、visual_scene…）
@@ -217,12 +228,30 @@ scenes/units/armored_axeman_visual.tscn
 - `Shadow` 的 `position`/`scale`：影子；
 - `Hurtbox` 的 `CollisionShape2D`：受击范围（圆形，红色调试轮廓）；
 - `AttackBox` 的 `CollisionShape2D`：基础普攻范围（圆形，蓝色调试轮廓）；
-- `FootMarker`、`HitPoint`：命中点/脚底锚点。
+- `FootMarker`、`HitPoint`：命中点/脚底锚点；
+- `Muzzle`：投射物出手点。箭矢、法术弹从这里生成，朝左时自动镜像到身体另一侧。
 
 `Hurtbox` / `AttackBox` 目前是**编辑器可视化和调试形状**：`monitoring = false`、
 碰撞层为 0，不参与实际伤害结算。当前伤害仍由 Action 的距离/扇形/矩形数据判定。
 `AttackBox` 表示基础普攻范围；技能范围请用战斗中选中单位后的「范围」按钮查看，
 或编辑对应 `ActionEffectDefinition` 的 shape/length/width。
+
+### 投射物出手点怎么调
+
+打开对应英雄的视觉子场景（例如 `scenes/units/soldier_visual.tscn`），
+选中 `Muzzle`（Marker2D），在 2D 视图里直接把它拖到弓/手上：
+
+```text
+scenes/units/soldier_visual.tscn
+  └─ Muzzle   ← 选中后在 2D 视图拖动 position
+```
+
+- 坐标是**视觉场景像素**，和 `Body` 的 `position` 同一空间，不是 100×100 帧内坐标；
+- 只需要按“朝右”摆一次，代码会按 `facing` 镜像水平坐标，朝左时自动换到另一侧；
+- 普通射箭、后撤射击、法术弹共用这个点；飞行方向由 `projectile.gd` 在生成时重新瞄准目标；
+- 没有 `Muzzle` 的视觉场景会回退到按 `body_radius` / `character_height` 推算的位置，
+  所以新增英雄可以先生成场景、之后再补锚点；
+- 首次生成（或批量补锚点）时，`position` 与旧公式算出的点完全一致，所以接入锚点不会让现有单位突然位移；之后可以随时在编辑器里拖拽。
 
 `tools/build_assets.py` 只会在视觉场景**不存在**时生成它，**不会覆盖手工调整**。
 需要重置某个英雄时，删除对应 `_visual.tscn` 后重新运行构建脚本即可。
@@ -494,6 +523,7 @@ UnitActionState（唯一行动状态）
 格挡：    priority 6  + 缺失生命比例 × 25（生命 ≤ 55% 才候选）
 旋风斩：  priority 9  + 矩形内敌人数 × 2
 重击：    priority 8
+盔甲护身：priority 5（自身护甲 +20 个百分点，持续 6 秒）
 普攻：    priority 0，兜底
 ```
 

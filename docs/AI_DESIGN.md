@@ -293,6 +293,8 @@ preferred = 目标位置 + (自身阵营方向 × forward, lateral)
 - 骑士·格挡：`block` 动画、1 秒 `GUARD` 状态、期间免疫全部伤害；12 秒冷却、20 蓝耗。
 - 重甲斧兵·旋风斩：`attack_02`，方向矩形搜索，5 个伤害帧，动作期间前进；满蓝释放并清空蓝量。
 - 重甲斧兵·重击：`attack_03`，单目标 2 倍伤害，无蓝耗。
+- 重甲斧兵·盔甲护身：`attack_02`，自身护甲 +20 个百分点，持续 6 秒；被动「战栗」在普攻/技能命中后给目标叠加 10 个百分点破甲。
+- 重甲骷髅·反击风暴：`attack_02`，2 秒 `GUARD`，技能持续期间格挡所有攻击。
 
 继续扩展时：
 
@@ -313,7 +315,8 @@ visual_scene: scenes/units/<id>_visual.tscn
 behavior_profile: resources/behaviors/<id>.tres
 ```
 
-- 视觉子场景：`Body`（AnimatedSprite2D）、血条、影子、选中环、 Hurtbox/AttackBox 调试形状、脚底/命中点；
+- 视觉子场景：`Body`（AnimatedSprite2D）、血条、影子、选中环、Hurtbox/AttackBox 调试形状、
+  `Muzzle` 投射物出手点、脚底/命中点；
 - 行为配置：`WeightedTargeting` 索敌权重 + `StandardMovement` 移动参数；
 - 自定义索敌/移动逻辑时，新增 `TargetingStrategy` / `MovementStrategy` 资源脚本，
   在 behavior `.tres` 中替换，不复制 Brain/FSM；
