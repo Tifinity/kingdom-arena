@@ -85,6 +85,10 @@ var team_ring: UnitTeamRing
 var selection_ring: UnitSelectionRing
 var visual: AnimatedSprite2D
 var health_bar: UnitHealthBar
+## 视觉子场景根节点与其中的投射物出手锚点（场景里名为 Muzzle）。
+## 锚点缺失时回退到按体型推算的位置，旧视觉场景无需立刻迁移。
+var _visual_root: Node2D
+var _muzzle_marker: Marker2D
 @onready var visual_host: Node2D = $VisualHost
 @onready var status_controller: UnitStatusController = $StatusController
 @onready var brain: UnitBrain = $Brain
@@ -147,6 +151,8 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	team_ring = visual_root.get_node("TeamRing")
 	selection_ring = visual_root.get_node("SelectionRing")
 	health_bar = visual_root.get_node("HealthBar")
+	_visual_root = visual_root
+	_muzzle_marker = visual_root.get_node_or_null("Muzzle") as Marker2D
 
 	visual.flip_h = team == 1
 	visual.speed_scale = 1.0
@@ -617,10 +623,14 @@ func begin_action_effects() -> void:
 ## 记录一次实际造成伤害的命中；技能命中会为“热诚决斗”类被动叠一层。
 ## DoT 的周期伤害不经过这里，因此不会叠被动。
 func register_damage_hit(victim: Unit, is_skill := false) -> void:
-	if not alive or not is_skill or victim == null or not is_instance_valid(victim):
+	if not alive or victim == null or not is_instance_valid(victim):
 		return
 	var passive: PassiveDefinition = definition.passive if definition != null else null
 	if passive == null:
+		return
+	if passive.on_hit_status != null and victim.team != team and victim.status_controller != null:
+		victim.status_controller.apply(passive.on_hit_status, self)
+	if not is_skill:
 		return
 	if passive.skill_hit_stacks_status != null and status_controller != null:
 		status_controller.apply(passive.skill_hit_stacks_status, self)
@@ -861,6 +871,10 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 				and source_passive.bonus_damage_target_status != &"" and status_controller != null \
 				and status_controller.has_status(source_passive.bonus_damage_target_status):
 			raw_amount *= 1.0 + source_passive.bonus_damage_ratio
+		if source_passive != null and source_passive.bonus_damage_min_distance > 0.0 \
+				and source_passive.bonus_damage_at_distance_ratio > 0.0 \
+				and source.global_position.distance_to(global_position) >= source_passive.bonus_damage_min_distance:
+			raw_amount *= 1.0 + source_passive.bonus_damage_at_distance_ratio
 	if is_training_dummy():
 		# 稻草人只记录伤害与飘字，不扣血、不进硬直、不死亡；护甲与格挡照常显示。
 		var recorded := raw_amount if ignore_armor else raw_amount * (1.0 - current_armor())
@@ -950,7 +964,13 @@ func get_hit_point() -> Vector2:
 	return global_position + Vector2(0.0, -visual_height * 0.52)
 
 
+## 投射物出生点：优先读取视觉场景里的 Muzzle 锚点，方便按角色在编辑器里拖拽调试。
+## 朝向翻转只作用于 Body 贴图（flip_h），锚点自身不会翻，因此水平坐标要按 facing 镜像。
+## 没有 Muzzle 锚点的视觉场景回退到按体型推算，新角色可以逐步迁移。
 func get_muzzle_point() -> Vector2:
+	if _muzzle_marker != null and _visual_root != null:
+		var local := _muzzle_marker.position
+		return _visual_root.to_global(Vector2(local.x * float(facing), local.y))
 	var visual_height := character_height * absf(visual.scale.y) if visual != null else character_height * definition.visual_scale
 	return global_position + Vector2(
 		float(facing) * body_radius * 0.72,

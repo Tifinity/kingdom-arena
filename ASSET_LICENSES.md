@@ -41,7 +41,7 @@
 
 ## 3. 本项目新写内容
 
-- 全部 GDScript、`.tscn`、`.tres`（`scripts/`、`scenes/`、`resources/`、`tests/`、`tools/`）
+- 全部 GDScript、`.tscn`、`.tres`、`.gdshader`（`scripts/`、`scenes/`、`resources/`、`shaders/`、`tests/`、`tools/`）
   为本次新写。
 - 程序化生成的图像：头像裁切、法术球、阴影、像素点、项目图标。
 - 竞技场背景、UI 面板、法阵、战旗、火把等由 Godot 2D 绘图 API / StyleBoxFlat 运行时绘制。

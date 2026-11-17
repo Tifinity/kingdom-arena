@@ -2,6 +2,10 @@
 
 每名单位 3 主动 + 1 被动的设计及逐项完成状态见 [单位技能追踪表](SKILL_ROSTER.md)。
 
+弓箭手普攻维持原状；三项主动技能依次为「减速箭」（`attack_01`，CD6，单体 0.5 AD，命中后移速 ×0.4 持续 2 秒）、「箭雨」（`attack_01`，CD12，选择 510px 内覆盖敌人最多的地点，140px 圆形范围内造成 1.5 AD）和「贯穿箭」（`attack_02`，CD14、满蓝，360px 长、40px 宽的直线范围内造成 1.5 AD）。「狙击」被动由 `resources/passives/archer_sniper.tres` 配置：结算伤害时，若弓箭手与受击目标的中心距离至少 300px，则该次伤害在护甲和护盾计算前提高 10%；普攻、技能及由弓箭手施加的持续伤害都适用。
+
+箭雨的视觉场景为 `scenes/fx/archer_arrow_rain.tscn`，使用 pixelfx 的 `bows/arrow-rain-perspective`（Arrow rain 2.5D）序列帧。`resources/actions/archer_arrow_rain.tres` 在动画第 6 帧生成视觉效果、第 13 帧结算一次范围伤害；视觉效果的 `radius = 140` 决定贴图缩放，缺失时场景脚本回退为原始尺寸。视觉与伤害共用施法时选定的敌群落点，特效本身不重复造成伤害。
+
 圣殿骑士「圣光裁决」的金色冲击波位于 `scenes/fx/templar_judgement_wave.tscn`，由动作伤害效果的 `effect_scene` 在斩击结算帧生成。波纹从施法者向施法方向扩散，宽度和最远距离直接读取同一效果的 `half_angle`、`radius`；特效只负责表现，不重复造成伤害。
 
 圣殿骑士原格挡动作已改为满蓝大招「圣盾守护」，数值在 `resources/actions/knight_templar_block.tres`：`move_02` 动画以最高 850px/s 冲向 340px 内敌群最密集的可达位置；抵达后对周围 160px 敌人施加 2.5 秒嘲讽，每名命中的敌人提供最大生命 12% 的护盾，最多 48%，持续 4 秒。嘲讽期间敌人的下一次决策和攻击目标被锁定到圣殿骑士，已经开始的动作不会被打断。位置搜索先最大化覆盖人数，再优先保护正在被追击的友军，最后选择更靠近敌群中心的位置。落地结界和目标头顶标记分别由 `scenes/fx/aegis_ring.tscn`（pixelfx `holy/aegis-ring`，金色光点钻进地面、结界滚开、光柱与盾徽升起后碎成光屑）、`scenes/fx/taunt_mark.tscn` 呈现。原满蓝技「圣光裁决」改为 0 蓝普通技能，CD12、扇形 1.5 AD。
@@ -18,6 +22,12 @@
 
 骑士格挡使用通用 `GUARD` 效果；成功格挡后的奖励护盾由 `resources/actions/knight_block.tres` 的 `guard_reward_shield_ratio` 和 `guard_reward_shield_duration` 控制。其他单位可用不同奖励、格挡时长、触发条件与冷却形成差异，不需要在单位脚本中写分支。
 
+重甲斧兵「盔甲护身」位于 `resources/actions/armored_axeman_armor_guard.tres`：对自身施加 `STATUS` 效果，引用 `resources/status/armored_axeman_armor_guard.tres`（护甲 +0.20，即 20 个百分点，持续 6 秒）；状态表现 `scenes/fx/armor_up_glow.tscn` 使用 Sprite Shader `shaders/armor_up_glow.gdshader`：状态生效时给单位 Body 换上金色轮廓材质，状态结束时恢复原材质；Shader 直接采样当前动作帧的 alpha，因此光环会跟随动作、朝向与受击闪烁。动作 `priority = 5`，排在重击（8）和旋风斩（10）之后，因此只在两个输出技都在冷却时用于补防御。
+
+被动「战栗」位于 `resources/passives/armored_axeman_dread.tres`：新增的 `PassiveDefinition.on_hit_status` 指向 `resources/status/armored_axeman_dread.tres`（护甲 -0.10，持续 4 秒，刷新）。`Unit.register_damage_hit()` 在普攻或技能造成伤害后调用它；DoT 周期伤害不经过该入口，因此不会反复刷新破甲。护甲是百分点加法，最终由 `Unit.current_armor()` 夹在 0~0.8；对 0 护甲目标不会产生负护甲。
+
+重甲骷髅「反击风暴」位于 `resources/actions/armored_skeleton_counterstorm.tres`：`attack_02` 动画 + 2 秒 `GUARD` 效果，`action_duration` 同为 2 秒，因此整个技能持续期间 `Unit.is_guarding()` 为真，所有攻击在护甲/护盾结算前被完全挡下，也不会进入受击硬直。它是 0 蓝、CD12 的主动 1，`max_self_hp_ratio = 0.70`：AI 只在生命不高于 70% 时把它纳入候选，避免满血空放。
+
 重甲兽人的「格挡」不再使用 `GUARD`，而是 `SHIELD` 效果的 `shield_self_ratio = 0.2`：低血量时立即获得最大生命 20% 的护盾，持续 4 秒，期间不再免疫伤害。它的被动资源 `resources/passives/armored_orc_regen.tres` 使用 `hp_regen_ratio_per_second = 0.02`，由 `Unit._physics_process()` 每帧按最大生命比例回复，生命上限与回复比例都会实时参与计算。
 
 | 单位 | 格挡定位 | 状态 |
@@ -25,6 +35,7 @@
 | 骑士 | 挡住伤害后获得自身最大生命 8% 护盾，持续 3 秒 | 已实现 |
 | 圣殿骑士 | 圣盾守护：冲入敌群、范围嘲讽并按敌人数获得护盾 | 已实现，替代原格挡 |
 | 重甲兽人 | 举盾立即获得自身最大生命 20% 护盾，持续 4 秒，不再免伤 | 已实现，替代原格挡 |
+| 重甲骷髅 | 反击风暴：持续 2 秒格挡所有攻击，不产生额外护盾 | 已实现 |
 | 兽人骑兵 | 格挡时间略长，但冷却更长；脱离格挡后加速切入 | 设计建议，未实现 |
 | 骷髅 | 低血量时维持较长格挡，不产生额外护盾 | 设计建议，未实现 |
 

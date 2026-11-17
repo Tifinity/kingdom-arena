@@ -777,6 +777,9 @@ def build_visual_scene(unit: Unit, foot_offset: float, character_height: float) 
     bar_y = -character_height * scale - 15.0
     shadow_scale = unit.body_radius * 1.05 / 80.0
     hurt_radius = unit.body_radius * 1.05
+    # 投射物出手锚点；默认值与 unit.gd 的回退公式一致，之后可在编辑器里拖拽微调。
+    muzzle_x = unit.body_radius * 0.72
+    muzzle_y = -character_height * scale * 0.56
     content = f'''[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle/team_ring.gd" id="1"]
@@ -838,6 +841,9 @@ monitorable = false
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackBox"]
 shape = SubResource("attack_shape")
 debug_color = Color(0.35, 0.7, 1, 0.45)
+
+[node name="Muzzle" type="Marker2D" parent="."]
+position = Vector2({muzzle_x:.2f}, {muzzle_y:.2f})
 
 [node name="FootMarker" type="Marker2D" parent="."]
 

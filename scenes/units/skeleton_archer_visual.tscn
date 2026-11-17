@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://babl2snucqggk" path="res://scripts/battle/selection_ring.gd" id="2"]
 [ext_resource type="Script" uid="uid://bx24eitnuqwg2" path="res://scripts/battle/health_bar.gd" id="3"]
 [ext_resource type="Texture2D" uid="uid://cf6pmkef5d1gn" path="res://assets/ui/soft_shadow.png" id="4"]
-[ext_resource type="SpriteFrames" path="res://resources/visuals/skeleton_archer_frames.tres" id="5"]
+[ext_resource type="SpriteFrames" uid="uid://c3uck1ffp2f3n" path="res://resources/visuals/skeleton_archer_frames.tres" id="5"]
 
 [sub_resource type="CircleShape2D" id="hurt_shape"]
 radius = 29.4
@@ -33,7 +33,9 @@ texture_filter = 1
 position = Vector2(-6, -31)
 scale = Vector2(4.368, 4.368)
 sprite_frames = ExtResource("5")
-animation = &"idle"
+animation = &"attack_01"
+frame = 8
+frame_progress = 1.0
 
 [node name="HealthBar" type="Node2D" parent="." unique_id=1357645915]
 z_index = 20
@@ -61,6 +63,9 @@ monitorable = false
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackBox" unique_id=553051129]
 shape = SubResource("attack_shape")
 debug_color = Color(0.35, 0.7, 1, 0.45)
+
+[node name="Muzzle" type="Marker2D" parent="." unique_id=763521685]
+position = Vector2(42, -28)
 
 [node name="FootMarker" type="Marker2D" parent="." unique_id=341201901]
 

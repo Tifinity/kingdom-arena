@@ -30,6 +30,7 @@ func _check(condition: bool, message: String) -> void:
 func _run_all() -> void:
 	await get_tree().process_frame
 	await _test_catalog()
+	await _test_archer_kit()
 	await _test_setup_scene()
 	await _test_hero_lab()
 	await _test_swordsman_kit()
@@ -109,6 +110,16 @@ func _test_catalog() -> void:
 					and absf(action.cooldown - definition.attack_interval()) > 0.02):
 				basic_timing_mismatch.append(definition.unit_id)
 	_check(missing_visual.is_empty(), "22 名英雄都有视觉子场景")
+	var missing_muzzle: Array[String] = []
+	for definition in UnitCatalog.all():
+		if definition.visual_scene == null:
+			continue
+		var visual_instance := definition.visual_scene.instantiate()
+		if visual_instance.get_node_or_null("Muzzle") == null:
+			missing_muzzle.append(definition.display_name)
+		visual_instance.free()
+	_check(missing_muzzle.is_empty(),
+		"所有英雄视觉场景都有 Muzzle 出手锚点（缺失：%s）" % ", ".join(PackedStringArray(missing_muzzle)))
 	_check(missing_behavior.is_empty(), "22 名英雄都有索敌/移动行为配置")
 	_check(nonzero_starting_mana == [&"swordsman"] and is_equal_approx(swordsman.starting_mana, 50.0),
 		"剑士入场蓝量为 50，其余英雄为 0")
@@ -221,6 +232,65 @@ func _test_catalog() -> void:
 		_check(valid, "%s: idle/move/attack_01/hurt/death 动画齐全" % definition.display_name)
 		_check(definition.portrait != null and definition.max_hp > 0.0 and definition.character_height > 0.0,
 			"%s: 头像与基础数据有效" % definition.display_name)
+
+
+func _test_archer_kit() -> void:
+	print("\n[1b] 弓箭手技能与狙击被动")
+	var definition := UnitCatalog.get_definition(&"archer")
+	var slow: CombatActionDefinition = definition.actions[1]
+	var rain: CombatActionDefinition = definition.actions[2]
+	var pierce: CombatActionDefinition = definition.actions[3]
+	_check(slow.action_id == &"archer_slow_arrow" and slow.animation == &"attack_01"
+		and is_equal_approx(slow.effects[0].damage_ratio, 0.5)
+		and slow.effects[0].status_id == &"slow"
+		and is_equal_approx(slow.effects[0].status_duration, 2.0)
+		and is_equal_approx(slow.effects[0].status_power, 0.4),
+		"减速箭命中造成 0.5 AD，并减速 60% 持续 2 秒")
+	_check(rain.action_id == &"archer_arrow_rain" and rain.animation == &"attack_01"
+		and rain.select_densest_cluster() and rain.effects.size() == 2
+		and rain.effects[0].effect_scene != null and rain.effects[0].radius > 0.0
+		and is_equal_approx(rain.effects[1].damage_ratio, 1.5)
+		and is_equal_approx(rain.effects[1].radius, 140.0),
+		"箭雨在密集敌群处播放可见特效，并造成 1.5 AD 范围伤害")
+	_check(pierce.action_id == &"archer_piercing_shot" and pierce.animation == &"attack_02"
+		and pierce.effects[0].shape == ActionEffectDefinition.Shape.RECT
+		and is_equal_approx(pierce.effects[0].damage_ratio, 1.5),
+		"贯穿箭对直线敌人造成 1.5 AD")
+	_check(definition.passive != null and definition.passive.display_name == "狙击"
+		and is_equal_approx(definition.passive.bonus_damage_min_distance, 300.0)
+		and is_equal_approx(definition.passive.bonus_damage_at_distance_ratio, 0.1),
+		"狙击在目标距离至少 300 像素时提高所有伤害 10%")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"archer")
+	GameState.set_slot(1, 0, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var archer: Unit = null
+	var victim: Unit = null
+	for unit in battle.units:
+		if unit.team == 0:
+			archer = unit
+		else:
+			victim = unit
+	if archer != null and victim != null:
+		archer.brain.enabled = false
+		victim.brain.enabled = false
+		archer.position = Vector2(500, 600)
+		victim.position = Vector2(799, 600)
+		var before := victim.hp
+		victim.take_damage(10.0, archer, null, true)
+		_check(is_equal_approx(before - victim.hp, 10.0), "299 像素时没有狙击加成")
+		victim.position = Vector2(800, 600)
+		before = victim.hp
+		victim.take_damage(10.0, archer, null, true)
+		_check(is_equal_approx(before - victim.hp, 11.0), "恰好 300 像素时获得 10% 狙击加成")
+	else:
+		_check(false, "弓箭手狙击固定场景生成")
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
 
 
 func _test_setup_scene() -> void:
@@ -1617,6 +1687,19 @@ func _test_new_passives_and_soldier() -> void:
 		GameState.reset_lineups()
 		battle.queue_free()
 		return
+	var muzzle_marker := soldier.visual.get_parent().get_node_or_null("Muzzle") as Marker2D
+	_check(muzzle_marker != null, "士兵视觉场景包含 Muzzle 出手锚点")
+	if muzzle_marker != null:
+		soldier.facing = 1
+		var right_muzzle := soldier.get_muzzle_point()
+		soldier.facing = -1
+		var left_muzzle := soldier.get_muzzle_point()
+		soldier.facing = 1
+		_check(right_muzzle.x > soldier.global_position.x + 1.0
+			and left_muzzle.x < soldier.global_position.x - 1.0,
+			"Muzzle 锚点随朝向镜像到身体两侧")
+		_check(absf(right_muzzle.y - (soldier.global_position.y + muzzle_marker.position.y)) < 0.01,
+			"Muzzle 锚点高度直接取自场景，不再由角色高度系数推算")
 	var origin := battle.field_min + Vector2(350.0, 300.0)
 	templars[0].position = origin
 	templars[1].position = origin + Vector2(15.0, 0.0)
@@ -1994,18 +2077,27 @@ func _test_werewolf_new_skills() -> void:
 
 
 func _test_armored_skeleton_basic_and_ultimate() -> void:
-	print("\n[重甲骷髅] 普攻与大招")
+	print("\n[重甲骷髅] 普攻、反击风暴与大招")
 	var definition := UnitCatalog.get_definition(&"armored_skeleton")
-	_check(definition.actions.size() == 2, "重甲骷髅只配置普攻和满蓝大招")
-	if definition.actions.size() != 2:
+	_check(definition.actions.size() == 3, "重甲骷髅配置普攻、反击风暴和满蓝大招")
+	if definition.actions.size() != 3:
 		return
 	var basic: CombatActionDefinition = definition.actions[0]
-	var ultimate: CombatActionDefinition = definition.actions[1]
+	var counterstorm: CombatActionDefinition = definition.actions[1]
+	var ultimate: CombatActionDefinition = definition.actions[2]
 	_check(basic.animation == &"attack_01" and basic.category == CombatActionDefinition.Category.BASIC
 		and basic.mana_cost == 0.0 and basic.effects[0].trigger_frame < definition.sprite_frames.get_frame_count(&"attack_01"),
 		"attack1 普攻无需蓝量且伤害帧有效")
+	_check(counterstorm.action_id == &"armored_skeleton_counterstorm"
+		and counterstorm.animation == &"attack_02"
+		and counterstorm.mana_cost == 0.0
+		and not counterstorm.effects.is_empty()
+		and counterstorm.effects[0].kind == ActionEffectDefinition.Kind.GUARD
+		and is_equal_approx(counterstorm.effects[0].duration, 2.0)
+		and is_equal_approx(counterstorm.action_duration, 2.0),
+		"反击风暴使用 attack_02，持续 2 秒格挡所有攻击")
 	_check(ultimate.animation == &"attack_02" and ultimate.mana_cost >= definition.max_mana,
-		"attack2 只作为满蓝大招")
+		"attack2 大招仍需满蓝")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"armored_skeleton")
@@ -2019,7 +2111,7 @@ func _test_armored_skeleton_basic_and_ultimate() -> void:
 	enemy.position = skeleton.position + Vector2(75.0, 0.0)
 	enemy.brain.enabled = false
 	skeleton.brain.force_think()
-	_check(skeleton.planned_action == basic, "开场空蓝时决策层选择 attack1 普攻")
+	_check(skeleton.planned_action == basic, "满血开场时决策层选择 attack1 普攻")
 	skeleton.brain.enabled = false
 	skeleton.target = enemy
 	skeleton.planned_action = basic
@@ -2029,6 +2121,25 @@ func _test_armored_skeleton_basic_and_ultimate() -> void:
 	await get_tree().create_timer(0.7).timeout
 	_check(enemy.hp < hp_before_basic and battle.action_hits == 1,
 		"attack1 普攻实际命中目标一次")
+
+	skeleton.hp = skeleton.max_hp * 0.5
+	skeleton.brain.enabled = true
+	skeleton.brain.force_think()
+	_check(skeleton.planned_action == counterstorm, "低血量时决策层优先施放反击风暴")
+	skeleton.brain.enabled = false
+	skeleton.planned_action = counterstorm
+	skeleton.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.15).timeout
+	_check(skeleton.current_animation() == &"attack_02" and skeleton.is_guarding(),
+		"反击风暴期间播放 attack2 并进入格挡状态")
+	var hp_before_guard: float = skeleton.hp
+	skeleton.take_damage(40.0, enemy, skeleton.get_hit_point())
+	_check(is_equal_approx(skeleton.hp, hp_before_guard), "格挡期间免疫攻击伤害")
+	await get_tree().create_timer(0.6).timeout
+	_check(skeleton.is_guarding(), "格挡在技能持续期间保持")
+	await get_tree().create_timer(1.6).timeout
+	_check(not skeleton.is_guarding(), "技能结束后格挡消失")
+
 	skeleton.mana = skeleton.max_mana
 	skeleton.brain.enabled = true
 	skeleton.brain.force_think()
@@ -2056,14 +2167,22 @@ func _test_axeman_skills() -> void:
 	var axeman_definition := UnitCatalog.get_definition(&"armored_axeman")
 	var spin: CombatActionDefinition = null
 	var heavy: CombatActionDefinition = null
+	var armor_guard: CombatActionDefinition = null
+	var basic: CombatActionDefinition = null
 	for action in axeman_definition.actions:
 		if action.action_id == &"armored_axeman_spin":
 			spin = action
 		elif action.action_id == &"armored_axeman_heavy":
 			heavy = action
+		elif action.action_id == &"armored_axeman_armor_guard":
+			armor_guard = action
+		elif action.action_id == &"armored_axeman_basic":
+			basic = action
 	_check(spin != null, "重甲斧兵拥有旋风斩 Action")
 	_check(heavy != null, "重甲斧兵拥有重击 Action")
-	if spin == null or heavy == null:
+	_check(armor_guard != null, "重甲斧兵拥有盔甲护身 Action")
+	_check(basic != null, "重甲斧兵拥有普攻 Action")
+	if spin == null or heavy == null or armor_guard == null or basic == null:
 		return
 	_check(spin.animation == &"attack_02" and spin.target_mode == CombatActionDefinition.TargetMode.DIRECTION,
 		"旋风斩使用 attack_02 并选择方向")
@@ -2073,6 +2192,16 @@ func _test_axeman_skills() -> void:
 		and is_equal_approx(heavy.effects[0].damage_ratio, 2.0), "重击使用 attack_03 且为 2 倍单体伤害")
 	_check(spin.mana_cost >= axeman_definition.max_mana, "旋风斩需要满蓝释放")
 	_check(is_equal_approx(heavy.mana_cost, 0.0), "重击不消耗蓝量")
+	_check(armor_guard.target_mode == CombatActionDefinition.TargetMode.SELF
+		and not armor_guard.effects.is_empty()
+		and armor_guard.effects[0].kind == ActionEffectDefinition.Kind.STATUS
+		and armor_guard.effects[0].status_id == &"armored_axeman_armor_guard"
+		and is_equal_approx(armor_guard.effects[0].status_duration, 6.0),
+		"盔甲护身对自身施加 6 秒护甲状态")
+	_check(axeman_definition.passive != null and axeman_definition.passive.on_hit_status != null
+		and is_equal_approx(axeman_definition.passive.on_hit_status.base_power, -0.10)
+		and is_equal_approx(axeman_definition.passive.on_hit_status.duration, 4.0),
+		"战栗被动在命中时降低目标 10 个百分点护甲")
 
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
@@ -2145,9 +2274,10 @@ func _test_axeman_skills() -> void:
 	_check(battle.action_hits >= 5, "旋风斩产生五次碰撞伤害")
 	_check(axeman.global_position.x > start_x + 20.0, "旋风斩边旋转边向攻击方向移动")
 
-	# 重击：单目标 2 倍伤害。
+	# 重击：单目标 2 倍伤害，并触发战栗破甲。
 	if enemies[0].alive:
 		enemies[0].position = axeman.global_position + Vector2(70, 0)
+		enemies[0].status_controller.remove_status(&"armored_axeman_dread")
 		axeman.target = enemies[0]
 		var heavy_before: float = enemies[0].hp
 		var hits_before: int = battle.action_hits
@@ -2157,8 +2287,45 @@ func _test_axeman_skills() -> void:
 		await get_tree().create_timer(0.8).timeout
 		_check(enemies[0].hp < heavy_before, "重击对单体造成伤害")
 		_check(battle.action_hits == hits_before + 1, "重击只结算一次伤害")
+		_check(enemies[0].status_controller.has_status(&"armored_axeman_dread")
+			and absf(enemies[0].current_armor() - maxf(0.0, enemies[0].armor - 0.10)) < 0.001,
+			"技能命中同样施加战栗并降低 10 个百分点护甲")
+
+	# 盔甲护身：自身护甲 +20 个百分点，持续 6 秒。
+	var armor_before: float = axeman.current_armor()
+	axeman.action_cooldowns[armor_guard.action_id] = 0.0
+	axeman.planned_action = armor_guard
+	axeman.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.2).timeout
+	_check(axeman.status_controller.has_status(&"armored_axeman_armor_guard")
+		and absf(axeman.current_armor() - minf(armor_before + 0.20, 0.8)) < 0.001,
+		"盔甲护身立即提高 20 个百分点护甲")
+	_check(axeman.status_controller.remaining(&"armored_axeman_armor_guard") > 5.5,
+		"盔甲护身持续 6 秒")
+	var guard_vfx := axeman.status_controller.get_vfx(&"armored_axeman_armor_guard")
+	_check(guard_vfx is ArmorUpGlowFx and (guard_vfx as ArmorUpGlowFx).is_playing()
+		and axeman.visual.material is ShaderMaterial,
+		"盔甲护身使用金色轮廓 Sprite Shader")
+	await get_tree().create_timer(0.8).timeout
+
+	# 普攻命中同样触发战栗：先移除重击施加的破甲，确认普攻会重新施加。
+	if enemies[0].alive:
+		enemies[0].status_controller.remove_status(&"armored_axeman_dread")
+		enemies[0].position = axeman.global_position + Vector2(70, 0)
+		axeman.target = enemies[0]
+		var basic_hp: float = enemies[0].hp
+		var basic_armor: float = enemies[0].current_armor()
+		axeman.planned_action = basic
+		axeman.state_machine.transition_to(&"action", true)
+		await get_tree().create_timer(0.9).timeout
+		_check(enemies[0].hp < basic_hp, "普攻命中正常结算伤害")
+		_check(enemies[0].status_controller.has_status(&"armored_axeman_dread")
+			and absf(enemies[0].current_armor() - maxf(0.0, basic_armor - 0.10)) < 0.001,
+			"普攻命中同样施加战栗并降低 10 个百分点护甲")
 
 	await get_tree().create_timer(2.1).timeout
+	axeman.status_controller.remove_status(&"armored_axeman_armor_guard")
+	_check(axeman.visual.material == null, "盔甲护身结束后恢复身体材质")
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
@@ -2723,7 +2890,7 @@ func _test_status_framework() -> void:
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 13, "状态目录包含 13 种状态（含暗影侵蚀）")
+	_check(StatusCatalog.count() == 15, "状态目录包含 15 种状态（含暗影侵蚀、盔甲护身与战栗）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,
