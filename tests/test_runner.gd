@@ -249,9 +249,10 @@ func _test_archer_kit() -> void:
 	_check(rain.action_id == &"archer_arrow_rain" and rain.animation == &"attack_01"
 		and rain.select_densest_cluster() and rain.effects.size() == 2
 		and rain.effects[0].effect_scene != null and rain.effects[0].radius > 0.0
-		and is_equal_approx(rain.effects[1].damage_ratio, 1.5)
-		and is_equal_approx(rain.effects[1].radius, 140.0),
-		"箭雨在密集敌群处播放可见特效，并造成 1.5 AD 范围伤害")
+		and rain.effects[1].kind == ActionEffectDefinition.Kind.DAMAGE
+		and rain.effects[1].shape == ActionEffectDefinition.Shape.CIRCLE
+		and is_equal_approx(rain.effects[1].radius, rain.effects[0].radius),
+		"箭雨在密集敌群处播放特效，特效半径与伤害半径一致")
 	_check(pierce.action_id == &"archer_piercing_shot" and pierce.animation == &"attack_02"
 		and pierce.effects[0].shape == ActionEffectDefinition.Shape.RECT
 		and is_equal_approx(pierce.effects[0].damage_ratio, 1.5),
@@ -286,11 +287,44 @@ func _test_archer_kit() -> void:
 		before = victim.hp
 		victim.take_damage(10.0, archer, null, true)
 		_check(is_equal_approx(before - victim.hp, 11.0), "恰好 300 像素时获得 10% 狙击加成")
+		await _test_piercing_arrow(battle, archer, victim, pierce)
 	else:
 		_check(false, "弓箭手狙击固定场景生成")
 	battle.queue_free()
 	await get_tree().process_frame
 	GameState.reset_lineups()
+
+
+func _test_piercing_arrow(battle: Battle, archer: Unit, victim: Unit, pierce: CombatActionDefinition) -> void:
+	var direction := Vector2(-1.0, -0.3).normalized()
+	archer.position = Vector2(920, 710)
+	victim.position = archer.position + direction * 125.0
+	var far := battle._spawn_unit(victim.definition, 1, 1, archer.position + direction * 300.0)
+	var off_axis := battle._spawn_unit(victim.definition, 1, 2,
+		archer.position + direction * 230.0 + direction.orthogonal() * 95.0)
+	far.brain.enabled = false
+	off_axis.brain.enabled = false
+	var near_hp := victim.hp
+	archer.target = victim
+	archer.planned_target = victim
+	archer.planned_action = pierce
+	archer.planned_direction = direction
+	archer.mana = pierce.mana_cost
+	archer.state_machine.transition_to(&"action", true)
+	var fx: Sprite2D = null
+	for _tick in 75:
+		await get_tree().physics_frame
+		fx = battle.effects_root.get_node_or_null("ArcherPiercingArrowFx") as Sprite2D
+		if fx != null:
+			break
+	_check(victim.hp < near_hp and far.hp < far.max_hp and is_equal_approx(off_axis.hp, off_axis.max_hp)
+		and battle.action_hits == 2, "贯穿箭只命中斜向一条直线上的两个敌人")
+	_check(is_instance_valid(fx) and fx.global_transform.x.normalized().is_equal_approx(direction)
+		and is_equal_approx(fx.scale.x * 180.0, pierce.effects[0].length)
+		and is_equal_approx(fx.scale.y * 20.0, pierce.effects[0].width),
+		"贯穿箭特效随瞄准方向和伤害长度、宽度摆放")
+	await get_tree().create_timer(0.55).timeout
+	_check(not is_instance_valid(fx) and battle.action_hits == 2, "贯穿箭尾迹消散，不重复结算")
 
 
 func _test_setup_scene() -> void:
@@ -455,6 +489,46 @@ func _test_hero_lab() -> void:
 		await get_tree().create_timer(0.7).timeout
 		_check(lab.hero.hp > lab.hero.max_hp * 0.47,
 			"治疗技能会自动受伤并治疗自己，可在试炼场演示辅助技能")
+
+	var archer := UnitCatalog.get_definition(&"archer")
+	lab._select_definition(archer)
+	await get_tree().process_frame
+	var rain: CombatActionDefinition = archer.actions[2]
+	lab.hero.brain.enabled = false
+	var rain_damage: float = lab.hero.current_attack_damage() * rain.effects[1].damage_ratio
+	lab.skill_cards[1].cast_requested.emit(rain)
+	if lab.hero.global_position.distance_to(lab.dummy.global_position) >= archer.passive.bonus_damage_min_distance:
+		rain_damage *= 1.0 + archer.passive.bonus_damage_at_distance_ratio
+	await get_tree().create_timer(0.55).timeout
+	var rain_scene: PackedScene = rain.effects[0].effect_scene
+	var rain_fx: Node2D = null
+	for effect in lab.battle.effects_root.get_children():
+		if effect.scene_file_path == rain_scene.resource_path:
+			rain_fx = effect
+			break
+	var arrows := rain_fx.get_node("Arrows") as Sprite2D if is_instance_valid(rain_fx) else null
+	_check(is_instance_valid(arrows) and arrows.frame < 12 and is_zero_approx(lab.battle.training_damage()),
+		"箭雨预警和下落阶段尚未造成伤害")
+	_check(is_instance_valid(rain_fx) and is_equal_approx(rain_fx.scale.x * 70.0, rain.effects[1].radius)
+		and rain_fx.global_position.is_equal_approx(lab.dummy.global_position),
+		"箭雨预警圈对齐实际落点与伤害半径")
+	await get_tree().create_timer(0.36).timeout
+	_check(is_instance_valid(arrows) and arrows.frame >= 12 and is_equal_approx(lab.battle.training_damage(), rain_damage),
+		"箭雨齐落时按技能资源倍率结算（%.2f / %.2f）" % [lab.battle.training_damage(), rain_damage])
+	await get_tree().create_timer(0.42).timeout
+	_check(not is_instance_valid(rain_fx) and is_equal_approx(lab.battle.training_damage(), rain_damage),
+		"箭雨只结算一次，余尘消散后移除特效")
+
+	lab.skill_cards[1].cast_requested.emit(rain)
+	await get_tree().create_timer(0.55).timeout
+	lab.hero.state_machine.transition_to(&"idle", true)
+	await get_tree().create_timer(0.37).timeout
+	var lingering := false
+	for effect in lab.battle.effects_root.get_children():
+		if effect.scene_file_path == rain_scene.resource_path:
+			lingering = true
+	_check(not lingering and is_equal_approx(lab.battle.training_damage(), rain_damage),
+		"箭雨在伤害帧前中断时取消落地和伤害")
 	lab.queue_free()
 	await get_tree().process_frame
 	GameState.reset_lineups()
