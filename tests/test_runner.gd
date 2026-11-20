@@ -56,6 +56,7 @@ func _run_all() -> void:
 	await _test_status_framework()
 	await _test_damage_no_interrupt()
 	await _test_necromancer()
+	await _test_tactical_movement()
 	await _test_battle()
 	await _test_extra_lineup()
 	await _test_stat_editor()
@@ -3417,6 +3418,92 @@ func _test_stat_editor() -> void:
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
+
+
+func _test_tactical_movement() -> void:
+	print("\n[战术走位] 接敌、换位与场边撤退")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"soldier")
+	GameState.set_slot(0, 1, &"soldier")
+	GameState.set_slot(0, 2, &"lancer")
+	GameState.set_slot(0, 3, &"archer")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	var allies := battle.living_units(0)
+	var enemies := battle.living_units(1)
+	var first := allies[0]
+	var second := allies[1]
+	var lancer := allies[2]
+	var archer := allies[3]
+	var enemy := enemies[0]
+	var alternative := enemies[1]
+	for unit in battle.units:
+		unit.brain.enabled = false
+	var center := (battle.field_min + battle.field_max) * 0.5
+	enemy.position = center
+	alternative.position = center + Vector2(0.0, 205.0)
+	first.position = center + Vector2(-270.0, 0.0)
+	second.position = center + Vector2(-270.0, -34.0)
+	lancer.position = center + Vector2(-315.0, 175.0)
+	archer.position = center + Vector2(-470.0, 160.0)
+	first.target = enemy
+	second.target = enemy
+	var first_goal := first.movement_goal()
+	first.brain.intent = UnitBrain.Intent.ADVANCE
+	first.brain.movement_target = enemy
+	first.brain.movement_destination = first_goal
+	var second_goal := second.movement_goal()
+	_check(first_goal.distance_to(second_goal) > 65.0
+		and first_goal.distance_to(center) < first.basic_target_reach()
+		and second_goal.distance_to(center) < second.basic_target_reach(),
+		"同一目标预留不同接敌角度，两处都在近战有效射程内")
+
+	lancer.brain._observe()
+	lancer.brain._judge()
+	_check(lancer.brain.target == alternative, "已有两名队友接敌时，另一名近战优先找空位更多的目标")
+	alternative.position = center + Vector2(420.0, 200.0)
+	second.position = center + Vector2(-51.0, -23.0)
+	first.position = center + Vector2(-105.0, 28.0)
+	for action in second.actions:
+		second.action_cooldowns[action.action_id] = 3.0
+	second.brain.think()
+	var start_position := second.position
+	battle.battle_active = true
+	for index in 10:
+		await get_tree().physics_frame
+	_check(second.brain.intent == UnitBrain.Intent.REPOSITION and second.position.distance_to(start_position) > 5.0,
+		"近战已在射程内时会利用冷却调整受挤的站位")
+	battle.battle_active = false
+
+	lancer.position = center + Vector2(-220.0, -160.0)
+	lancer.target = enemy
+	var lance_goal := lancer.movement_goal()
+	_check(lance_goal.distance_to(center) > first_goal.distance_to(center) + 24.0,
+		"枪兵以更长的普攻距离接敌")
+
+	archer.position = Vector2(battle.field_min.x + 4.0, center.y)
+	enemy.position = archer.position + Vector2(90.0, 0.0)
+	alternative.position = center + Vector2(450.0, 195.0)
+	for action in archer.actions:
+		if action.category != CombatActionDefinition.Category.BASIC:
+			archer.action_cooldowns[action.action_id] = 3.0
+	archer.brain.think()
+	var retreat := archer.brain.movement_destination
+	_check(archer.brain.intent == UnitBrain.Intent.KITE and archer.brain.movement_target == enemy
+		and absf(retreat.y - archer.position.y) > 60.0
+		and retreat.distance_to(enemy.position) > archer.position.distance_to(enemy.position) + 20.0,
+		"远程被逼到场边时选择有空间的斜撤路线")
+	enemy.position = archer.position + Vector2(405.0, 0.0)
+	archer.brain.think()
+	_check(archer.brain.intent == UnitBrain.Intent.ACTION and archer.planned_action != null
+		and archer.planned_action.category == CombatActionDefinition.Category.BASIC,
+		"拉开到安全距离后恢复普攻")
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
 
 
 func _check_arena_projection(battle: Battle) -> void:
