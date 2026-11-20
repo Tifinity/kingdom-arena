@@ -50,8 +50,9 @@ func frame_field(view_size: Vector2, field_min: Vector2, field_max: Vector2) -> 
 	$Walls/BackWall.scale = Vector3(span.x + 360.0, 114.0, 76.0)
 	$Walls/Step.position = Vector3(center.x, 23.0, field_min.y - 74.0)
 	$Walls/Step.scale = Vector3(span.x + 360.0, 46.0, 42.0)
-	$Walls/LeftTower.position = Vector3(field_min.x - 124.0, 109.0, field_min.y - 128.0)
-	$Walls/RightTower.position = Vector3(field_max.x + 124.0, 109.0, field_min.y - 128.0)
+	var tower_offset := clampf((view_size.x - span.x) * 0.5 - 58.0, 0.0, 124.0)
+	$Walls/LeftTower.position = Vector3(field_min.x - tower_offset, 109.0, field_min.y - 128.0)
+	$Walls/RightTower.position = Vector3(field_max.x + tower_offset, 109.0, field_min.y - 128.0)
 	$Walls/LeftTower.scale = Vector3(90.0, 218.0, 104.0)
 	$Walls/RightTower.scale = $Walls/LeftTower.scale
 

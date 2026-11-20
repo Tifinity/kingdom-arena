@@ -15,8 +15,15 @@ const TRAINING_DUMMY_DEFINITION := preload("res://resources/training/training_du
 
 const SETUP_SCENE := "res://scenes/setup/setup_screen.tscn"
 const BASE_SIZE := Vector2(1600.0, 900.0)
-const BASE_FIELD_MIN := Vector2(190.0, 430.0)
-const BASE_FIELD_MAX := Vector2(1410.0, 860.0)
+const TRAINING_FIELD_MIN := Vector2(190.0, 430.0)
+const TRAINING_FIELD_MAX := Vector2(1410.0, 860.0)
+const FIELD_CENTER := (TRAINING_FIELD_MIN + TRAINING_FIELD_MAX) * 0.5
+# 相机保持原倍率，横向留出边距，新增面积主要分配到纵深。
+const ARENA_FIELD_SCALE := Vector2(1.17, 2.0 / 1.17)
+const ARENA_FIELD_HALF_SPAN := (TRAINING_FIELD_MAX - TRAINING_FIELD_MIN) * ARENA_FIELD_SCALE * 0.5
+const BASE_FIELD_MIN := FIELD_CENTER - ARENA_FIELD_HALF_SPAN
+const BASE_FIELD_MAX := FIELD_CENTER + ARENA_FIELD_HALF_SPAN
+const FORMATION_DEPTH_SCALE := 1.35
 
 ## 训练模式的固定站位：英雄在左、稻草人在右，保持在中央可视区且避开底部技能栏。
 const TRAINING_HERO_SPOT := Vector2(650.0, 600.0)
@@ -125,8 +132,8 @@ func _refresh_layout() -> void:
 	if _viewport_size.x <= 1.0 or _viewport_size.y <= 1.0:
 		return
 	var layout_scale := _viewport_size / BASE_SIZE
-	field_min = BASE_FIELD_MIN * layout_scale
-	field_max = BASE_FIELD_MAX * layout_scale
+	field_min = (TRAINING_FIELD_MIN if training_mode else BASE_FIELD_MIN) * layout_scale
+	field_max = (TRAINING_FIELD_MAX if training_mode else BASE_FIELD_MAX) * layout_scale
 	stage.frame_field(_viewport_size, field_min, field_max)
 	ground_presentation.transform = stage.ground_transform
 	for unit in units:
@@ -135,7 +142,9 @@ func _refresh_layout() -> void:
 
 
 func _formation_position(team: int, slot: int) -> Vector2:
-	return BASE_FORMATIONS[team][slot] * (_viewport_size / BASE_SIZE)
+	var point: Vector2 = BASE_FORMATIONS[team][slot]
+	point.y = FIELD_CENTER.y + (point.y - FIELD_CENTER.y) * FORMATION_DEPTH_SCALE
+	return point * (_viewport_size / BASE_SIZE)
 
 
 func _exit_tree() -> void:

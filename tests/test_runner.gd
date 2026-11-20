@@ -3421,6 +3421,15 @@ func _test_stat_editor() -> void:
 
 func _check_arena_projection(battle: Battle) -> void:
 	var stage := battle.stage
+	var view_size := battle.get_viewport_rect().size
+	var span := (battle.field_max - battle.field_min) / (view_size / Battle.BASE_SIZE)
+	var training_span := Battle.TRAINING_FIELD_MAX - Battle.TRAINING_FIELD_MIN
+	var screen_min := stage.ground_transform * battle.field_min
+	var screen_max := stage.ground_transform * battle.field_max
+	var viewport := Rect2(Vector2.ZERO, view_size)
+	_check(is_equal_approx(span.x * span.y, 2.0 * training_span.x * training_span.y)
+		and viewport.has_point(screen_min) and viewport.has_point(screen_max),
+		"实战竞技场面积为训练场地的两倍，正交相机覆盖全部边界")
 	var unit := battle.units[0]
 	var point := unit.global_position
 	var screen := stage.ground_transform * point
