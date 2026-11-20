@@ -15,8 +15,15 @@ const TRAINING_DUMMY_DEFINITION := preload("res://resources/training/training_du
 
 const SETUP_SCENE := "res://scenes/setup/setup_screen.tscn"
 const BASE_SIZE := Vector2(1600.0, 900.0)
-const BASE_FIELD_MIN := Vector2(190.0, 430.0)
-const BASE_FIELD_MAX := Vector2(1410.0, 860.0)
+const TRAINING_FIELD_MIN := Vector2(190.0, 430.0)
+const TRAINING_FIELD_MAX := Vector2(1410.0, 860.0)
+const FIELD_CENTER := (TRAINING_FIELD_MIN + TRAINING_FIELD_MAX) * 0.5
+# 相机保持原倍率，横向留出边距，新增面积主要分配到纵深。
+const ARENA_FIELD_SCALE := Vector2(1.17, 2.0 / 1.17)
+const ARENA_FIELD_HALF_SPAN := (TRAINING_FIELD_MAX - TRAINING_FIELD_MIN) * ARENA_FIELD_SCALE * 0.5
+const BASE_FIELD_MIN := FIELD_CENTER - ARENA_FIELD_HALF_SPAN
+const BASE_FIELD_MAX := FIELD_CENTER + ARENA_FIELD_HALF_SPAN
+const FORMATION_DEPTH_SCALE := 1.35
 
 ## 训练模式的固定站位：英雄在左、稻草人在右，保持在中央可视区且避开底部技能栏。
 const TRAINING_HERO_SPOT := Vector2(650.0, 600.0)
@@ -70,9 +77,12 @@ var _viewport_size := Vector2.ZERO
 var _rng := RandomNumberGenerator.new()
 
 @onready var hud: BattleHUD = $HUD
-@onready var units_root: Node2D = $UnitsRoot
-@onready var projectiles_root: Node2D = $Projectiles
-@onready var effects_root: Node2D = $Effects
+@onready var stage: ArenaStage3D = $Stage
+@onready var ground_presentation: CanvasLayer = $GroundPresentation
+@onready var units_root: Node2D = $GroundPresentation/UnitsRoot
+@onready var projectiles_root: Node2D = $GroundPresentation/Projectiles
+@onready var effects_root: Node2D = $GroundPresentation/Effects
+@onready var combat_text: CanvasLayer = $CombatText
 
 
 func _ready() -> void:
@@ -93,6 +103,7 @@ func _ready() -> void:
 			start_training(training_definition)
 	else:
 		_spawn_lineups()
+		hud.set_roster(units)
 		_run_countdown()
 
 
@@ -123,12 +134,19 @@ func _refresh_layout() -> void:
 	if _viewport_size.x <= 1.0 or _viewport_size.y <= 1.0:
 		return
 	var layout_scale := _viewport_size / BASE_SIZE
-	field_min = BASE_FIELD_MIN * layout_scale
-	field_max = BASE_FIELD_MAX * layout_scale
+	field_min = (TRAINING_FIELD_MIN if training_mode else BASE_FIELD_MIN) * layout_scale
+	field_max = (TRAINING_FIELD_MAX if training_mode else BASE_FIELD_MAX) * layout_scale
+	stage.frame_field(_viewport_size, field_min, field_max, training_mode)
+	ground_presentation.transform = stage.ground_transform
+	for unit in units:
+		if is_instance_valid(unit):
+			unit.update_arena_projection(ground_presentation.scale.y / ground_presentation.scale.x)
 
 
 func _formation_position(team: int, slot: int) -> Vector2:
-	return BASE_FORMATIONS[team][slot] * (_viewport_size / BASE_SIZE)
+	var point: Vector2 = BASE_FORMATIONS[team][slot]
+	point.y = FIELD_CENTER.y + (point.y - FIELD_CENTER.y) * FORMATION_DEPTH_SCALE
+	return point * (_viewport_size / BASE_SIZE)
 
 
 func _exit_tree() -> void:
@@ -157,6 +175,11 @@ func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_positio
 	unit.position = spawn_position
 	unit.setup(self, team, slot, definition)
 	unit.face_direction(1.0 if team == 0 else -1.0)
+	var sprite := UnitSprite3D.new()
+	stage.actors.add_child(sprite)
+	sprite.setup(unit, stage)
+	unit.tree_exiting.connect(sprite.queue_free, CONNECT_ONE_SHOT)
+	unit.update_arena_projection(ground_presentation.scale.y / ground_presentation.scale.x)
 	unit.set_range_overlay_visible(show_combat_ranges)
 	unit.died.connect(_on_unit_died)
 	units.append(unit)
@@ -212,7 +235,7 @@ func _clear_battlefield() -> void:
 		unit.set_process(false)
 		unit.queue_free()
 	units.clear()
-	for container in [projectiles_root, effects_root]:
+	for container in [projectiles_root, effects_root, combat_text]:
 		for child in container.get_children():
 			child.queue_free()
 
@@ -328,7 +351,7 @@ func team_alive(team: int) -> int:
 
 func _on_unit_died(unit: Unit, killer: Unit) -> void:
 	if is_instance_valid(unit):
-		spawn_death_burst(unit.get_hit_point(), unit.accent_color)
+		spawn_death_burst(unit.get_effect_point(), unit.accent_color)
 	if is_instance_valid(killer):
 		team_kills[killer.team] += 1
 	# 训练模式没有胜负：稻草人不会死亡，英雄也不应由靶子击杀。
@@ -395,32 +418,30 @@ func on_damage_dealt(target: Unit, source: Unit, amount: float) -> void:
 			_mvp_name = source.definition.display_name
 			_mvp_team = source.team
 	var color: Color = source.accent_color if is_instance_valid(source) else Color.WHITE
-	var at: Vector2 = target.get_hit_point() + Vector2(_rng.randf_range(-14.0, 14.0), _rng.randf_range(-8.0, 4.0))
+	var at: Vector2 = target.get_effect_point() + Vector2(_rng.randf_range(-14.0, 14.0), _rng.randf_range(-8.0, 4.0))
 	spawn_damage_number(at, amount, color)
 
 
 func spawn_damage_number(at: Vector2, amount: float, color: Color) -> void:
-	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup(amount, color, at)
+	_spawn_combat_text(at, "-%d" % maxi(1, roundi(amount)), color)
 
 
 func spawn_block_text(at: Vector2) -> void:
-	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup_text("格挡", Color("#e7c46b"), at)
+	_spawn_combat_text(at, "格挡", Color("#e7c46b"))
 
 
 func spawn_heal_text(at: Vector2, amount: float) -> void:
-	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup_text("+%d" % roundi(amount), Color("#8fe3a8"), at)
+	_spawn_combat_text(at, "+%d" % roundi(amount), Color("#8fe3a8"))
 
 
 func spawn_shield_text(at: Vector2, amount: float) -> void:
+	_spawn_combat_text(at, "护盾 +%d" % roundi(amount), Color("#59d9ff"))
+
+
+func _spawn_combat_text(at: Vector2, text: String, color: Color) -> void:
 	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup_text("护盾 +%d" % roundi(amount), Color("#59d9ff"), at)
+	combat_text.add_child(number)
+	number.setup_text(text, color, stage.ground_transform * at)
 
 
 func spawn_summons(source: Unit, unit_id: StringName, count: int, effect_scene: PackedScene = null) -> void:
@@ -593,25 +614,33 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mouse := event as InputEventMouseButton
 		if mouse.button_index == MOUSE_BUTTON_LEFT and mouse.pressed:
-			_select_at(get_global_mouse_position())
+			_select_at(mouse.position)
+
+
+func unit_screen_position(unit: Unit) -> Vector2:
+	return stage.ground_transform * unit.get_effect_point()
 
 
 func _select_at(point: Vector2) -> void:
 	var best: Unit = null
 	var best_distance := INF
 	for unit in units:
-		if not is_instance_valid(unit):
+		if not is_instance_valid(unit) or not unit.alive:
 			continue
-		var center := unit.global_position + Vector2(0, -unit.character_height * unit.definition.visual_scale * 0.5)
+		var center := unit_screen_position(unit)
 		var distance := center.distance_to(point)
-		var threshold := maxf(46.0, unit.body_radius * 1.75)
+		var threshold := maxf(46.0, unit.body_radius * 1.75) * stage.ground_transform.x.length()
 		if distance <= threshold and distance < best_distance:
 			best = unit
 			best_distance = distance
 
+	select_unit(best)
+
+
+func select_unit(unit: Unit) -> void:
 	if is_instance_valid(selected_unit):
 		selected_unit.set_selected(false)
-	selected_unit = best
-	if best != null:
-		best.set_selected(true)
-	hud.set_selected_unit(best)
+	selected_unit = unit
+	if is_instance_valid(unit):
+		unit.set_selected(true)
+	hud.set_selected_unit(unit)

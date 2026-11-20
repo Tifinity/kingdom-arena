@@ -10,6 +10,8 @@ const GOLD := Color("#e7c46b")
 const BLUE := Color("#58a6ff")
 const RED := Color("#ff6b7a")
 
+@export var distant_only := false
+
 var _time := 0.0
 var _redraw_accum := 0.0
 var _rng := RandomNumberGenerator.new()
@@ -65,6 +67,12 @@ func _sync_viewport() -> void:
 
 
 func _draw() -> void:
+	if distant_only:
+		draw_rect(Rect2(Vector2.ZERO, VIEW), Color("#101827"))
+		_draw_sky()
+		_draw_castle()
+		_draw_vignette()
+		return
 	_draw_sky()
 	_draw_castle()
 	_draw_stands()

@@ -1,9 +1,9 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene format=3 uid="uid://daluvwflhg26j"]
 
-[ext_resource type="Script" path="res://scripts/battle/team_ring.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/battle/selection_ring.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/battle/health_bar.gd" id="3"]
-[ext_resource type="Texture2D" path="res://assets/ui/soft_shadow.png" id="4"]
+[ext_resource type="Script" uid="uid://4powvkqq26fo" path="res://scripts/battle/team_ring.gd" id="1"]
+[ext_resource type="Script" uid="uid://babl2snucqggk" path="res://scripts/battle/selection_ring.gd" id="2"]
+[ext_resource type="Script" uid="uid://bx24eitnuqwg2" path="res://scripts/battle/health_bar.gd" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/units/unit_shadow.tscn" id="4"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/orc_rider_frames.tres" id="5"]
 
 [sub_resource type="CircleShape2D" id="hurt_shape"]
@@ -12,58 +12,57 @@ radius = 37.8
 [sub_resource type="CircleShape2D" id="attack_shape"]
 radius = 104.0
 
-[node name="UnitVisual" type="Node2D"]
+[node name="UnitVisual" type="Node2D" unique_id=376895303]
 
-[node name="Shadow" type="Sprite2D" parent="."]
-texture_filter = 1
-z_index = -1
-texture = ExtResource("4")
-position = Vector2(0, -1)
-scale = Vector2(0.473, 0.473)
+[node name="Shadow" parent="." unique_id=657539497 instance=ExtResource("4")]
+scale = Vector2(0.6844166, 0.72608334)
 
-[node name="TeamRing" type="Node2D" parent="."]
+[node name="TeamRing" type="Node2D" parent="." unique_id=803130465]
 script = ExtResource("1")
 
-[node name="SelectionRing" type="Node2D" parent="."]
+[node name="SelectionRing" type="Node2D" parent="." unique_id=156804929]
 visible = false
 script = ExtResource("2")
 
-[node name="Body" type="AnimatedSprite2D" parent="."]
+[node name="Body" type="AnimatedSprite2D" parent="." unique_id=1023012001]
 texture_filter = 1
-centered = true
 position = Vector2(0, -34.5)
 scale = Vector2(4.928, 4.928)
 sprite_frames = ExtResource("5")
+animation = &"idle"
+metadata/_edit_lock_ = true
 
-[node name="HealthBar" type="Node2D" parent="."]
+[node name="HealthBar" type="Node2D" parent="." unique_id=1073628726]
 z_index = 20
 position = Vector2(0, -157.9)
 script = ExtResource("3")
 
-[node name="Hurtbox" type="Area2D" parent="."]
+[node name="Hurtbox" type="Area2D" parent="." unique_id=953712172]
+visible = false
 collision_layer = 0
 collision_mask = 0
 monitoring = false
 monitorable = false
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=1861169574]
 shape = SubResource("hurt_shape")
 debug_color = Color(1, 0.35, 0.35, 0.55)
 
-[node name="AttackBox" type="Area2D" parent="."]
+[node name="AttackBox" type="Area2D" parent="." unique_id=496371187]
+visible = false
 collision_layer = 0
 collision_mask = 0
 monitoring = false
 monitorable = false
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackBox"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackBox" unique_id=1591338327]
 shape = SubResource("attack_shape")
 debug_color = Color(0.35, 0.7, 1, 0.45)
 
-[node name="Muzzle" type="Marker2D" parent="."]
+[node name="Muzzle" type="Marker2D" parent="." unique_id=1698593225]
 position = Vector2(27.22, -80.03)
 
-[node name="FootMarker" type="Marker2D" parent="."]
+[node name="FootMarker" type="Marker2D" parent="." unique_id=1695100769]
 
-[node name="HitPoint" type="Marker2D" parent="."]
+[node name="HitPoint" type="Marker2D" parent="." unique_id=813814345]
 position = Vector2(0, -142.9)

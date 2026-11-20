@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://4powvkqq26fo" path="res://scripts/battle/team_ring.gd" id="1"]
 [ext_resource type="Script" uid="uid://babl2snucqggk" path="res://scripts/battle/selection_ring.gd" id="2"]
 [ext_resource type="Script" uid="uid://bx24eitnuqwg2" path="res://scripts/battle/health_bar.gd" id="3"]
-[ext_resource type="Texture2D" uid="uid://cf6pmkef5d1gn" path="res://assets/ui/soft_shadow.png" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/units/unit_shadow.tscn" id="4"]
 [ext_resource type="SpriteFrames" uid="uid://bkg3jex4rr05u" path="res://resources/visuals/archer_frames.tres" id="5"]
 
 [sub_resource type="CircleShape2D" id="hurt_shape"]
@@ -14,12 +14,9 @@ radius = 340.0
 
 [node name="UnitVisual" type="Node2D" unique_id=379624916]
 
-[node name="Shadow" type="Sprite2D" parent="." unique_id=1904836628]
-z_index = -1
-texture_filter = 1
+[node name="Shadow" parent="." unique_id=1904836628 instance=ExtResource("4")]
 position = Vector2(0, -1)
 scale = Vector2(0.368, 0.368)
-texture = ExtResource("4")
 
 [node name="TeamRing" type="Node2D" parent="." unique_id=961878468]
 script = ExtResource("1")
@@ -36,6 +33,7 @@ sprite_frames = ExtResource("5")
 animation = &"attack_01"
 frame = 8
 frame_progress = 1.0
+metadata/_edit_lock_ = true
 
 [node name="HealthBar" type="Node2D" parent="." unique_id=436862439]
 z_index = 20
@@ -59,6 +57,7 @@ monitoring = false
 monitorable = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackBox" unique_id=604894502]
+visible = false
 shape = SubResource("attack_shape")
 debug_color = Color(0.35, 0.7, 1, 0.45)
 

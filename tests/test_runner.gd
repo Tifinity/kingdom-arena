@@ -56,6 +56,7 @@ func _run_all() -> void:
 	await _test_status_framework()
 	await _test_damage_no_interrupt()
 	await _test_necromancer()
+	await _test_tactical_movement()
 	await _test_battle()
 	await _test_extra_lineup()
 	await _test_stat_editor()
@@ -2335,6 +2336,36 @@ func _test_axeman_skills() -> void:
 		await get_tree().process_frame
 		return
 
+	axeman.brain.force_think()
+	_check(axeman.brain.intent == UnitBrain.Intent.ADVANCE and axeman.planned_action == null
+		and axeman.is_action_ready(armor_guard),
+		"敌人离得远时斧兵先推进并保留盔甲护身")
+
+	axeman.mana = axeman.max_mana
+	axeman.status_controller.apply(StatusCatalog.get_definition(&"taunt"), enemies[0])
+	axeman.brain.force_think()
+	_check(axeman.status_controller.forced_target() == enemies[0]
+		and axeman.brain.intent == UnitBrain.Intent.ADVANCE and axeman.planned_action == null
+		and axeman.is_action_ready(spin),
+		"满蓝且被远处敌人嘲讽时，斧兵推进而不会空放旋风斩")
+	axeman.status_controller.remove_status(&"taunt")
+
+	var edge := Vector2(battle.field_max.x, (battle.field_min.y + battle.field_max.y) * 0.5)
+	axeman.position = edge
+	enemies[0].position = edge + Vector2(0.0, 92.0)
+	enemies[1].position = edge + Vector2(-500.0, 200.0)
+	enemies[2].position = edge + Vector2(-600.0, -190.0)
+	_check(not ActionActivation.reason(axeman, spin, enemies[0], Vector2.RIGHT).is_empty(),
+		"场边无法推进的方向不能起手旋风斩")
+	axeman.brain.force_think()
+	_check(axeman.planned_action == spin and axeman.planned_direction.dot(Vector2.DOWN) > 0.9,
+		"场边选择能推进且朝向敌人的旋风斩路线")
+	enemies[0].position = edge + Vector2(-460.0, 0.0)
+	axeman.state_machine.transition_to(&"action", true)
+	_check(axeman.state_machine.current_name == &"idle" and axeman.current_cast == null
+		and is_equal_approx(axeman.mana, axeman.max_mana) and axeman.is_action_ready(spin),
+		"目标在计划后离开时取消起手，保留蓝量与冷却")
+
 	axeman.position = Vector2(700, 650)
 	enemies[0].position = Vector2(780, 650)
 	enemies[1].position = Vector2(400, 800)
@@ -2399,6 +2430,15 @@ func _test_axeman_skills() -> void:
 		_check(enemies[0].status_controller.has_status(&"armored_axeman_dread")
 			and absf(enemies[0].current_armor() - maxf(0.0, enemies[0].armor - 0.10)) < 0.001,
 			"技能命中同样施加战栗并降低 10 个百分点护甲")
+
+	# 敌人在近处且输出动作冷却中，AI 可以选到防御技能。
+	axeman.state_machine.transition_to(&"idle", true)
+	var cooldowns_before_guard := axeman.action_cooldowns.duplicate()
+	for action in axeman.actions:
+		axeman.action_cooldowns[action.action_id] = 0.0 if action == armor_guard else 4.0
+	axeman.brain.think()
+	_check(axeman.planned_action == armor_guard, "接敌且输出技能冷却时，AI 可以选择盔甲护身")
+	axeman.action_cooldowns = cooldowns_before_guard
 
 	# 盔甲护身：自身护甲 +20 个百分点，持续 6 秒。
 	var armor_before: float = axeman.current_armor()
@@ -2711,12 +2751,10 @@ func _test_skill_effects() -> void:
 		# 暂停时 HUD 应继续处理点击选人。
 		get_tree().paused = true
 		if cc_battle.hud != null and bear != null:
-			var world_point := bear.global_position + Vector2(0, -30)
-			var screen_point: Vector2 = cc_battle.get_global_transform_with_canvas() * world_point
 			var click := InputEventMouseButton.new()
 			click.button_index = MOUSE_BUTTON_LEFT
 			click.pressed = true
-			click.position = screen_point
+			click.position = cc_battle.unit_screen_position(bear)
 			cc_battle.hud._unhandled_input(click)
 			_check(cc_battle.selected_unit == bear, "暂停时仍可通过 HUD 点击切换观察镜")
 		get_tree().paused = false
@@ -3421,6 +3459,193 @@ func _test_stat_editor() -> void:
 	await get_tree().process_frame
 
 
+func _test_tactical_movement() -> void:
+	print("\n[战术走位] 接敌、换位与场边撤退")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"soldier")
+	GameState.set_slot(0, 1, &"soldier")
+	GameState.set_slot(0, 2, &"lancer")
+	GameState.set_slot(0, 3, &"archer")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	var allies := battle.living_units(0)
+	var enemies := battle.living_units(1)
+	var first := allies[0]
+	var second := allies[1]
+	var lancer := allies[2]
+	var archer := allies[3]
+	var enemy := enemies[0]
+	var alternative := enemies[1]
+	for unit in battle.units:
+		unit.brain.enabled = false
+	var center := (battle.field_min + battle.field_max) * 0.5
+	enemy.position = center
+	alternative.position = center + Vector2(0.0, 205.0)
+	first.position = center + Vector2(-270.0, 0.0)
+	second.position = center + Vector2(-270.0, -34.0)
+	lancer.position = center + Vector2(-315.0, 175.0)
+	archer.position = center + Vector2(-470.0, 160.0)
+	first.target = enemy
+	second.target = enemy
+	var first_goal := first.movement_goal()
+	first.brain.intent = UnitBrain.Intent.ADVANCE
+	first.brain.movement_target = enemy
+	first.brain.movement_destination = first_goal
+	var second_goal := second.movement_goal()
+	_check(first_goal.distance_to(second_goal) > 65.0
+		and first_goal.distance_to(center) < first.basic_target_reach()
+		and second_goal.distance_to(center) < second.basic_target_reach(),
+		"同一目标预留不同接敌角度，两处都在近战有效射程内")
+
+	lancer.brain._observe()
+	lancer.brain._judge()
+	_check(lancer.brain.target == alternative, "已有两名队友接敌时，另一名近战优先找空位更多的目标")
+	alternative.position = center + Vector2(420.0, 200.0)
+	second.position = center + Vector2(-51.0, -23.0)
+	first.position = center + Vector2(-105.0, 28.0)
+	for action in second.actions:
+		second.action_cooldowns[action.action_id] = 3.0
+	second.brain.think()
+	var start_position := second.position
+	battle.battle_active = true
+	for index in 10:
+		await get_tree().physics_frame
+	_check(second.brain.intent == UnitBrain.Intent.REPOSITION and second.position.distance_to(start_position) > 5.0,
+		"近战已在射程内时会利用冷却调整受挤的站位")
+	battle.battle_active = false
+
+	lancer.position = center + Vector2(-220.0, -160.0)
+	lancer.target = enemy
+	var lance_goal := lancer.movement_goal()
+	_check(lance_goal.distance_to(center) > first_goal.distance_to(center) + 24.0,
+		"枪兵以更长的普攻距离接敌")
+
+	archer.position = Vector2(battle.field_min.x + 4.0, center.y)
+	enemy.position = archer.position + Vector2(90.0, 0.0)
+	alternative.position = center + Vector2(450.0, 195.0)
+	for action in archer.actions:
+		if action.category != CombatActionDefinition.Category.BASIC:
+			archer.action_cooldowns[action.action_id] = 3.0
+	archer.brain.think()
+	var retreat := archer.brain.movement_destination
+	_check(archer.brain.intent == UnitBrain.Intent.KITE and archer.brain.movement_target == enemy
+		and absf(retreat.y - archer.position.y) > 60.0
+		and retreat.distance_to(enemy.position) > archer.position.distance_to(enemy.position) + 20.0,
+		"远程被逼到场边时选择有空间的斜撤路线")
+	enemy.position = archer.position + Vector2(405.0, 0.0)
+	archer.brain.think()
+	_check(archer.brain.intent == UnitBrain.Intent.ACTION and archer.planned_action != null
+		and archer.planned_action.category == CombatActionDefinition.Category.BASIC,
+		"拉开到安全距离后恢复普攻")
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _check_arena_projection(battle: Battle) -> void:
+	var stage := battle.stage
+	var view_size := battle.get_viewport_rect().size
+	var span := (battle.field_max - battle.field_min) / (view_size / Battle.BASE_SIZE)
+	var training_span := Battle.TRAINING_FIELD_MAX - Battle.TRAINING_FIELD_MIN
+	var screen_min := stage.ground_transform * battle.field_min
+	var screen_max := stage.ground_transform * battle.field_max
+	var viewport := Rect2(Vector2.ZERO, view_size)
+	_check(is_equal_approx(span.x * span.y, 2.0 * training_span.x * training_span.y)
+		and viewport.has_point(screen_min) and viewport.has_point(screen_max),
+		"实战竞技场面积为训练场地的两倍，正交相机覆盖全部边界")
+	var unit := battle.units[0]
+	var point := unit.global_position
+	var screen := stage.ground_transform * point
+	_check(stage.camera == battle.get_viewport().get_camera_3d()
+		and stage.camera.projection == Camera3D.PROJECTION_ORTHOGONAL,
+		"战斗使用 3D 场景的正交相机")
+	_check(screen.distance_to(stage.camera.unproject_position(stage.ground_to_world(point))) < 0.01
+		and stage.screen_to_ground(screen).distance_to(point) < 0.01
+		and unit.get_global_transform_with_canvas().origin.distance_to(screen) < 0.01,
+		"角色脚点、地面特效与相机投影对齐，屏幕坐标可还原为地面坐标")
+	var east := stage.ground_transform * (point + Vector2(140.0, 0.0))
+	var south := stage.ground_transform * (point + Vector2(0.0, 140.0))
+	_check(is_equal_approx(screen.distance_to(east), 140.0 * view_size.y / stage.camera.size)
+		and screen.distance_to(south) < screen.distance_to(east),
+		"地面同半径的圆随相机投影呈椭圆")
+	var body := stage.actors.get_child(0) as Sprite3D
+	_check(stage.actors.get_child_count() == battle.units.size() and is_instance_valid(body)
+		and body.texture != null and not unit.visual.visible
+		and body.texture_filter == BaseMaterial3D.TEXTURE_FILTER_NEAREST,
+		"每名角色由 3D 像素贴图显示")
+	var ground := body.get_node("GroundVisuals") as UnitGroundVisual3D
+	var shadow := ground.get_node("Shadow") as Sprite3D
+	var ring := ground.get_node("Rings") as MeshInstance3D
+	var shadow_scale := unit.shadow.scale
+	var expected_tint := Color(unit.team_ring.ring_color.darkened(0.57), unit.shadow.self_modulate.a)
+	_check(unit.shadow.texture is GradientTexture2D and shadow.texture == unit.shadow.texture
+		and shadow.modulate.is_equal_approx(expected_tint)
+		and not shadow.modulate.is_equal_approx(unit.shadow.self_modulate),
+		"角色场景预览和战斗共用影子贴图，战斗换为队伍色")
+	unit.shadow.scale = Vector2(0.6, 0.35)
+	unit.set_selected(true)
+	unit.set_range_overlay_visible(true)
+	ground.sync()
+	_check(not unit.shadow.visible and unit.team_ring.draw_in_3d and unit.selection_ring.draw_in_3d
+		and shadow.render_priority < ring.material_override.render_priority
+		and ring.material_override.render_priority < body.render_priority,
+		"影子和选中圆环都在立绘下方的 3D 地面绘制")
+	var ring_material := ring.material_override as ShaderMaterial
+	_check(is_equal_approx(shadow.global_transform.basis.x.length(), 0.6)
+		and is_equal_approx(shadow.global_transform.basis.y.length(), 0.35)
+		and is_equal_approx(float(ring_material.get_shader_parameter("selection_radius")), unit.selection_ring.radius)
+		and is_equal_approx(float(ring_material.get_shader_parameter("attack_radius")), unit.selection_ring.attack_range),
+		"影子沿用角色场景 Scale，选中圈和调试射程保留实际半径")
+	unit.shadow.scale = shadow_scale
+	unit.set_selected(false)
+	unit.set_range_overlay_visible(false)
+	ground.sync()
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = battle.unit_screen_position(unit)
+	battle._unhandled_input(click)
+	_check(battle.selected_unit == unit, "点击投影后的角色可以选中")
+	battle._select_at(Vector2.ZERO)
+	var left := battle.hud.roster_columns[0]
+	var right := battle.hud.roster_columns[1]
+	_check((screen_min + screen_max).distance_to(view_size) < 0.01
+		and screen_min.x > left.get_global_rect().end.x and screen_max.x < right.global_position.x,
+		"竞技场居中，战斗区域完整落在双方英雄栏之间")
+	_check(not stage.get_node("Sky").visible and not stage.get_node("Walls").visible,
+		"正式对战隐藏上方背景和城墙")
+	_check(left.get_child_count() == battle.team_sizes[0] and right.get_child_count() == battle.team_sizes[1],
+		"双方各显示真实上阵英雄的状态卡")
+	var card := left.get_child(0) as BattleRosterCard
+	var skill := card._skills[0]
+	var before := card.unit.action_cooldown(skill)
+	card.unit.action_cooldowns[skill.action_id] = 4.21
+	card.refresh(false)
+	var portrait := card._portrait.texture as AtlasTexture
+	_check(portrait != null and portrait.atlas == card.unit.definition.portrait
+		and card._skill_timers[0].text == "4.2 s",
+		"英雄卡读取真实头像与技能剩余冷却")
+	_check(card.get_child(0).get_combined_minimum_size().y <= card.size.y,
+		"技能冷却与状态都显示在英雄卡内")
+	card.unit.action_cooldowns[skill.action_id] = before
+	card.pressed.emit()
+	_check(battle.selected_unit == card.unit and battle.hud.inspector.visible,
+		"点击英雄卡可以选中场上对应单位并查看详情")
+	card.pressed.emit()
+	var impact := unit.get_effect_point()
+	battle.spawn_damage_number(impact, 128.0, Color.WHITE)
+	var number := battle.combat_text.get_child(0) as DamageNumber
+	var text_transform := number.get_global_transform_with_canvas()
+	_check(text_transform.origin.distance_to(battle.unit_screen_position(unit)) < 0.01
+		and is_equal_approx(text_transform.x.length(), text_transform.y.length()),
+		"伤害飘字以命中位置为锚点并在屏幕空间保持原比例")
+	number.queue_free()
+
+
+
 func _test_battle() -> void:
 	print("\n[8] 默认阵容自动战斗")
 	_check(InputMap.has_action("range_toggle"), "范围开关已注册输入动作")
@@ -3454,6 +3679,7 @@ func _run_battle(label: String) -> void:
 	await get_tree().process_frame
 
 	if label == "默认阵容":
+		_check_arena_projection(battle)
 		_check(not battle.show_combat_ranges, "范围环默认关闭")
 		battle.toggle_speed()
 		_check(is_equal_approx(Engine.time_scale, 2.0) and battle.hud.speed_button.text == "×2",

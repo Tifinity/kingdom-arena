@@ -88,6 +88,8 @@ var health_bar: UnitHealthBar
 ## 视觉子场景根节点与其中的投射物出手锚点（场景里名为 Muzzle）。
 ## 锚点缺失时回退到按体型推算的位置，旧视觉场景无需立刻迁移。
 var _visual_root: Node2D
+var _health_bar_anchor: Vector2
+var _health_bar_scale: Vector2
 var _muzzle_marker: Marker2D
 @onready var visual_host: Node2D = $VisualHost
 @onready var status_controller: UnitStatusController = $StatusController
@@ -151,6 +153,8 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	team_ring = visual_root.get_node("TeamRing")
 	selection_ring = visual_root.get_node("SelectionRing")
 	health_bar = visual_root.get_node("HealthBar")
+	_health_bar_anchor = health_bar.position
+	_health_bar_scale = health_bar.scale
 	_visual_root = visual_root
 	_muzzle_marker = visual_root.get_node_or_null("Muzzle") as Marker2D
 
@@ -663,7 +667,7 @@ func heal(amount: float, healer: Unit = null) -> void:
 	health_bar.set_ratio(hp / max_hp)
 	if hp > before:
 		if battle != null:
-			battle.spawn_heal_text(get_hit_point(), hp - before)
+			battle.spawn_heal_text(get_effect_point(), hp - before)
 		if healer != null:
 			healer.last_heal_amount += hp - before
 		sync_conditional_passives()
@@ -699,7 +703,7 @@ func apply_burn(duration: float, dps: float, source: Unit) -> void:
 func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 	if not is_instance_valid(victim) or not victim.alive:
 		return
-	var impact := victim.get_hit_point()
+	var impact := victim.get_effect_point()
 	var blocked := victim.is_guarding()
 	var is_skill := current_cast != null and current_cast.action.category == CombatActionDefinition.Category.SKILL
 	var damage := current_attack_damage() * maxf(effect.damage_ratio, 0.0)
@@ -791,7 +795,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 	if not victims.is_empty():
 		damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
 	for victim in victims:
-		var impact := victim.get_hit_point()
+		var impact := victim.get_effect_point()
 		if effect.shape == ActionEffectDefinition.Shape.SINGLE:
 			battle.spawn_slash(impact, accent_color, signf(victim.global_position.x - global_position.x))
 		elif effect.shape == ActionEffectDefinition.Shape.CONE:
@@ -854,8 +858,8 @@ func apply_shield(amount: float, duration: float, cap: float) -> void:
 	shield_time = duration
 	health_bar.set_shield_ratio(shield / max_hp)
 	if battle != null and shield > before:
-		battle.spawn_shield_text(get_hit_point(), shield - before)
-		battle.spawn_hit_spark(get_hit_point(), Color("#59d9ff"), 1.8)
+		battle.spawn_shield_text(get_effect_point(), shield - before)
+		battle.spawn_hit_spark(get_effect_point(), Color("#59d9ff"), 1.8)
 
 
 func is_guarding() -> bool:
@@ -889,7 +893,7 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 	if guard_time > 0.0:
 		# 格挡期间完全免伤，也不进入受击硬直。
 		guard_blocked_hit = true
-		var block_at := get_hit_point() if hit_position == null else Vector2(hit_position)
+		var block_at := get_effect_point() if hit_position == null else Vector2(hit_position)
 		_flash_left = 0.09
 		visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
 		battle.spawn_hit_spark(block_at, Color("#e7c46b"), 1.8)
@@ -904,7 +908,7 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 		if shield <= 0.0:
 			shield_time = 0.0
 		if amount <= 0.0:
-			battle.spawn_hit_spark(get_hit_point(), Color(0.35, 0.85, 1.0), 1.2)
+			battle.spawn_hit_spark(get_effect_point(), Color(0.35, 0.85, 1.0), 1.2)
 			return
 	hp = maxf(0.0, hp - amount)
 	last_damage_source = source
@@ -962,6 +966,20 @@ func hp_ratio() -> float:
 func get_hit_point() -> Vector2:
 	var visual_height := character_height * absf(visual.scale.y) if visual != null else character_height * definition.visual_scale
 	return global_position + Vector2(0.0, -visual_height * 0.52)
+
+
+## 投影后的旧特效层仍用 Vector2 接口。这个锚点表示角色身上的视觉高度。
+func get_effect_point() -> Vector2:
+	var hit_point := get_hit_point()
+	if battle is Battle:
+		return battle.stage.elevated_canvas_point(global_position, hit_point - global_position)
+	return hit_point
+
+
+func update_arena_projection(depth_scale: float) -> void:
+	health_bar.position = Vector2(_health_bar_anchor.x, _health_bar_anchor.y / depth_scale)
+	health_bar.scale = Vector2(_health_bar_scale.x, _health_bar_scale.y / depth_scale)
+	$StatusVisuals/AttributeBadges.scale.y = 1.0 / depth_scale
 
 
 ## 投射物出生点：优先读取视觉场景里的 Muzzle 锚点，方便按角色在编辑器里拖拽调试。

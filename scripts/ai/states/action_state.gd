@@ -45,7 +45,7 @@ func enter(_previous: StringName) -> void:
 		var gap: float = _cast.target.body_radius + unit.body_radius + _action.movement_gap()
 		unit.position = unit.battle.clamp_unit_position(_cast.target.global_position - approach * gap)
 		unit.battle.spawn_hit_spark(departure, Color("#c264e8"), 1.6)
-		unit.battle.spawn_hit_spark(unit.get_hit_point(), Color("#c264e8"), 1.8)
+		unit.battle.spawn_hit_spark(unit.get_effect_point(), Color("#c264e8"), 1.8)
 	var direction := _cast.direction
 	if _action.movement_kind() == ActionMovementDefinition.Kind.TELEPORT:
 		direction = (_cast.target.global_position - unit.global_position).normalized()

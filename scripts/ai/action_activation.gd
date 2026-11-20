@@ -47,6 +47,11 @@ static func reason(unit: Unit, action: CombatActionDefinition, target: Variant =
 		CombatActionDefinition.TargetMode.DIRECTION:
 			if direction.length_squared() < 0.0001:
 				return "缺少施放方向"
+			var victims := ActionTargetQuery.directional_targets(unit, action, direction)
+			if forced_target != null and not victims.has(forced_target):
+				return "此方向无法命中嘲讽者"
+			if victims.size() < maxi(action.min_targets, 1):
+				return "此方向没有可命中的敌人或无法推进"
 		CombatActionDefinition.TargetMode.POINT:
 			if not has_point:
 				return "缺少施放地点"

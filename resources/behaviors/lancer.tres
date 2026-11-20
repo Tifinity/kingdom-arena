@@ -17,9 +17,9 @@ random_jitter = 0.02
 
 [sub_resource type="Resource" id="movement"]
 script = ExtResource("3")
-preferred_range_ratio = 0.97
+preferred_range_ratio = 1.00
 lateral_span = 50.0
-forward_ratio = 0.92
+forward_ratio = 0.98
 flank_y_bias = 0.0
 kite_ratio = 0.42
 kite_stop_ratio = 0.72

@@ -9,6 +9,7 @@ const FPS := 30.0
 @onready var _ground: Sprite2D = $Ground
 @onready var _arrows: Sprite2D = $Arrows
 
+var _ground_3d: Sprite3D
 var _source: Unit
 var _cast: ActionCast
 var _impact_index := -1
@@ -42,6 +43,11 @@ func setup_from_effect(source: Unit, effect: ActionEffectDefinition) -> void:
 	_source = source
 	global_position = _cast.point
 	scale = Vector2.ONE * (damage.radius / SHEET_GROUND_RADIUS)
+	if source.battle is Battle:
+		var stage: ArenaStage3D = source.battle.stage
+		_ground_3d = stage.add_ground_sprite(_ground, self, ArenaStage3D.GROUND_MARKER_PRIORITY + 1)
+		stage.sync_ground_sprite(_ground_3d, _ground, 0.2)
+		_ground.hide()
 
 
 func _process(delta: float) -> void:
@@ -71,4 +77,6 @@ func _process(delta: float) -> void:
 
 func _show_frame(index: int) -> void:
 	_ground.frame = index
+	if _ground_3d != null:
+		_ground_3d.frame = index
 	_arrows.frame = index
