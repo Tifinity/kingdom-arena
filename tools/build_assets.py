@@ -480,12 +480,16 @@ def _skills_for(unit: Unit) -> list[dict]:
     elif slug == "knight_templar":
         skills.append(_skill("knight_templar_cleave", "圣光斩", "attack_02",
                              [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 10.0, half=62.0)],
-                             7.0, 7, rng, rng))
-        skills.append(_skill("knight_templar_judgement", "圣光裁决", "attack_03",
-                             [_fx(shape=2, ratio=1.5, frame=6, radius=190.0, half=55.0)],
-                             12.0, 10, 200.0, rng,
-                             description="斩击时金色冲击波向前扩散，对扇形敌人造成 {damage_0} 伤害。"))
-        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_judgement_wave.tscn"
+                             7.0, 7, rng + 10.0, rng,
+                             description="挥出一道金色剑气，对前方扇形敌人造成 {damage_0} 伤害。"))
+        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_holy_blade.tscn"
+        skills.append(_skill("knight_templar_judgement", "圣光连斩", "attack_03",
+                             [_fx(kind=2, frame=3, radius=190.0),
+                              _fx(shape=2, ratio=1.5, frame=6, radius=190.0, half=55.0)],
+                             12.0, 10, 190.0, rng,
+                             description="连续挥出两道金色剑气，第二斩对前方扇形敌人造成 {damage_0} 伤害。"))
+        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_holy_blade_rising.tscn"
+        skills[-1]["effects"][1]["scene_path"] = "res://scenes/fx/templar_holy_blade.tscn"
         skills.append(_skill("knight_templar_block", "圣盾守护", "move_02",
                              [_fx(kind=5, shape=1, frame=7, radius=160.0, center_self=True,
                                   status_id="taunt", status_duration=2.5),
@@ -494,7 +498,7 @@ def _skills_for(unit: Unit) -> list[dict]:
                              16.0, 13, 340.0, rng, mana=100.0, target_mode=3,
                              category=2, action_duration=0.8, advance=850.0,
                              advance_distance=340.0, movement_kind=4, targeting_selection=2))
-        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_taunt_pulse.tscn"
+        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/aegis_ring.tscn"
     elif slug == "armored_axeman":
         skills.append(_skill("armored_axeman_heavy", "重击", "attack_03",
                              [_fx(shape=0, ratio=2.0, frame=8)],
@@ -944,7 +948,14 @@ def build_character(unit: Unit) -> tuple[float, str]:
         if any(pat in raw for pat in SKIP_PATTERNS):
             continue
         dest_name = raw.replace("/", "_") + ".png"
-        shutil.copy2(path, out_dir / dest_name)
+        dest_path = out_dir / dest_name
+        # These checked-in strips export only the body layer. Their effects play separately.
+        if (unit.slug, raw) not in (
+            ("knight_templar", "attack02"),
+            ("knight_templar", "attack03"),
+            ("werebear", "attack03"),
+        ):
+            shutil.copy2(path, dest_path)
         copied[raw] = dest_name
 
     # Build the canonical animation -> destination file map.

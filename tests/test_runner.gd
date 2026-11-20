@@ -37,7 +37,7 @@ func _run_all() -> void:
 	await _test_priest_kit()
 	await _test_knight_kit()
 	await _test_flame_slash()
-	await _test_templar_judgement_wave()
+	await _test_templar_holy_blades()
 	await _test_templar_guardian_ultimate()
 	await _test_smart_knight()
 	await _test_wizard_and_elite_orc()
@@ -1110,29 +1110,30 @@ func _test_flame_slash() -> void:
 	await get_tree().process_frame
 
 
-func _test_templar_judgement_wave() -> void:
-	print("\n[4b] 圣殿骑士圣光裁决冲击波")
+func _test_templar_holy_blades() -> void:
+	print("\n[4b] 圣殿骑士金色剑气")
 	var definition := UnitCatalog.get_definition(&"knight_templar")
-	var judgement: CombatActionDefinition = null
-	for action in definition.actions:
-		if action.action_id == &"knight_templar_judgement":
-			judgement = action
-			break
-	_check(judgement != null and judgement.effects.size() == 1
-		and judgement.effects[0].effect_scene != null,
-		"圣光裁决伤害效果绑定金色冲击波场景")
-	if judgement == null or judgement.effects.is_empty() or judgement.effects[0].effect_scene == null:
+	var cleave := definition.actions[1]
+	var combo := definition.actions[2]
+	_check(cleave.display_name == "圣光斩" and cleave.effects.size() == 1
+		and cleave.effects[0].effect_scene != null, "圣光斩在伤害帧释放一道剑气")
+	_check(combo.display_name == "圣光连斩" and combo.effects.size() == 2,
+		"圣光连斩绑定两段剑气")
+	if combo.effects.size() != 2:
 		return
-	var effect: ActionEffectDefinition = judgement.effects[0]
-	_check(effect.shape == ActionEffectDefinition.Shape.CONE
-		and is_equal_approx(effect.radius, 190.0)
-		and is_equal_approx(effect.half_angle, 55.0)
-		and is_equal_approx(effect.damage_ratio, 1.5)
-		and is_equal_approx(judgement.mana_cost, 0.0),
-		"圣光裁决转为 0 蓝普通技能并保留扇形范围")
-	_check(judgement.detail_text(definition.attack_damage).contains("金色冲击波")
-		and judgement.detail_text(definition.attack_damage).contains("AD × 1.5"),
-		"圣光裁决描述同时展示冲击波与当前伤害倍率")
+	var rising: ActionEffectDefinition = combo.effects[0]
+	var damage: ActionEffectDefinition = combo.effects[1]
+	_check(rising.kind == ActionEffectDefinition.Kind.VISUAL and rising.trigger_frame == 3
+		and rising.effect_scene != null and damage.kind == ActionEffectDefinition.Kind.DAMAGE
+		and damage.trigger_frame == 6 and damage.effect_scene != null
+		and damage.shape == ActionEffectDefinition.Shape.CONE
+		and is_equal_approx(damage.radius, 190.0)
+		and is_equal_approx(damage.half_angle, 55.0)
+		and is_equal_approx(damage.damage_ratio, 1.5)
+		and is_zero_approx(combo.mana_cost), "两次挥砍分帧出特效，第二段结算原有扇形伤害")
+	_check(combo.detail_text(definition.attack_damage).contains("两道金色剑气")
+		and combo.detail_text(definition.attack_damage).contains("AD × 1.5"),
+		"圣光连斩描述展示两道剑气与伤害倍率")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"knight_templar")
@@ -1144,43 +1145,50 @@ func _test_templar_judgement_wave() -> void:
 	var templar: Unit = null
 	var enemies: Array[Unit] = []
 	for unit in battle.units:
+		unit.brain.enabled = false
 		if unit.team == 0:
 			templar = unit
 		else:
 			enemies.append(unit)
 	if templar == null or enemies.size() != 2:
-		_check(false, "圣光裁决固定场景生成")
+		_check(false, "圣光连斩固定场景生成")
 		battle.queue_free()
 		await get_tree().process_frame
 		return
-	templar.brain.enabled = false
-	for enemy in enemies:
-		enemy.brain.enabled = false
 	templar.position = Vector2(700, 650)
 	enemies[0].position = Vector2(850, 650)
 	enemies[1].position = Vector2(600, 650)
 	var front_hp := enemies[0].hp
 	var rear_hp := enemies[1].hp
-	templar.mana = templar.max_mana
 	templar.target = enemies[0]
-	templar.planned_action = judgement
+	templar.planned_action = combo
 	templar.state_machine.transition_to(&"action", true)
-	await get_tree().create_timer(0.45).timeout
-	var wave: Node2D = null
-	for child in battle.effects_root.get_children():
-		if child.get_script() != null and child.get_script().resource_path == "res://scripts/fx/templar_judgement_wave.gd":
-			wave = child as Node2D
-			break
-	_check(wave != null and is_equal_approx(float(wave.get("radius")), effect.radius)
-		and is_equal_approx(float(wave.get("half_angle")), deg_to_rad(effect.half_angle))
-		and wave.global_position.distance_to(templar.global_position) < 1.0
-		and absf(wave.rotation) < 0.05,
-		"斩击触发时冲击波以骑士为中心、朝目标方向展开")
+	while templar.current_cast != null and templar.current_cast.next_effect < 1:
+		await get_tree().physics_frame
+	var first := battle.effects_root.get_node_or_null("TemplarHolyBladeRising") as TemplarHolyBlade
+	_check(first != null and first.rising and is_equal_approx(enemies[0].hp, front_hp),
+		"先挥出上挑剑气")
+	while templar.current_cast != null and templar.current_cast.next_effect < 2:
+		await get_tree().physics_frame
+	var second := battle.effects_root.get_node_or_null("TemplarHolyBlade") as TemplarHolyBlade
+	_check(is_instance_valid(first) and second != null and not second.rising
+		and second.global_position.distance_to(templar.get_effect_point()) < 1.0
+		and second.global_transform.x.normalized().dot(Vector2.RIGHT) > 0.99
+		and first.global_transform.determinant() * second.global_transform.determinant() < 0.0,
+		"第二道剑气从骑士身前朝同一目标方向展开，弧线与第一道相反")
 	_check(is_equal_approx(enemies[0].hp, front_hp - templar.current_attack_damage() * 1.5 * (1.0 - enemies[0].current_armor()))
-		and is_equal_approx(enemies[1].hp, rear_hp),
-		"冲击波仅作表现，扇形前方受伤而身后不受伤")
+		and is_equal_approx(enemies[1].hp, rear_hp), "连斩只结算一次，命中前方扇形")
 	await get_tree().create_timer(0.45).timeout
-	_check(not is_instance_valid(wave), "冲击波播放后自动清理")
+	_check(not is_instance_valid(first) and not is_instance_valid(second), "两道剑气播放后自动清理")
+	enemies[0].position = templar.position + Vector2.LEFT * 75.0
+	templar.planned_direction = Vector2.LEFT
+	templar.planned_action = cleave
+	templar.state_machine.transition_to(&"action", true)
+	while templar.current_cast != null and templar.current_cast.next_effect < 1:
+		await get_tree().physics_frame
+	var slash := battle.effects_root.get_node_or_null("TemplarHolyBlade") as TemplarHolyBlade
+	_check(slash != null and slash.global_transform.x.normalized().dot(Vector2.LEFT) > 0.99
+		and not battle.effects_root.has_node("TemplarHolyBladeRising"), "圣光斩只释放一道剑气，支持向左挥砍")
 	battle.queue_free()
 	await get_tree().process_frame
 	GameState.reset_lineups()
@@ -1286,25 +1294,22 @@ func _test_templar_guardian_ultimate() -> void:
 	_check(all_taunted and not enemies[3].status_controller.has_status(&"taunt")
 		and enemies[3].target == ally,
 		"圆形内三名敌人被强制改攻圣殿骑士，圈外敌人不受影响")
-	var ring: Node2D = null
-	for child in battle.effects_root.get_children():
-		if child.get_script() != null and child.get_script().resource_path == "res://scripts/fx/aegis_ring_fx.gd":
-			ring = child as Node2D
-			break
-	var ground: Sprite2D = null
-	var glow: Sprite2D = null
+	var ring := battle.effects_root.get_node_or_null("AegisRingFx") as AegisRingFx
+	var projected: Sprite3D = null
 	if ring != null:
-		ground = ring.get_node_or_null("Ground") as Sprite2D
-		glow = ring.get_node_or_null("Glow") as Sprite2D
-	_check(ring != null and is_equal_approx(float(ring.get("radius")), 160.0)
+		for child in ring.get_children():
+			if child is Sprite3D:
+				projected = child
+				break
+	_check(ring != null and is_equal_approx(ring.radius, 160.0)
 		and ring.global_position.distance_to(templar.global_position) < 1.0
-		and is_equal_approx(ring.scale.x, 160.0 / AegisRingFx.SHEET_RING_RADIUS)
-		and ground != null and glow != null
-		and battle.effects_root.z_index + ground.z_index < 0
-		and battle.effects_root.z_index + glow.z_index > 0
+		and projected != null
+		and is_equal_approx(projected.basis.x.length(), 160.0 / AegisRingFx.SHEET_RING_RADIUS)
+		and is_equal_approx(projected.basis.x.length(), projected.basis.y.length())
+		and is_zero_approx(projected.basis.x.y) and is_zero_approx(projected.basis.y.y)
 		and enemies[0].status_controller.get_vfx(&"taunt") != null
 		and enemies[3].status_controller.get_vfx(&"taunt") == null,
-		"落地结界以骑士为中心、按 160px 嘲讽半径铺开，地面层在单位下方、光柱层在上方")
+		"160px 正圆法阵贴在三维地面，由战场相机投影")
 	var basic: CombatActionDefinition = enemies[0].actions[0]
 	_check(ActionActivation.reason(enemies[0], basic, ally).contains("被嘲讽"),
 		"嘲讽期间不能对原友军目标发动攻击")
@@ -1738,6 +1743,19 @@ func _test_werebear_skills() -> void:
 	await get_tree().create_timer(0.65).timeout
 	_check(bear.position.distance_to(bear.planned_point) < 25.0 and enemies[1].hp < quake_hp
 		and enemies[1].status_controller.has_status(&"stun"), "天声震落落到敌群并造成伤害和眩晕")
+	var impact := battle.effects_root.get_node_or_null("GroundPoundFx") as GroundPoundFx
+	var floor_fx: Sprite3D = null
+	var air_fx: Sprite3D = null
+	if impact != null:
+		floor_fx = impact.get_node_or_null("ProjectedGround") as Sprite3D
+		air_fx = impact.get_node_or_null("Air") as Sprite3D
+	_check(impact != null and impact.global_position.is_equal_approx(bear.planned_point)
+		and floor_fx != null and air_fx != null and floor_fx.frame == air_fx.frame
+		and is_equal_approx(floor_fx.basis.x.length(), quake.effects[0].radius / GroundPoundFx.SHEET_RADIUS)
+		and is_equal_approx(floor_fx.basis.x.length(), floor_fx.basis.y.length())
+		and is_zero_approx(floor_fx.basis.y.y)
+		and air_fx.basis.y.is_equal_approx(battle.stage.camera.basis.y),
+		"震落的正圆冲击波对齐命中点与半径，飞石随镜头立起并同步播放")
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b48651mcw2243"
-path="res://.godot/imported/ground_slam.png-a9c43f7711932c8f0a832baeb5659675.ctex"
+uid="uid://b02800vmdnsn5"
+path="res://.godot/imported/aegis_ring_ground.png-6ce269382da3d41b5e491f58069d4172.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/fx/pixelfx/ground_slam.png"
-dest_files=["res://.godot/imported/ground_slam.png-a9c43f7711932c8f0a832baeb5659675.ctex"]
+source_file="res://assets/fx/pixelfx/aegis_ring_ground.png"
+dest_files=["res://.godot/imported/aegis_ring_ground.png-6ce269382da3d41b5e491f58069d4172.ctex"]
 
 [params]
 

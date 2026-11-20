@@ -2,7 +2,8 @@
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
-[ext_resource type="PackedScene" path="res://scenes/fx/templar_judgement_wave.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/fx/templar_holy_blade.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/fx/templar_holy_blade_rising.tscn" id="4"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -27,11 +28,18 @@ projectile_kind = 0
 duration = 0.00
 effect_scene = ExtResource("3")
 
+[sub_resource type="Resource" id="effect_rising"]
+script = ExtResource("2")
+kind = 2
+trigger_frame = 3
+radius = 190.0
+effect_scene = ExtResource("4")
+
 [resource]
 script = ExtResource("1")
 action_id = &"knight_templar_judgement"
-display_name = "圣光裁决"
-description = "斩击时金色冲击波向前扩散，对扇形敌人造成 {damage_0} 伤害。"
+display_name = "圣光连斩"
+description = "连续挥出两道金色剑气，第二斩对前方扇形敌人造成 {damage_0} 伤害。"
 category = 1
 target_mode = 0
 animation = &"attack_03"
@@ -47,4 +55,4 @@ advance_speed = 0.0
 min_targets = 1
 requires_wounded_ally = false
 priority = 10
-effects = [SubResource("effect_0")]
+effects = [SubResource("effect_rising"), SubResource("effect_0")]
