@@ -57,6 +57,12 @@
 - `assets/fx/pixelfx/holy_laser_bolt.png`：`projectiles/laser-bolt`，holy palette。
 - `assets/fx/pixelfx/heal.png`：`holy/heal`，heal palette；仅导出特效层，未包含示例角色。
 - `assets/fx/pixelfx/healing_ring.png`：`holy/heal-aoe`（Healing ring）。
+- `assets/fx/pixelfx/arrow_rain_volley_back.png`、`arrow_rain_volley_front.png`：`bows/arrow-rain-volley`，25 帧、30 FPS。预警圈与箭矢分层导出，精灵表半径为 70 像素。
+- 箭雨导出命令：`PIXELFX_DIR=../pixelfx node tools/pixelfx_split_layers.mjs bows/arrow-rain-volley --out assets/fx/pixelfx/arrow_rain_volley`。
+- `assets/fx/pixelfx/archer_piercing_arrow.png`：`bows/piercing-arrow-line`，13 帧、30 FPS。用 pixelfx 的 `node tools/render.mjs bows/piercing-arrow-line --sheet` 导出。
+- `assets/fx/pixelfx/slow_step_back.png`、`slow_step_front.png`：`status/slow-step`，48 帧、30 FPS。导出命令为 `PIXELFX_DIR=../pixelfx node tools/pixelfx_split_layers.mjs status/slow-step --out assets/fx/pixelfx/slow_step`。
+- `assets/fx/pixelfx/haste_step_back.png`、`haste_step_front.png`：`status/haste-step`，48 帧、30 FPS。导出命令为 `PIXELFX_DIR=../pixelfx node tools/pixelfx_split_layers.mjs status/haste-step --out assets/fx/pixelfx/haste_step`。
+- `assets/fx/pixelfx/stat_badges.png`：`status/stat-badges`，12 帧、12 FPS。用 pixelfx 的 `node tools/render.mjs status/stat-badges --sheet` 导出。
 - 来源：[patch-gg/pixelfx](https://github.com/patch-gg/pixelfx)，MIT License。
 
 ## Pixelfx 圣殿骑士结界

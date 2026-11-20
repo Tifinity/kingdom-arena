@@ -1,6 +1,6 @@
 extends Node2D
 
-## 简单的圆圈提示：怒吼显示施法范围，减速状态显示目标脚下的圆圈。
+## 简单的圆圈提示，用于怒吼等技能的施法范围。
 @export var radius := 160.0
 @export var lifetime := 0.0
 @export var ring_color := Color(0.58, 0.80, 1.0, 0.85)

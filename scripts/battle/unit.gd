@@ -677,7 +677,7 @@ func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
 		push_warning("未找到状态定义: %s" % effect.status_id)
 		return
 	var duration := effect.status_duration if effect.status_duration > 0.0 else definition.duration
-	var power := effect.status_power if effect.status_power > 0.0 else definition.base_power
+	var power := effect.status_power if not is_zero_approx(effect.status_power) else definition.base_power
 	if effect.status_power_attack_ratio > 0.0 and source != null and is_instance_valid(source):
 		power = source.current_attack_damage() * effect.status_power_attack_ratio
 	status_controller.apply(definition, source, {

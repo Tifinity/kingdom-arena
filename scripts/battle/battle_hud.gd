@@ -6,7 +6,8 @@ extends CanvasLayer
 var battle: Battle
 var selected_unit: Unit
 var _refresh_accum := 0.0
-var status_row: HBoxContainer
+var status_row: HFlowContainer
+var _status_icon_keys: Array = []
 var debug_panel: PanelContainer
 var debug_fields: Dictionary = {}
 const DEBUG_FIELD_DEFS := [
@@ -198,9 +199,10 @@ func set_selected_unit(unit: Unit) -> void:
 
 
 func _build_status_row() -> void:
-	status_row = HBoxContainer.new()
+	status_row = HFlowContainer.new()
 	status_row.name = "StatusRow"
-	status_row.add_theme_constant_override("separation", 4)
+	status_row.add_theme_constant_override("h_separation", 4)
+	status_row.add_theme_constant_override("v_separation", 3)
 	status_row.visible = false
 	var vbox := $Root/Inspector/Margin/VBox
 	vbox.add_child(status_row)
@@ -210,40 +212,53 @@ func _build_status_row() -> void:
 func _update_status_icons(statuses: Array) -> void:
 	if status_row == null:
 		return
-	for child in status_row.get_children():
-		status_row.remove_child(child)
-		child.queue_free()
-	status_row.visible = not statuses.is_empty()
+	var keys: Array = []
 	for data in statuses:
-		var box := HBoxContainer.new()
-		box.add_theme_constant_override("separation", 1)
-		var icon := TextureRect.new()
-		icon.custom_minimum_size = Vector2(22, 22)
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.texture = data.get("icon")
-		icon.tooltip_text = "%s" % data.get("display_name", "状态")
-		if icon.texture != null:
-			box.add_child(icon)
-		else:
-			var fallback := Label.new()
-			fallback.custom_minimum_size = Vector2(22, 22)
-			fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			fallback.text = str(data.get("display_name", "状态")).left(1)
-			fallback.add_theme_color_override("font_color", Color("#e7c46b"))
-			box.add_child(fallback)
-		var stacks := int(data.get("stacks", 1))
-		if stacks > 1:
-			var stack_label := Label.new()
-			stack_label.text = "×%d" % stacks
-			stack_label.add_theme_font_size_override("font_size", 11)
-			stack_label.add_theme_color_override("font_color", Color("#e7c46b"))
-			box.add_child(stack_label)
+		keys.append([data.get("id"), data.get("icon"), data.get("stacks"), data.get("display_name")])
+	if keys != _status_icon_keys:
+		_status_icon_keys = keys
+		for child in status_row.get_children():
+			status_row.remove_child(child)
+			child.queue_free()
+		for data in statuses:
+			status_row.add_child(_make_status_icon(data))
+	status_row.visible = not statuses.is_empty()
+	for index in statuses.size():
+		var data: Dictionary = statuses[index]
+		var box := status_row.get_child(index) as Control
 		box.tooltip_text = "%s · %s" % [
 			data.get("display_name", "状态"),
 			"常驻" if bool(data.get("persistent", false)) else "剩余 %.1f 秒" % float(data.get("remaining", 0.0)),
 		]
-		status_row.add_child(box)
+
+
+func _make_status_icon(data: Dictionary) -> HBoxContainer:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 1)
+	var texture: Texture2D = data.get("icon")
+	if texture != null:
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(22, 22)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = texture
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(icon)
+	else:
+		var fallback := Label.new()
+		fallback.custom_minimum_size = Vector2(22, 22)
+		fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fallback.text = str(data.get("display_name", "状态")).left(1)
+		fallback.add_theme_color_override("font_color", Color("#e7c46b"))
+		box.add_child(fallback)
+	var stacks := int(data.get("stacks", 1))
+	if stacks > 1:
+		var stack_label := Label.new()
+		stack_label.text = "×%d" % stacks
+		stack_label.add_theme_font_size_override("font_size", 11)
+		stack_label.add_theme_color_override("font_color", Color("#e7c46b"))
+		box.add_child(stack_label)
+	return box
 
 
 func _build_debug_panel() -> void:
@@ -413,10 +428,10 @@ func show_result(result: Dictionary) -> void:
 	var winner: int = result.get("winner", -1)
 	if winner == 0 or winner == 1:
 		var color := GameState.team_color(winner)
-		result_title.text = "%s 获胜" % GameState.team_name(winner)
+		result_title.text = "%s 获胜" % _result_team_name(winner)
 		result_title.add_theme_color_override("font_color", color)
 		var loser := 1 - winner
-		result_sub.text = "%s全员阵亡" % GameState.team_name(loser)
+		result_sub.text = "%s全员阵亡" % _result_team_name(loser)
 	else:
 		result_title.text = "同归于尽"
 		result_title.add_theme_color_override("font_color", Color("#e7c46b"))
@@ -439,6 +454,13 @@ func show_result(result: Dictionary) -> void:
 		]
 	else:
 		mvp_value.text = "无"
+
+
+func _result_team_name(team: int) -> String:
+	var name := GameState.team_name(team)
+	if GameState.selected_team_preset(0) == GameState.selected_team_preset(1):
+		return "%s（%s）" % [name, GameState.team_short_name(team)]
+	return name
 
 
 func _on_speed_pressed() -> void:

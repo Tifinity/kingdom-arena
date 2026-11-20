@@ -1,8 +1,25 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/fx/archer_arrow_rain_fx.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/arrow_rain_perspective.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/arrow_rain_volley_back.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/arrow_rain_volley_front.png" id="3"]
 
 [node name="ArcherArrowRainFx" type="Node2D"]
 script = ExtResource("1")
-sheet = ExtResource("2")
+
+[node name="Ground" type="Sprite2D" parent="."]
+z_index = -13
+texture_filter = 1
+position = Vector2(-84, -153)
+texture = ExtResource("2")
+centered = false
+hframes = 6
+vframes = 5
+
+[node name="Arrows" type="Sprite2D" parent="."]
+texture_filter = 1
+position = Vector2(-84, -153)
+texture = ExtResource("3")
+centered = false
+hframes = 6
+vframes = 5

@@ -9,14 +9,23 @@ signal changed
 var unit: Unit
 var _instances: Array[StatusInstance] = []
 var _visuals: Node2D
+var _attribute_badges: UnitAttributeBadges
 var _next_instance_id := 1
+
+
+func _ready() -> void:
+	changed.connect(_refresh_attribute_visuals)
 
 
 func setup(p_unit: Unit) -> void:
 	unit = p_unit
 	if unit != null:
 		_visuals = unit.get_node_or_null("StatusVisuals") as Node2D
+		_attribute_badges = unit.get_node_or_null("StatusVisuals/AttributeBadges") as UnitAttributeBadges
+		if _attribute_badges != null:
+			_attribute_badges.position.y = ceilf((unit.body_radius + 10.0) / 3.0) + 8.0
 	clear_all(false)
+	_refresh_attribute_visuals()
 
 
 func apply(definition: StatusDefinition, source: Unit, options: Dictionary = {}) -> StatusInstance:
@@ -69,7 +78,7 @@ func _create_instance(definition: StatusDefinition, source: Unit, duration: floa
 	instance.source = source
 	instance.remaining = -1.0 if definition.persistent else duration
 	instance.stacks = mini(maxi(stacks, 1), definition.max_stacks)
-	instance.power = power if power > 0.0 else definition.base_power
+	instance.power = power if not is_zero_approx(power) else definition.base_power
 	instance.instance_id = _next_instance_id
 	_next_instance_id += 1
 	_instances.append(instance)
@@ -148,6 +157,27 @@ func _free_vfx(instance: StatusInstance) -> void:
 	if vfx.has_method("stop"):
 		vfx.stop()
 	vfx.queue_free()
+
+
+func _refresh_attribute_visuals() -> void:
+	if _attribute_badges == null:
+		return
+	var directions := PackedInt32Array()
+	directions.resize(UnitAttributeBadges.STATS.size())
+	for instance in _instances:
+		for index in UnitAttributeBadges.STATS.size():
+			# The same neutral input detects both additive and multiplicative changes,
+			# while keeping contributions from opposing states visible.
+			var value := instance.definition.behavior.modify_stat(instance, UnitAttributeBadges.STATS[index], 1.0)
+			if not is_equal_approx(value, 1.0):
+				directions[index] |= UnitAttributeBadges.UP if value > 1.0 else UnitAttributeBadges.DOWN
+	_attribute_badges.set_directions(directions)
+
+	var opposing_speed := directions[-1] == (UnitAttributeBadges.UP | UnitAttributeBadges.DOWN)
+	for id: StringName in [&"slow", &"haste"]:
+		var fx := get_vfx(id)
+		if is_instance_valid(fx):
+			fx.visible = not opposing_speed
 
 
 func clear_all(emit_change := true) -> void:

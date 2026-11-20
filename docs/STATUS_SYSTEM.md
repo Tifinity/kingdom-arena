@@ -33,7 +33,11 @@ UnitStatusController（单位节点）
 | 状态 | id | tags | 行为 | 叠加规则 | 关键参数 |
 | --- | --- | --- | --- | --- | --- |
 | 眩晕 | `stun` | control / stun | ControlBehavior | 刷新，不叠层 | 0.9~1 秒，打断动作 |
-| 减速 | `slow` | debuff / slow | StatModifierBehavior | 只取最强（倍率最低） | 默认 0.55 倍移速 |
+| 减速 | `slow` | debuff / slow | StatModifierBehavior | 只取最强（倍率最低） | 默认 0.55 倍移速，脚边的蓝灰色环和下沉箭纹持续到状态结束 |
+| 移速加成 | `haste` | buff / haste | StatModifierBehavior | 只取最强（倍率最高） | 默认 1.20 倍移速、持续 2.5 秒，脚边是金色环和上扬箭纹 |
+| 攻击力增减 | `attack_up` / `attack_down` | buff / debuff | StatModifierBehavior | 同向只取最强 | 默认 ±20%，持续 2.5 秒 |
+| 攻速增减 | `attack_speed_up` / `attack_speed_down` | buff / debuff | StatModifierBehavior | 同向只取最强 | 默认 ±20%，持续 2.5 秒 |
+| 护甲增减 | `armor_up` / `armor_down` | buff / debuff | StatModifierBehavior | 同向只取最强 | 默认 ±10 个百分点，持续 2.5 秒 |
 | 流血 | `bleed` | dot / bleed / physical | DotBehavior | 只取最强 DPS | 0.5 秒 Tick，吃护甲 |
 | 燃烧 | `burn` | dot / burn / fire | DotBehavior | 只取最强 DPS | 0.5 秒 Tick，无视护甲 |
 | 中毒 | `poison` | dot / poison | DotBehavior | 叠层，上限 5 层 | 按最大生命值，无视护甲/护盾；满层立即结算剩余全部伤害并移除 |
@@ -42,6 +46,8 @@ UnitStatusController（单位节点）
 
 - `REFRESH`：`remaining = max(remaining, duration)`，例如眩晕。
 - `STRONGEST`：比较 `power`，只保留更强的一次；流血/燃烧是更高 DPS，减速是更低的移速倍率。
+- 技能可用 `STATUS` 效果引用 `status_id = &"haste"`，用 `status_power` 和 `status_duration` 覆盖移速倍率与持续时间。它与减速的倍率相乘。
+- 属性徽记放在脚环下方，剑、闪电、盾、靴分别表示攻击力、攻速、护甲、移速。每项最多一枚，同时有两种方向时显示双箭头。同一单位同时加速和减速时，脚环隐藏，保留双箭头。OODA 观察镜的状态列表会换行，悬停可看各状态的名称与剩余时间。
 - `STACK`：增加层数并刷新持续时间；达到 `max_stacks` 时调用 Behavior 的 `on_max_stacks()`。
 - 中毒的 `on_max_stacks()` 计算“剩余 Tick 数 × 当前每 Tick 伤害”，立即结算后移除状态。
 

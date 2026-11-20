@@ -46,16 +46,12 @@ custom_minimum_size = Vector2(6, 42)
 layout_mode = 2
 color = Color(0.345, 0.651, 1, 1)
 
-[node name="TeamInfo" type="VBoxContainer" parent="Margin/VBox/Header"]
+[node name="TeamPreset" type="OptionButton" parent="Margin/VBox/Header"]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 0
-
-[node name="TeamName" type="Label" parent="Margin/VBox/Header/TeamInfo"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.922, 0.941, 0.965, 1)
-theme_override_font_sizes/font_size = 22
-text = "晨曦王庭"
+tooltip_text = "选择这一方的队伍"
+theme_override_font_sizes/font_size = 20
 
 [node name="CountLabel" type="Label" parent="Margin/VBox/Header"]
 layout_mode = 2
@@ -72,6 +68,12 @@ size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.906, 0.769, 0.42, 1)
 theme_override_font_sizes/font_size = 12
 text = "战力 0"
+
+[node name="RestorePreset" type="Button" parent="Margin/VBox/PowerRow"]
+layout_mode = 2
+tooltip_text = "恢复这支队伍的默认角色和顺序"
+theme_override_font_sizes/font_size = 12
+text = "恢复预设"
 
 [node name="Separator" type="HSeparator" parent="Margin/VBox"]
 layout_mode = 2

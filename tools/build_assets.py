@@ -124,7 +124,7 @@ UNITS = [
     Unit("greatsword_skeleton", "巨剑骷髅", "断魂巨剑", 2, "战士", 15,
          "拖着巨剑的骸骨，一次挥砍就能重创脆皮。",
          130, 18, 0.65, 96, 96, 0.08, 0.42, 0, 0, 4.2, 33, source="Greatsword Skeleton"),
-    Unit("skeleton_archer", "骷髅弓手", "骸骨射手", 2, "射手", 16,
+    Unit("skeleton_archer", "骷髅弓箭手", "骸骨射手", 2, "射手", 16,
          "从墓穴中爬出的弓手，远程压制力不俗。",
          80, 10, 0.90, 495, 118, 0.02, 0.36, 1, 1, 3.9, 28, source="Skeleton Archer"),
     Unit("necromancer", "死灵法师", "墓穴低语者", 2, "法师", 17,
