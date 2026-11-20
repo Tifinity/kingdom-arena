@@ -53,7 +53,7 @@ func _ready() -> void:
 			if unit.team == 0:
 				chosen = unit
 				break
-		battle._select_at(chosen.global_position + Vector2(0, -50))
+		battle._select_at(battle.unit_screen_position(chosen))
 	await _real_wait(0.4)
 	await _shot("battle.png")
 
@@ -64,7 +64,7 @@ func _ready() -> void:
 			ranged = unit
 			break
 	if ranged != null:
-		battle._select_at(ranged.global_position + Vector2(0, -45))
+		battle._select_at(battle.unit_screen_position(ranged))
 	var projectile_wait := 0.0
 	while battle.projectiles_root.get_child_count() == 0 and projectile_wait < 8.0:
 		await _real_wait(0.03)

@@ -27,6 +27,13 @@ var _started := false
 var _fizzle := 0.0
 var _travel_elapsed := 0.0
 var _impact_elapsed := -1.0
+var _stage: ArenaStage3D
+var _sprite_3d: Sprite3D
+var _launch_point: Vector2
+var _launch_height := 0.0
+var _aim_point: Vector2
+var _aim_height := 0.0
+var _trail_offset := Vector2.ZERO
 
 @onready var sprite: Sprite2D = $Sprite
 
@@ -77,6 +84,51 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 			_velocity = aim.normalized() * speed
 			rotation = _velocity.angle() if kind != UnitDefinition.ProjectileKind.MAGIC else 0.0
 	_started = true
+	if battle is Battle:
+		_stage = battle.stage
+		_launch_point = global_position
+		_launch_height = source.global_position.y - _launch_point.y
+		_aim_point = _launch_point + _velocity
+		_aim_height = _launch_height
+		_sprite_3d = Sprite3D.new()
+		_sprite_3d.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		_sprite_3d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_stage.projectiles.add_child(_sprite_3d)
+		tree_exiting.connect(_sprite_3d.queue_free, CONNECT_ONE_SHOT)
+		sprite.hide()
+		_sync_presentation()
+	queue_redraw()
+
+
+func _process(_delta: float) -> void:
+	if _sprite_3d != null:
+		_sync_presentation()
+
+
+func _sync_presentation() -> void:
+	if _impact_elapsed < 0.0 and is_instance_valid(target) and target.alive:
+		_aim_point = target.get_hit_point()
+		_aim_height = target.global_position.y - _aim_point.y
+	var path := _aim_point - _launch_point
+	var progress := clampf((global_position - _launch_point).dot(path) / maxf(path.length_squared(), 1.0), 0.0, 1.0)
+	var height := lerpf(_launch_height, _aim_height, progress)
+	var ground := global_position + Vector2(0.0, height)
+	var offset := Vector2(0.0, -height)
+	var screen_scale := _stage.ground_transform.x.length()
+	var basis := _stage.camera.basis
+	var angle := rotation
+	if kind != UnitDefinition.ProjectileKind.MAGIC:
+		# 贴图朝向沿投影后的飞行线，保留始末高度的差。
+		var ground_path := path + Vector2(0.0, _aim_height - _launch_height)
+		var projected_path := _stage.ground_transform.basis_xform(ground_path) + Vector2(0.0, _launch_height - _aim_height)
+		if projected_path.length_squared() > 1.0:
+			angle = projected_path.angle()
+	_sprite_3d.global_transform = Transform3D(basis.rotated(basis.z, -angle), _stage.ground_to_world(ground, height / (screen_scale * basis.y.y)))
+	_sprite_3d.scale = Vector3(sprite.scale.x, sprite.scale.y, 1.0)
+	_sprite_3d.pixel_size = 1.0 / screen_scale
+	_sprite_3d.texture = sprite.texture
+	_sprite_3d.modulate = sprite.modulate
+	_trail_offset = to_local(_stage.elevated_canvas_point(ground, offset))
 	queue_redraw()
 
 
@@ -143,7 +195,8 @@ func _hit() -> void:
 		var shooter: Unit = source if is_instance_valid(source) else null
 		var blocked := target.is_guarding()
 		var pierces_shield := effect != null and effect.ignore_shield
-		target.take_damage(damage, shooter, global_position, false, pierces_shield)
+		var impact_point := target.get_effect_point() if _stage != null else global_position
+		target.take_damage(damage, shooter, impact_point, false, pierces_shield)
 		if is_instance_valid(shooter):
 			shooter.register_damage_hit(target, is_skill)
 		ActionImpact.apply_on_hit(effect, shooter, target, blocked)
@@ -153,7 +206,10 @@ func _hit() -> void:
 				Color("#8be38b") if kind == UnitDefinition.ProjectileKind.GHOSTFIRE else tint
 			)
 		)
-		battle.spawn_hit_spark(global_position, spark_color, 1.35)
+		var impact_point := global_position
+		if _stage != null and is_instance_valid(target):
+			impact_point = target.get_effect_point()
+		battle.spawn_hit_spark(impact_point, spark_color, 1.35)
 	if kind == UnitDefinition.ProjectileKind.ICE or kind == UnitDefinition.ProjectileKind.FIREBALL or kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
 		_impact_elapsed = 0.0
 		_set_effect_frame(0 if kind == UnitDefinition.ProjectileKind.ICE else (3 if kind == UnitDefinition.ProjectileKind.GHOSTFIRE else 4))
@@ -179,6 +235,7 @@ func _set_effect_frame(frame: int) -> void:
 
 
 func _draw() -> void:
+	draw_set_transform(_trail_offset)
 	var back := -_velocity.normalized() * 22.0
 	if kind == UnitDefinition.ProjectileKind.MAGIC:
 		draw_circle(Vector2.ZERO, 7.0, Color(tint, 0.16))

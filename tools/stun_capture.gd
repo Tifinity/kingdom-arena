@@ -64,7 +64,7 @@ func _ready() -> void:
 		enemies[0].status_controller.apply(poison, orc, {
 			"duration": 4.0, "power": 0.02, "stacks": 2,
 		})
-	battle._select_at(enemies[0].global_position + Vector2(0, -50))
+	battle._select_at(battle.unit_screen_position(enemies[0]))
 	await _wait(0.12)
 	await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()

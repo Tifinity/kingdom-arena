@@ -88,8 +88,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if get_tree().paused and event is InputEventMouseButton:
 		var mouse := event as InputEventMouseButton
 		if mouse.button_index == MOUSE_BUTTON_LEFT and mouse.pressed:
-			var world_point := battle.get_global_transform_with_canvas().affine_inverse() * mouse.position
-			battle._select_at(world_point)
+			battle._select_at(mouse.position)
 			get_viewport().set_input_as_handled()
 			return
 	if event is InputEventKey:

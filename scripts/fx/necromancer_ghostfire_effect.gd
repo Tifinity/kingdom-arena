@@ -12,7 +12,7 @@ func setup_from_effect(source: Unit, _effect: ActionEffectDefinition) -> void:
 	if source == null:
 		return
 	if source.target != null and is_instance_valid(source.target):
-		global_position = source.target.get_hit_point()
+		global_position = source.target.get_effect_point()
 	else:
-		global_position = source.get_hit_point()
+		global_position = source.get_effect_point()
 	play(&"default")

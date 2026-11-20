@@ -18,7 +18,7 @@ func setup_from_effect(source: Unit, _effect: ActionEffectDefinition) -> void:
 	target = source.current_cast.target if source.current_cast != null else source
 	if not is_instance_valid(target):
 		target = source
-	global_position = target.global_position if ground_ring else target.get_hit_point()
+	global_position = target.global_position if ground_ring else target.get_effect_point()
 	_set_frame(0)
 
 
@@ -29,7 +29,7 @@ func _process(delta: float) -> void:
 		queue_free()
 		return
 	if not ground_ring and is_instance_valid(target):
-		global_position = target.get_hit_point()
+		global_position = target.get_effect_point()
 	_set_frame(index)
 
 

@@ -2711,12 +2711,10 @@ func _test_skill_effects() -> void:
 		# 暂停时 HUD 应继续处理点击选人。
 		get_tree().paused = true
 		if cc_battle.hud != null and bear != null:
-			var world_point := bear.global_position + Vector2(0, -30)
-			var screen_point: Vector2 = cc_battle.get_global_transform_with_canvas() * world_point
 			var click := InputEventMouseButton.new()
 			click.button_index = MOUSE_BUTTON_LEFT
 			click.pressed = true
-			click.position = screen_point
+			click.position = cc_battle.unit_screen_position(bear)
 			cc_battle.hud._unhandled_input(click)
 			_check(cc_battle.selected_unit == bear, "暂停时仍可通过 HUD 点击切换观察镜")
 		get_tree().paused = false
@@ -3421,6 +3419,37 @@ func _test_stat_editor() -> void:
 	await get_tree().process_frame
 
 
+func _check_arena_projection(battle: Battle) -> void:
+	var stage := battle.stage
+	var unit := battle.units[0]
+	var point := unit.global_position
+	var screen := stage.ground_transform * point
+	_check(stage.camera == battle.get_viewport().get_camera_3d()
+		and stage.camera.projection == Camera3D.PROJECTION_ORTHOGONAL,
+		"战斗使用 3D 场景的正交相机")
+	_check(screen.distance_to(stage.camera.unproject_position(stage.ground_to_world(point))) < 0.01
+		and stage.screen_to_ground(screen).distance_to(point) < 0.01
+		and unit.get_global_transform_with_canvas().origin.distance_to(screen) < 0.01,
+		"角色脚点、地面特效与相机投影对齐，屏幕坐标可还原为地面坐标")
+	var east := stage.ground_transform * (point + Vector2(140.0, 0.0))
+	var south := stage.ground_transform * (point + Vector2(0.0, 140.0))
+	_check(is_equal_approx(screen.distance_to(east), 140.0)
+		and screen.distance_to(south) < screen.distance_to(east),
+		"地面同半径的圆随相机投影呈椭圆")
+	var body := stage.actors.get_child(0) as Sprite3D
+	_check(stage.actors.get_child_count() == battle.units.size() and is_instance_valid(body)
+		and body.texture != null and not unit.visual.visible
+		and body.texture_filter == BaseMaterial3D.TEXTURE_FILTER_NEAREST,
+		"每名角色由 3D 像素贴图显示")
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = battle.unit_screen_position(unit)
+	battle._unhandled_input(click)
+	_check(battle.selected_unit == unit, "点击投影后的角色可以选中")
+	battle._select_at(Vector2.ZERO)
+
+
 func _test_battle() -> void:
 	print("\n[8] 默认阵容自动战斗")
 	_check(InputMap.has_action("range_toggle"), "范围开关已注册输入动作")
@@ -3454,6 +3483,7 @@ func _run_battle(label: String) -> void:
 	await get_tree().process_frame
 
 	if label == "默认阵容":
+		_check_arena_projection(battle)
 		_check(not battle.show_combat_ranges, "范围环默认关闭")
 		battle.toggle_speed()
 		_check(is_equal_approx(Engine.time_scale, 2.0) and battle.hud.speed_button.text == "×2",
