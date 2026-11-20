@@ -11,7 +11,7 @@
 [resource]
 script = ExtResource("1")
 unit_id = &"skeleton_archer"
-display_name = "骷髅弓手"
+display_name = "骷髅弓箭手"
 title = "骸骨射手"
 faction = 2
 role = "射手"

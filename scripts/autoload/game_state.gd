@@ -4,18 +4,21 @@ extends Node
 ## 每个队伍固定 5 个槽位，槽位顺序 = 战场站位；空槽用 null 表示。
 
 const TEAM_SIZE := 5
-const TEAM_NAMES := ["晨曦王庭", "暗影军团"]
 const TEAM_SHORT_NAMES := ["蓝方", "红方"]
 const TEAM_COLORS := [Color("#58a6ff"), Color("#ff6b7a")]
 const TEAM_COLORS_DIM := [Color("#2b5f96"), Color("#8d3541")]
 
-const DEFAULT_LINEUPS := [
-	[&"knight_templar", &"armored_axeman", &"knight", &"archer", &"wizard"],
-	[&"armored_orc", &"orc", &"skeleton_archer", &"necromancer", &"werewolf"],
+const TEAM_PRESETS := [
+	{"name": "晨曦王庭", "units": [&"soldier", &"knight", &"knight_templar", &"armored_axeman", &"lancer"]},
+	{"name": "荒野兽人", "units": [&"elite_orc", &"armored_orc", &"orc_rider", &"werewolf", &"werebear"]},
+	{"name": "暗夜亡灵", "units": [&"skeleton", &"armored_skeleton", &"greatsword_skeleton", &"skeleton_archer", &"necromancer"]},
 ]
 
 var lineups: Array = []
 var last_result: Dictionary = {}
+var _selected_presets: Array[int] = [0, 1]
+## 每一边各自保留切换前编辑过的阵容。
+var _lineup_drafts: Array[Dictionary] = [{}, {}]
 
 
 func _ready() -> void:
@@ -24,12 +27,30 @@ func _ready() -> void:
 
 func reset_lineups() -> void:
 	lineups = [_empty_slots(), _empty_slots()]
+	_selected_presets = [0, 1]
+	_lineup_drafts = [{}, {}]
 	for team in 2:
-		for slot in TEAM_SIZE:
-			if slot < DEFAULT_LINEUPS[team].size():
-				var unit_id: StringName = DEFAULT_LINEUPS[team][slot]
-				if UnitCatalog.has_definition(unit_id):
-					lineups[team][slot] = unit_id
+		restore_team_preset(team)
+
+
+func selected_team_preset(team: int) -> int:
+	return _selected_presets[team]
+
+
+func select_team_preset(team: int, preset: int) -> void:
+	if preset < 0 or preset >= TEAM_PRESETS.size() or preset == _selected_presets[team]:
+		return
+	_lineup_drafts[team][_selected_presets[team]] = lineups[team]
+	_selected_presets[team] = preset
+	set_lineup(team, _lineup_drafts[team].get(preset, TEAM_PRESETS[preset]["units"]))
+
+
+func restore_team_preset(team: int) -> void:
+	set_lineup(team, TEAM_PRESETS[_selected_presets[team]]["units"])
+
+
+func is_team_preset_edited(team: int) -> bool:
+	return lineups[team] != TEAM_PRESETS[_selected_presets[team]]["units"]
 
 
 func _empty_slots() -> Array:
@@ -113,7 +134,7 @@ func lineup_power(team: int) -> int:
 
 
 func team_name(team: int) -> String:
-	return TEAM_NAMES[team]
+	return TEAM_PRESETS[_selected_presets[team]]["name"]
 
 
 func team_color(team: int) -> Color:

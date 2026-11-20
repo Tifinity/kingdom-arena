@@ -343,6 +343,41 @@ func _test_setup_scene() -> void:
 	_check(blue.slots.size() == 5 and red.slots.size() == 5, "双方各有 5 个布阵槽位")
 	_check(GameState.unit_count(0) == 5 and GameState.unit_count(1) == 5, "默认双方阵容各 5 人")
 	_check(blue.power_label.text.begins_with("战力"), "布阵面板显示战力")
+	var royal := [&"soldier", &"knight", &"knight_templar", &"armored_axeman", &"lancer"]
+	var orcs := [&"elite_orc", &"armored_orc", &"orc_rider", &"werewolf", &"werebear"]
+	var undead := [&"skeleton", &"armored_skeleton", &"greatsword_skeleton", &"skeleton_archer", &"necromancer"]
+	_check(blue.preset_option.item_count == 3 and red.preset_option.item_count == 3
+		and blue.preset_option.text == "晨曦王庭" and red.preset_option.text == "荒野兽人"
+		and GameState.get_lineup(0) == royal and GameState.get_lineup(1) == orcs,
+		"双方提供三种预设，开局加载指定的人类和兽人阵容")
+	red.preset_option.item_selected.emit(2)
+	_check(red.preset_option.text == "暗夜亡灵" and GameState.get_lineup(1) == undead
+		and red.slots[0].definition.unit_id == &"skeleton"
+		and red.slots[3].definition.display_name == "骷髅弓箭手" and GameState.get_lineup(0) == royal,
+		"红方可以选择暗夜亡灵，蓝方阵容不受影响")
+	blue.preset_option.item_selected.emit(2)
+	blue.slots[0]._drop_data(Vector2.ZERO, HeroDragData.from_hero(&"archer"))
+	blue.preset_option.item_selected.emit(1)
+	blue.preset_option.item_selected.emit(2)
+	_check(GameState.get_slot(0, 0) == &"archer" and GameState.get_lineup(1) == undead
+		and not blue.restore_preset_button.disabled and red.restore_preset_button.disabled,
+		"镜像队伍可以分别换人，切换回来保留各侧编辑")
+	blue.restore_preset_button.pressed.emit()
+	_check(GameState.get_lineup(0) == undead and blue.restore_preset_button.disabled,
+		"恢复预设还原当前队伍的原始角色和站位")
+	var mirror: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(mirror)
+	_check(mirror.hud.blue_name.text == "暗夜亡灵" and mirror.hud.red_name.text == "暗夜亡灵"
+		and mirror.living_units(0)[4].definition.unit_id == &"necromancer",
+		"战斗使用所选队名和阵容")
+	mirror.hud.show_result({"winner": 0})
+	_check(mirror.hud.result_title.text == "暗夜亡灵（蓝方） 获胜"
+		and mirror.hud.result_sub.text == "暗夜亡灵（红方）全员阵亡",
+		"同阵营对阵时结算标明胜负双方颜色")
+	mirror.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+	setup._refresh_panels()
 
 	var target_definition := UnitCatalog.get_definition(&"werebear")
 	setup._select_definition(target_definition)
@@ -2961,10 +2996,11 @@ func _test_status_framework() -> void:
 	print("\n[状态] 定义/叠加/中毒爆发/图标")
 	var stun_def := StatusCatalog.get_definition(&"stun")
 	var slow_def := StatusCatalog.get_definition(&"slow")
+	var haste_def := StatusCatalog.get_definition(&"haste")
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 15, "状态目录包含 15 种状态（含暗影侵蚀、盔甲护身与战栗）")
+	_check(StatusCatalog.count() == 22, "状态目录包含 22 种状态（含通用属性增益与减益）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,
@@ -3020,6 +3056,12 @@ func _test_status_framework() -> void:
 	await get_tree().process_frame
 	_check(battle.hud.status_row.visible and battle.hud.status_row.get_child_count() > 0,
 		"观察镜显示状态图标")
+	var status_icon := battle.hud.status_row.get_child(0) as Control
+	var initial_tooltip := status_icon.tooltip_text
+	await get_tree().create_timer(0.22, true, true).timeout
+	_check(is_instance_valid(status_icon) and battle.hud.status_row.get_child(0) == status_icon
+		and status_icon.tooltip_text != initial_tooltip,
+		"状态倒计时刷新时复用图标，悬停不会因重建中断")
 	victim.status_controller.clear_all()
 	await get_tree().process_frame
 
@@ -3041,12 +3083,58 @@ func _test_status_framework() -> void:
 	victim.status_controller.clear_all()
 
 	# 减速：0.5 比 0.7 更强，0.8 不会覆盖 0.5。
-	victim.status_controller.apply(slow_def, source, {"duration": 2.0, "power": 0.7})
-	victim.status_controller.apply(slow_def, source, {"duration": 2.0, "power": 0.5})
-	victim.status_controller.apply(slow_def, source, {"duration": 2.0, "power": 0.8})
+	victim.status_controller.apply(slow_def, source, {"duration": 0.55, "power": 0.7})
+	var slow_fx := victim.status_controller.get_vfx(&"slow")
+	victim.status_controller.apply(slow_def, source, {"duration": 0.55, "power": 0.5})
+	victim.status_controller.apply(slow_def, source, {"duration": 0.55, "power": 0.8})
 	_check(is_equal_approx(victim.status_controller.modify_stat(&"move_speed", 1.0), 0.5),
 		"减速只保留最强倍率")
+	_check(is_instance_valid(slow_fx) and victim.status_controller.get_vfx(&"slow") == slow_fx,
+		"减速来源变化时继续使用同一个特效实例")
+	victim.position += Vector2(18, -12)
+	await get_tree().create_timer(0.16, true, true).timeout
+	var chevrons := slow_fx.get_node("Chevrons") as Sprite2D if is_instance_valid(slow_fx) else null
+	_check(is_instance_valid(chevrons) and chevrons.frame > 0
+		and slow_fx.global_position.is_equal_approx(victim.global_position),
+		"减速箭纹播放时跟随目标脚底移动")
+	await get_tree().create_timer(0.45, true, true).timeout
+	await get_tree().process_frame
+	_check(not is_instance_valid(slow_fx) and not victim.status_controller.has_status(&"slow")
+		and is_equal_approx(victim.status_controller.modify_stat(&"move_speed", 1.0), 1.0),
+		"减速自然到期时移除特效并恢复移速")
+	victim.status_controller.apply(slow_def, source, {"duration": 1.0})
+	var cleared_fx := victim.status_controller.get_vfx(&"slow")
 	victim.status_controller.clear_all()
+	await get_tree().process_frame
+	_check(not is_instance_valid(cleared_fx) and not victim.status_controller.has_status(&"slow"),
+		"提前清除减速会同步移除特效")
+
+	var haste_effect := ActionEffectDefinition.new()
+	haste_effect.status_id = &"haste"
+	haste_effect.status_duration = 0.55
+	victim.apply_status(haste_effect, victim)
+	var haste_fx := victim.status_controller.get_vfx(&"haste")
+	_check(haste_def != null and haste_def.icon != null and is_instance_valid(haste_fx)
+		and is_equal_approx(victim.status_controller.power(&"haste"), 1.2),
+		"通用加速通过技能状态生效，默认提供 20% 移速和图标")
+	victim.status_controller.apply(haste_def, source, {"duration": 0.55, "power": 1.5})
+	victim.status_controller.apply(haste_def, victim, {"duration": 0.55, "power": 1.3})
+	var movement_start := victim.position
+	victim.move_step(Vector2.RIGHT, 0.1)
+	_check(is_equal_approx(victim.position.x - movement_start.x, victim.move_speed * 0.15)
+		and victim.status_controller.get_vfx(&"haste") == haste_fx
+		and haste_fx.global_position.is_equal_approx(victim.global_position),
+		"加速取最高倍率，实战步进变快并沿用随身特效")
+	victim.status_controller.apply(slow_def, source, {"duration": 1.0, "power": 0.5})
+	_check(is_equal_approx(victim.status_controller.modify_stat(&"move_speed", 1.0), 0.75),
+		"加速与减速共存时相乘")
+	await get_tree().create_timer(0.62, true, true).timeout
+	await get_tree().process_frame
+	_check(not is_instance_valid(haste_fx) and not victim.status_controller.has_status(&"haste")
+		and is_equal_approx(victim.status_controller.modify_stat(&"move_speed", 1.0), 0.5),
+		"加速结束时移除金色特效，剩余减速继续生效")
+	victim.status_controller.clear_all()
+	_test_attribute_badges(victim, source)
 
 	# 中毒：叠到 5 层立即结算剩余 DoT 并移除。
 	victim.hp = victim.max_hp
@@ -3068,6 +3156,39 @@ func _test_status_framework() -> void:
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
+
+
+func _test_attribute_badges(victim: Unit, source: Unit) -> void:
+	var controller := victim.status_controller
+	var badges := victim.get_node("StatusVisuals/AttributeBadges") as UnitAttributeBadges
+	for id: StringName in [&"attack_up", &"attack_down", &"attack_speed_up", &"attack_speed_down",
+			&"armor_up", &"armor_down", &"haste", &"slow", &"stun"]:
+		controller.apply(StatusCatalog.get_definition(id), source)
+	_check(badges.visible and badges.directions == PackedInt32Array([3, 3, 3, 3])
+		and badges.position.y > 0.0,
+		"四项属性各显示一枚徽记，同时保留同一属性的增益和减益")
+	_check(not controller.get_vfx(&"slow").visible and not controller.get_vfx(&"haste").visible
+		and controller.get_vfx(&"stun").visible,
+		"相反的移速特效共存时只保留双箭头，眩晕表现仍可见")
+
+	controller.remove_status(&"haste")
+	_check(badges.directions[3] == UnitAttributeBadges.DOWN and controller.get_vfx(&"slow").visible,
+		"一侧移速变化消失时恢复剩余的脚环和单向徽记")
+	var weaken := ActionEffectDefinition.new()
+	weaken.status_id = &"armor_down"
+	weaken.status_power = -0.25
+	controller.remove_status(&"armor_down")
+	victim.apply_status(weaken, source)
+	_check(is_equal_approx(controller.power(&"armor_down"), -0.25)
+		and is_equal_approx(controller.modify_stat(&"armor", 0.4), 0.25),
+		"护甲减益接受技能覆盖的负数，与护甲提升同时计算")
+	controller.clear_all()
+	controller.apply(StatusCatalog.get_definition(&"swordsman_zeal"), victim)
+	controller.apply(StatusCatalog.get_definition(&"swordsman_chase_haste"), victim)
+	_check(badges.directions == PackedInt32Array([0, UnitAttributeBadges.UP, 0, 0]),
+		"既有热诚和追击步自动合并成一枚攻速增益徽记")
+	controller.clear_all()
+	_check(not badges.visible, "清除状态后单位下方没有残留徽记")
 
 
 func _test_damage_no_interrupt() -> void:
@@ -3369,10 +3490,7 @@ func _run_battle(label: String) -> void:
 	_check(states_seen.get("行动", 0) > 0, "%s: 状态机进入过行动状态" % label)
 	_check(states_seen.get("死亡", 0) > 0, "%s: 状态机进入过死亡状态" % label)
 	_check(states_seen.get("移动", 0) > 0, "%s: 状态机进入过移动状态" % label)
-	# 投射物由法师固定场景及默认阵容验证；随机阵容可能没有投射物动作，
-	# 也可能在远程单位出手前结束战斗。
-	if label == "默认阵容":
-		_check(battle.projectiles_fired > 0, "%s: 远程单位发射过投射物（%d 次）" % [label, battle.projectiles_fired])
+	# 投射物在法师和士兵的固定场景中验证。预设或随机阵容的技能释放会随战况变化。
 	_check(battle.team_damage[0] > 0.0 and battle.team_damage[1] > 0.0, "%s: 双方都造成过伤害" % label)
 
 	var sample: Unit = null
