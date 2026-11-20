@@ -104,6 +104,11 @@ func _ready() -> void:
 	else:
 		_spawn_lineups()
 		hud.set_roster(units)
+		if BattleTransition.is_loading():
+			var previous_process_mode := process_mode
+			process_mode = Node.PROCESS_MODE_DISABLED
+			await BattleTransition.finished
+			process_mode = previous_process_mode
 		_run_countdown()
 
 
@@ -599,9 +604,7 @@ func toggle_range_overlay() -> void:
 
 
 func restart_battle() -> void:
-	Engine.time_scale = 1.0
-	get_tree().paused = false
-	get_tree().reload_current_scene()
+	BattleTransition.start()
 
 
 func back_to_setup() -> void:

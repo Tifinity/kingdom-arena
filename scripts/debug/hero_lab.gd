@@ -636,9 +636,7 @@ func _start_1v1() -> void:
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, selected_definition.unit_id)
 	GameState.set_slot(1, 0, opponent.unit_id)
-	Engine.time_scale = 1.0
-	get_tree().paused = false
-	get_tree().change_scene_to_file("res://scenes/battle/battle.tscn")
+	BattleTransition.start()
 
 
 func _go_setup() -> void:
