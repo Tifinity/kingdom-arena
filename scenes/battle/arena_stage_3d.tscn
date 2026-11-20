@@ -17,6 +17,7 @@ size = Vector2(1, 1)
 
 [sub_resource type="ShaderMaterial" id="Material_floor"]
 resource_local_to_scene = true
+render_priority = -100
 shader = ExtResource("2")
 
 [sub_resource type="StandardMaterial3D" id="Material_stone"]
