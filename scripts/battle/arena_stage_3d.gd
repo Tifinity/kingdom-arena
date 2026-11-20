@@ -51,8 +51,12 @@ func frame_field(view_size: Vector2, field_min: Vector2, field_max: Vector2, tra
 	_ground_inverse = ground_transform.affine_inverse()
 
 	$Floor.position = ground_to_world(center) + Vector3.DOWN
-	var apron := Vector2(420.0, 580.0) if training_mode else Vector2(32.0, 38.0)
-	$Floor.scale = Vector3(span.x + apron.x, 1.0, span.y + apron.y)
+	var floor_size := span + Vector2(420.0, 580.0)
+	if not training_mode:
+		# 补齐镜头上下的铺地，边线仍标出单位实际可走的范围。
+		floor_size.x = span.x + 32.0
+		floor_size.y = maxf(span.y + 38.0, view_size.y / ground_transform.y.length() + 4.0)
+	$Floor.scale = Vector3(floor_size.x, 1.0, floor_size.y)
 	var material := $Floor.material_override as ShaderMaterial
 	material.set_shader_parameter(&"field_min", field_min)
 	material.set_shader_parameter(&"field_max", field_max)
