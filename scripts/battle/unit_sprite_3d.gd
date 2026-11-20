@@ -5,6 +5,7 @@ extends Sprite3D
 var _unit: Unit
 var _stage: ArenaStage3D
 var _body: AnimatedSprite2D
+var _ground: UnitGroundVisual3D
 var _canvas: SubViewport
 var _canvas_body: AnimatedSprite2D
 
@@ -16,7 +17,11 @@ func setup(unit: Unit, stage: ArenaStage3D) -> void:
 	texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sorting_use_aabb_center = false
+	pixel_size = 1.0
 	_body.hide()
+	_ground = UnitGroundVisual3D.new()
+	add_child(_ground)
+	_ground.setup(unit, stage)
 	_sync_sprite()
 
 
@@ -25,14 +30,13 @@ func _process(_delta: float) -> void:
 		queue_free()
 		return
 	_sync_sprite()
+	_ground.sync()
 
 
 func _sync_sprite() -> void:
 	var local_offset := _body.global_position - _unit.global_position
 	global_transform = Transform3D(_stage.camera.basis, _stage.billboard_anchor(_unit.global_position, local_offset))
 	modulate = _unit.modulate * _body.modulate * _body.self_modulate
-	var screen_scale := _stage.ground_transform.x.length()
-	pixel_size = 1.0 / screen_scale
 
 	if _body.material != null or _body.get_script() != null:
 		_sync_canvas_body()

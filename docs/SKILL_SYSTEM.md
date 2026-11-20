@@ -22,7 +22,9 @@
 
 骑士格挡使用通用 `GUARD` 效果；成功格挡后的奖励护盾由 `resources/actions/knight_block.tres` 的 `guard_reward_shield_ratio` 和 `guard_reward_shield_duration` 控制。其他单位可用不同奖励、格挡时长、触发条件与冷却形成差异，不需要在单位脚本中写分支。
 
-重甲斧兵「盔甲护身」位于 `resources/actions/armored_axeman_armor_guard.tres`：对自身施加 `STATUS` 效果，引用 `resources/status/armored_axeman_armor_guard.tres`（护甲 +0.20，即 20 个百分点，持续 6 秒）；状态表现 `scenes/fx/armor_up_glow.tscn` 使用 Sprite Shader `shaders/armor_up_glow.gdshader`：状态生效时给单位 Body 换上金色轮廓材质，状态结束时恢复原材质；Shader 直接采样当前动作帧的 alpha，因此光环会跟随动作、朝向与受击闪烁。动作 `priority = 5`，排在重击（8）和旋风斩（10）之后，因此只在两个输出技都在冷却时用于补防御。
+重甲斧兵「盔甲护身」位于 `resources/actions/armored_axeman_armor_guard.tres`：对自身施加 `STATUS` 效果，引用 `resources/status/armored_axeman_armor_guard.tres`（护甲 +0.20，即 20 个百分点，持续 6 秒）；状态表现 `scenes/fx/armor_up_glow.tscn` 使用 Sprite Shader `shaders/armor_up_glow.gdshader`：状态生效时给单位 Body 换上金色轮廓材质，状态结束时恢复原材质；Shader 直接采样当前动作帧的 alpha，因此光环会跟随动作、朝向与受击闪烁。动作 `priority = 5`，排在重击（8）和旋风斩（10）之后，自动战斗在最近敌人进入 160 地面单位内时才会考虑护身，优先使用可用的输出技能。试炼场的手动演示可以直接施放。
+
+旋风斩和巨斧狂袭使用同一套方向技预判。AI 选择能推进并命中敌人的方向，起手时按当前站位、场地边界和伤害帧再次校验。被嘲讽时，这条路线必须能命中嘲讽者。
 
 被动「战栗」位于 `resources/passives/armored_axeman_dread.tres`：新增的 `PassiveDefinition.on_hit_status` 指向 `resources/status/armored_axeman_dread.tres`（护甲 -0.10，持续 4 秒，刷新）。`Unit.register_damage_hit()` 在普攻或技能造成伤害后调用它；DoT 周期伤害不经过该入口，因此不会反复刷新破甲。护甲是百分点加法，最终由 `Unit.current_armor()` 夹在 0~0.8；对 0 护甲目标不会产生负护甲。
 

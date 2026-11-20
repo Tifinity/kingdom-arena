@@ -785,7 +785,7 @@ def build_visual_scene(unit: Unit, foot_offset: float, character_height: float) 
 [ext_resource type="Script" path="res://scripts/battle/team_ring.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/battle/selection_ring.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/battle/health_bar.gd" id="3"]
-[ext_resource type="Texture2D" path="res://assets/ui/soft_shadow.png" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/units/unit_shadow.tscn" id="4"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/{unit.slug}_frames.tres" id="5"]
 
 [sub_resource type="CircleShape2D" id="hurt_shape"]
@@ -796,10 +796,7 @@ radius = {unit.attack_range:.1f}
 
 [node name="UnitVisual" type="Node2D"]
 
-[node name="Shadow" type="Sprite2D" parent="."]
-texture_filter = 1
-z_index = -1
-texture = ExtResource("4")
+[node name="Shadow" parent="." instance=ExtResource("4")]
 position = Vector2(0, -1)
 scale = Vector2({shadow_scale:.3f}, {shadow_scale:.3f})
 

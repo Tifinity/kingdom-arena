@@ -977,8 +977,6 @@ func get_effect_point() -> Vector2:
 
 
 func update_arena_projection(depth_scale: float) -> void:
-	team_ring.use_ground_projection = true
-	selection_ring.use_ground_projection = true
 	health_bar.position = Vector2(_health_bar_anchor.x, _health_bar_anchor.y / depth_scale)
 	health_bar.scale = Vector2(_health_bar_scale.x, _health_bar_scale.y / depth_scale)
 	$StatusVisuals/AttributeBadges.scale.y = 1.0 / depth_scale

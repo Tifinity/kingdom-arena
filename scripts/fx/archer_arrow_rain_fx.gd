@@ -44,18 +44,9 @@ func setup_from_effect(source: Unit, effect: ActionEffectDefinition) -> void:
 	global_position = _cast.point
 	scale = Vector2.ONE * (damage.radius / SHEET_GROUND_RADIUS)
 	if source.battle is Battle:
-		_ground_3d = Sprite3D.new()
-		_ground_3d.texture = _ground.texture
-		_ground_3d.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-		_ground_3d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_ground_3d.hframes = _ground.hframes
-		_ground_3d.vframes = _ground.vframes
-		_ground_3d.rotation.x = -PI * 0.5
-		_ground_3d.pixel_size = scale.x
-		var frame_size := _ground.texture.get_size() / Vector2(_ground.hframes, _ground.vframes)
-		var frame_center := global_position + (_ground.position + frame_size * 0.5) * scale.x
-		_ground_3d.position = source.battle.stage.ground_to_world(frame_center, 0.2)
-		add_child(_ground_3d)
+		var stage: ArenaStage3D = source.battle.stage
+		_ground_3d = stage.add_ground_sprite(_ground, self, ArenaStage3D.GROUND_MARKER_PRIORITY + 1)
+		stage.sync_ground_sprite(_ground_3d, _ground, 0.2)
 		_ground.hide()
 
 

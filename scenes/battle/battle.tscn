@@ -21,4 +21,7 @@ z_index = 8
 [node name="Effects" type="Node2D" parent="GroundPresentation"]
 z_index = 12
 
+[node name="CombatText" type="CanvasLayer" parent="."]
+layer = 2
+
 [node name="HUD" parent="." instance=ExtResource("3")]

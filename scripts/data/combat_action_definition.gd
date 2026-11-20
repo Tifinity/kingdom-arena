@@ -39,6 +39,8 @@ enum TargetMode { ENEMY, ALLY, SELF, POINT, DIRECTION }
 @export var min_targets := 1
 ## 治疗/辅助动作只在存在受伤队友时参与决策。
 @export var requires_wounded_ally := false
+## 自动战斗只在最近敌人的地面距离不超过此值时考虑该动作；0 表示不限。
+@export var ai_enemy_proximity := 0.0
 ## 多个动作同时可用时，决策层的偏好权重。
 @export var priority := 0
 

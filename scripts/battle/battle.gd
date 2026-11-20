@@ -82,6 +82,7 @@ var _rng := RandomNumberGenerator.new()
 @onready var units_root: Node2D = $GroundPresentation/UnitsRoot
 @onready var projectiles_root: Node2D = $GroundPresentation/Projectiles
 @onready var effects_root: Node2D = $GroundPresentation/Effects
+@onready var combat_text: CanvasLayer = $CombatText
 
 
 func _ready() -> void:
@@ -102,6 +103,7 @@ func _ready() -> void:
 			start_training(training_definition)
 	else:
 		_spawn_lineups()
+		hud.set_roster(units)
 		_run_countdown()
 
 
@@ -134,11 +136,11 @@ func _refresh_layout() -> void:
 	var layout_scale := _viewport_size / BASE_SIZE
 	field_min = (TRAINING_FIELD_MIN if training_mode else BASE_FIELD_MIN) * layout_scale
 	field_max = (TRAINING_FIELD_MAX if training_mode else BASE_FIELD_MAX) * layout_scale
-	stage.frame_field(_viewport_size, field_min, field_max)
+	stage.frame_field(_viewport_size, field_min, field_max, training_mode)
 	ground_presentation.transform = stage.ground_transform
 	for unit in units:
 		if is_instance_valid(unit):
-			unit.update_arena_projection(stage.ground_transform.y.length())
+			unit.update_arena_projection(ground_presentation.scale.y / ground_presentation.scale.x)
 
 
 func _formation_position(team: int, slot: int) -> Vector2:
@@ -177,7 +179,7 @@ func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_positio
 	stage.actors.add_child(sprite)
 	sprite.setup(unit, stage)
 	unit.tree_exiting.connect(sprite.queue_free, CONNECT_ONE_SHOT)
-	unit.update_arena_projection(stage.ground_transform.y.length())
+	unit.update_arena_projection(ground_presentation.scale.y / ground_presentation.scale.x)
 	unit.set_range_overlay_visible(show_combat_ranges)
 	unit.died.connect(_on_unit_died)
 	units.append(unit)
@@ -233,7 +235,7 @@ func _clear_battlefield() -> void:
 		unit.set_process(false)
 		unit.queue_free()
 	units.clear()
-	for container in [projectiles_root, effects_root]:
+	for container in [projectiles_root, effects_root, combat_text]:
 		for child in container.get_children():
 			child.queue_free()
 
@@ -421,27 +423,25 @@ func on_damage_dealt(target: Unit, source: Unit, amount: float) -> void:
 
 
 func spawn_damage_number(at: Vector2, amount: float, color: Color) -> void:
-	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup(amount, color, at)
+	_spawn_combat_text(at, "-%d" % maxi(1, roundi(amount)), color)
 
 
 func spawn_block_text(at: Vector2) -> void:
-	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup_text("格挡", Color("#e7c46b"), at)
+	_spawn_combat_text(at, "格挡", Color("#e7c46b"))
 
 
 func spawn_heal_text(at: Vector2, amount: float) -> void:
-	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup_text("+%d" % roundi(amount), Color("#8fe3a8"), at)
+	_spawn_combat_text(at, "+%d" % roundi(amount), Color("#8fe3a8"))
 
 
 func spawn_shield_text(at: Vector2, amount: float) -> void:
+	_spawn_combat_text(at, "护盾 +%d" % roundi(amount), Color("#59d9ff"))
+
+
+func _spawn_combat_text(at: Vector2, text: String, color: Color) -> void:
 	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup_text("护盾 +%d" % roundi(amount), Color("#59d9ff"), at)
+	combat_text.add_child(number)
+	number.setup_text(text, color, stage.ground_transform * at)
 
 
 func spawn_summons(source: Unit, unit_id: StringName, count: int, effect_scene: PackedScene = null) -> void:
@@ -629,14 +629,18 @@ func _select_at(point: Vector2) -> void:
 			continue
 		var center := unit_screen_position(unit)
 		var distance := center.distance_to(point)
-		var threshold := maxf(46.0, unit.body_radius * 1.75)
+		var threshold := maxf(46.0, unit.body_radius * 1.75) * stage.ground_transform.x.length()
 		if distance <= threshold and distance < best_distance:
 			best = unit
 			best_distance = distance
 
+	select_unit(best)
+
+
+func select_unit(unit: Unit) -> void:
 	if is_instance_valid(selected_unit):
 		selected_unit.set_selected(false)
-	selected_unit = best
-	if best != null:
-		best.set_selected(true)
-	hud.set_selected_unit(best)
+	selected_unit = unit
+	if is_instance_valid(unit):
+		unit.set_selected(true)
+	hud.set_selected_unit(unit)

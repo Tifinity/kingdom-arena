@@ -12,6 +12,54 @@ static func allies(source: Unit, effect: ActionEffectDefinition, target: Unit, d
 	return _collect(source, effect, target, direction, point, use_point, true)
 
 
+## 方向技起手前验证敌人在正前方，并按伤害帧前的推进距离估算能否命中。
+static func directional_targets(source: Unit, action: CombatActionDefinition, direction: Vector2) -> Array[Unit]:
+	var result: Array[Unit] = []
+	if source == null or source.battle == null or direction.is_zero_approx():
+		return result
+	var aim := direction.normalized()
+	var side := aim.orthogonal()
+	var start := source.global_position
+	var speed := 0.0
+	if action.movement_kind() == ActionMovementDefinition.Kind.ADVANCE:
+		if not source.can_move():
+			return result
+		speed = action.movement_speed() * source.status_controller.modify_stat(&"move_speed", 1.0)
+		var probe_distance := minf(speed * 0.12, 12.0)
+		var probe: Vector2 = source.battle.clamp_unit_position(start + aim * probe_distance)
+		if probe_distance <= 0.01 or (probe - start).dot(aim) < probe_distance * 0.5:
+			return result
+
+	var fps := 10.0
+	var frames := source.definition.sprite_frames
+	if frames != null and frames.has_animation(action.animation):
+		fps = frames.get_animation_speed(action.animation)
+	fps = maxf(fps * maxf(action.animation_speed, 0.05), 0.01)
+	var enemies: Array[Unit] = source.battle.living_units(1 - source.team)
+	for effect in action.effects:
+		if effect.kind != ActionEffectDefinition.Kind.DAMAGE or effect.shape != ActionEffectDefinition.Shape.RECT:
+			continue
+		var distance := float(maxi(0, effect.trigger_frame)) * speed / fps
+		if action.movement_distance() > 0.0:
+			distance = minf(distance, action.movement_distance())
+		var hit_origin: Vector2 = source.battle.clamp_unit_position(start + aim * distance)
+		var half_width := maxf(effect.width, 1.0) * 0.5
+		for victim in enemies:
+			if result.has(victim):
+				continue
+			var offset := victim.global_position - start
+			if offset.dot(aim) <= 0.0 or not _inside_rect(offset, aim, side, effect.length, half_width, victim.body_radius):
+				continue
+			if _inside_rect(victim.global_position - hit_origin, aim, side, effect.length, half_width, victim.body_radius):
+				result.append(victim)
+	return result
+
+
+static func _inside_rect(offset: Vector2, aim: Vector2, side: Vector2, length: float, half_width: float, radius: float) -> bool:
+	var forward := offset.dot(aim)
+	return forward >= -radius and forward <= length + radius and absf(offset.dot(side)) <= half_width + radius
+
+
 ## 在可到达区域内寻找覆盖最多敌人的圆形施法点；同人数时优先救援被追击友军，再靠近敌群中心。
 static func densest_circle_point(source: Unit, enemies: Array, radius: float, max_distance: float) -> Dictionary:
 	if not is_instance_valid(source) or source.battle == null or radius <= 0.0 or max_distance <= 0.0:
@@ -125,7 +173,6 @@ static func _collect(source: Unit, effect: ActionEffectDefinition, target: Unit,
 				if offset.length() <= effect.radius + victim.body_radius and (offset.length_squared() < 0.0001 or absf(aim.angle_to(offset.normalized())) <= half_angle):
 					result.append(victim)
 			ActionEffectDefinition.Shape.RECT:
-				var forward: float = offset.dot(aim)
-				if forward >= -victim.body_radius and forward <= effect.length + victim.body_radius and absf(offset.dot(side)) <= half_width + victim.body_radius:
+				if _inside_rect(offset, aim, side, effect.length, half_width, victim.body_radius):
 					result.append(victim)
 	return result

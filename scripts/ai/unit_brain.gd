@@ -305,11 +305,14 @@ func _select_action() -> ActionPlan:
 	var best_plan: ActionPlan = null
 	var best_score := -INF
 	var enemies: Array = observation.get("enemies", [])
+	var nearest_distance: float = observation.get("nearest_distance", INF)
 	var forced := unit.status_controller.forced_target() if unit.status_controller != null else null
 	for action in unit.actions:
 		if action == null:
 			continue
 		if not unit.is_action_ready(action) or not unit.has_mana(action):
+			continue
+		if action.ai_enemy_proximity > 0.0 and nearest_distance > action.ai_enemy_proximity:
 			continue
 		if forced != null and (not action.is_offensive() or action.target_mode == CombatActionDefinition.TargetMode.SELF):
 			continue
@@ -567,7 +570,6 @@ func _plan_victims(action: CombatActionDefinition, effect: ActionEffectDefinitio
 		action.target_mode == CombatActionDefinition.TargetMode.POINT)
 
 
-## 在 360° 方向上搜索直线矩形内敌人数最多的方向。
 func _contains_summon(action: CombatActionDefinition) -> bool:
 	for effect in action.effects:
 		if effect.kind == ActionEffectDefinition.Kind.SUMMON:
@@ -575,27 +577,21 @@ func _contains_summon(action: CombatActionDefinition) -> bool:
 	return false
 
 
+## 优先试朝敌人中心的方向，命中人数相同时保留这个方向。
 func _best_direction_for(action: CombatActionDefinition) -> Dictionary:
-	var rect_effect: ActionEffectDefinition = null
-	for effect in action.effects:
-		if effect.kind == ActionEffectDefinition.Kind.DAMAGE and effect.shape == ActionEffectDefinition.Shape.RECT:
-			rect_effect = effect
-			break
-	if rect_effect == null or unit.battle == null:
-		return {}
-
 	var directions: Array[Vector2] = []
-	if unit.has_live_target():
-		directions.append((target.global_position - unit.global_position).normalized())
+	if is_instance_valid(target) and target.alive:
+		directions.append(unit.global_position.direction_to(target.global_position))
+	for enemy: Unit in observation.get("enemies", []):
+		if enemy != target:
+			directions.append(unit.global_position.direction_to(enemy.global_position))
 	for index in 36:
 		directions.append(Vector2.from_angle(TAU * float(index) / 36.0))
 
 	var best_direction := Vector2.ZERO
-	var best_count := -1
+	var best_count := 0
 	for direction in directions:
-		if direction.length_squared() < 0.0001:
-			continue
-		var count: int = ActionTargetQuery.enemies(unit, rect_effect, target, direction).size()
+		var count := ActionTargetQuery.directional_targets(unit, action, direction).size()
 		if count > best_count:
 			best_count = count
 			best_direction = direction

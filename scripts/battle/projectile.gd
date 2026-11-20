@@ -91,6 +91,7 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 		_aim_point = _launch_point + _velocity
 		_aim_height = _launch_height
 		_sprite_3d = Sprite3D.new()
+		_sprite_3d.pixel_size = 1.0
 		_sprite_3d.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 		_sprite_3d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_stage.projectiles.add_child(_sprite_3d)
@@ -120,12 +121,11 @@ func _sync_presentation() -> void:
 	if kind != UnitDefinition.ProjectileKind.MAGIC:
 		# 贴图朝向沿投影后的飞行线，保留始末高度的差。
 		var ground_path := path + Vector2(0.0, _aim_height - _launch_height)
-		var projected_path := _stage.ground_transform.basis_xform(ground_path) + Vector2(0.0, _launch_height - _aim_height)
+		var projected_path := _stage.ground_transform.basis_xform(ground_path) + Vector2(0.0, _launch_height - _aim_height) * screen_scale
 		if projected_path.length_squared() > 1.0:
 			angle = projected_path.angle()
-	_sprite_3d.global_transform = Transform3D(basis.rotated(basis.z, -angle), _stage.ground_to_world(ground, height / (screen_scale * basis.y.y)))
+	_sprite_3d.global_transform = Transform3D(basis.rotated(basis.z, -angle), _stage.ground_to_world(ground, height / basis.y.y))
 	_sprite_3d.scale = Vector3(sprite.scale.x, sprite.scale.y, 1.0)
-	_sprite_3d.pixel_size = 1.0 / screen_scale
 	_sprite_3d.texture = sprite.texture
 	_sprite_3d.modulate = sprite.modulate
 	_trail_offset = to_local(_stage.elevated_canvas_point(ground, offset))
