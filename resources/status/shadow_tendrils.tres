@@ -1,8 +1,13 @@
-[gd_resource type="Resource" script_class="StatusDefinition" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="StatusDefinition" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/status/status_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/status/behaviors/dot_behavior.gd" id="2"]
-[ext_resource type="Texture2D" path="res://assets/status/shadow_tendrils.svg" id="3"]
+[ext_resource type="Texture2D" path="res://assets/status/pixel_status.png" id="pixel_icons"]
+
+[sub_resource type="AtlasTexture" id="icon"]
+atlas = ExtResource("pixel_icons")
+region = Rect2(48, 8, 8, 8)
+filter_clip = true
 
 [sub_resource type="Resource" id="behavior"]
 script = ExtResource("2")
@@ -17,7 +22,7 @@ script = ExtResource("1")
 id = &"shadow_tendrils"
 display_name = "暗影侵蚀"
 description = "每秒受到暗影伤害。"
-icon = ExtResource("3")
+icon = SubResource("icon")
 tags = Array[StringName]([&"dot", &"shadow"])
 duration = 3.0
 tick_interval = 0.5

@@ -20,6 +20,7 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="TopBar" type="PanelContainer" parent="HUD/Root"]
+theme_type_variation = &"PixelTopBar"
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
@@ -32,10 +33,10 @@ theme_override_constants/separation = 16
 
 [node name="Title" type="Label" parent="HUD/Root/TopBar/HBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.906, 0.769, 0.42, 1)
-theme_override_colors/font_outline_color = Color(0.016, 0.027, 0.043, 0.95)
+theme_override_colors/font_color = Color(0.94, 0.79, 0.51, 1)
+theme_override_colors/font_outline_color = Color(0.086, 0.078, 0.125, 0.95)
 theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 24
 text = "英雄试炼场"
 
 [node name="Spacer" type="Control" parent="HUD/Root/TopBar/HBox"]
@@ -45,7 +46,7 @@ size_flags_horizontal = 3
 [node name="TopLive" type="Label" parent="HUD/Root/TopBar/HBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.592, 0.678, 0.776, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "稻草人靶 · 准备中"
 horizontal_alignment = 1
 
@@ -79,8 +80,8 @@ layout_mode = 2
 [node name="Title" type="Label" parent="HUD/Root/LeftPanel/VBox/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.898, 0.925, 0.957, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.94, 0.895, 0.823, 1)
+theme_override_font_sizes/font_size = 24
 text = "英雄"
 
 [node name="HeroCount" type="Label" parent="HUD/Root/LeftPanel/VBox/Header"]
@@ -132,21 +133,21 @@ text = "士兵"
 [node name="Title" type="Label" parent="HUD/Root/RightPanel/VBox/NameRow"]
 layout_mode = 2
 size_flags_vertical = 8
-theme_override_colors/font_color = Color(0.906, 0.769, 0.42, 1)
-theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.94, 0.79, 0.51, 1)
+theme_override_font_sizes/font_size = 12
 text = "「王庭新兵」"
 
 [node name="Meta" type="Label" parent="HUD/Root/RightPanel/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.592, 0.678, 0.776, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "人类 · 战士"
 
 [node name="Desc" type="Label" parent="HUD/Root/RightPanel/VBox"]
 custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.686, 0.761, 0.847, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = ""
 autowrap_mode = 2
 
@@ -162,20 +163,20 @@ columns = 3
 [node name="StatHeader" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.42, 0.494, 0.588, 1)
-theme_override_font_sizes/font_size = 9
+theme_override_font_sizes/font_size = 12
 text = "属性"
 
 [node name="BaseHeader" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.42, 0.494, 0.588, 1)
-theme_override_font_sizes/font_size = 9
+theme_override_font_sizes/font_size = 12
 text = "基础（可编辑）"
 tooltip_text = "来自 UnitDefinition 的基础值；可直接在这里修改并保存到用户配置"
 
 [node name="CurrentHeader" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.42, 0.494, 0.588, 1)
-theme_override_font_sizes/font_size = 9
+theme_override_font_sizes/font_size = 12
 text = "当前"
 tooltip_text = "包含 buff/debuff 的实时值；绿色表示增益，红色表示减益"
 horizontal_alignment = 2
@@ -183,7 +184,7 @@ horizontal_alignment = 2
 [node name="HpCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "生命上限"
 
 [node name="HpValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
@@ -199,14 +200,14 @@ alignment = 2
 [node name="HpCurrent" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.576, 0.627, 0.686, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "—"
 horizontal_alignment = 2
 
 [node name="AtkCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "攻击"
 
 [node name="AtkValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
@@ -222,14 +223,14 @@ alignment = 2
 [node name="AtkCurrent" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.576, 0.627, 0.686, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "—"
 horizontal_alignment = 2
 
 [node name="AspdCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "攻速/秒"
 
 [node name="AspdValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
@@ -245,14 +246,14 @@ alignment = 2
 [node name="AspdCurrent" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.576, 0.627, 0.686, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "—"
 horizontal_alignment = 2
 
 [node name="RangeCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "射程"
 
 [node name="RangeValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
@@ -268,14 +269,14 @@ alignment = 2
 [node name="RangeCurrent" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.576, 0.627, 0.686, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "—"
 horizontal_alignment = 2
 
 [node name="ArmorCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "护甲"
 
 [node name="ArmorValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
@@ -292,14 +293,14 @@ suffix = "%"
 [node name="ArmorCurrent" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.576, 0.627, 0.686, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "—"
 horizontal_alignment = 2
 
 [node name="SpeedCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "移速"
 
 [node name="SpeedValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
@@ -315,14 +316,14 @@ alignment = 2
 [node name="SpeedCurrent" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.576, 0.627, 0.686, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "—"
 horizontal_alignment = 2
 
 [node name="MaxManaCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "最大蓝量"
 
 [node name="MaxManaValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
@@ -338,14 +339,14 @@ alignment = 2
 [node name="MaxManaCurrent" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.576, 0.627, 0.686, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "—"
 horizontal_alignment = 2
 
 [node name="StartManaCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "入场蓝量"
 
 [node name="StartManaValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
@@ -361,14 +362,14 @@ alignment = 2
 [node name="StartManaCurrent" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.576, 0.627, 0.686, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "—"
 horizontal_alignment = 2
 
 [node name="RegenCaption" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.502, 0.588, 0.682, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "回蓝/秒"
 
 [node name="RegenValue" type="SpinBox" parent="HUD/Root/RightPanel/VBox/Stats"]
@@ -384,7 +385,7 @@ alignment = 2
 [node name="RegenCurrent" type="Label" parent="HUD/Root/RightPanel/VBox/Stats"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.576, 0.627, 0.686, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "—"
 horizontal_alignment = 2
 [node name="Separator2" type="HSeparator" parent="HUD/Root/RightPanel/VBox"]
@@ -394,7 +395,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.667, 0.741, 0.824, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "生命 — · 蓝量 —"
 autowrap_mode = 2
 
@@ -402,7 +403,7 @@ autowrap_mode = 2
 custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.686, 0.761, 0.847, 1)
-theme_override_font_sizes/font_size = 10
+theme_override_font_sizes/font_size = 12
 text = "状态：无"
 autowrap_mode = 2
 
@@ -411,8 +412,8 @@ layout_mode = 2
 
 [node name="Section" type="Label" parent="HUD/Root/RightPanel/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.906, 0.769, 0.42, 1)
-theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.94, 0.79, 0.51, 1)
+theme_override_font_sizes/font_size = 12
 text = "实战对比"
 
 [node name="OpponentRow" type="HBoxContainer" parent="HUD/Root/RightPanel/VBox"]
@@ -430,6 +431,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="StartButton" type="Button" parent="HUD/Root/RightPanel/VBox"]
+theme_type_variation = &"PixelPrimary"
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 text = "进入 1v1 实战"
@@ -437,14 +439,14 @@ text = "进入 1v1 实战"
 [node name="StatSaveStatus" type="Label" parent="HUD/Root/RightPanel/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.478, 0.569, 1)
-theme_override_font_sizes/font_size = 10
+theme_override_font_sizes/font_size = 12
 text = "属性修改自动保存到用户配置，重启后仍生效"
 autowrap_mode = 2
 
 [node name="Hint" type="Label" parent="HUD/Root/RightPanel/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.478, 0.569, 1)
-theme_override_font_sizes/font_size = 10
+theme_override_font_sizes/font_size = 12
 text = "1v1 会使用真实 Battle 场景与 OODA 观察镜"
 autowrap_mode = 2
 
@@ -471,7 +473,7 @@ theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="HUD/Root/SkillPanel/VBox/Header"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.906, 0.769, 0.42, 1)
+theme_override_colors/font_color = Color(0.94, 0.79, 0.51, 1)
 theme_override_font_sizes/font_size = 16
 text = "技能演示"
 
@@ -482,7 +484,7 @@ size_flags_horizontal = 3
 [node name="SkillStatus" type="Label" parent="HUD/Root/SkillPanel/VBox/Header"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.545, 0.639, 0.741, 1)
-theme_override_font_sizes/font_size = 10
+theme_override_font_sizes/font_size = 12
 text = "自动交战中 · 点击技能卡立即施放"
 horizontal_alignment = 2
 
@@ -527,7 +529,7 @@ size_flags_horizontal = 3
 [node name="Hint" type="Label" parent="HUD/Root/SkillPanel/VBox/Controls"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.478, 0.569, 1)
-theme_override_font_sizes/font_size = 10
+theme_override_font_sizes/font_size = 12
 text = "空格暂停 · F 加速 · 技能命中稻草人后记录伤害"
 vertical_alignment = 1
 
@@ -542,9 +544,9 @@ offset_top = 82.0
 offset_right = 260.0
 offset_bottom = 110.0
 grow_horizontal = 2
-theme_override_colors/font_color = Color(0.906, 0.769, 0.42, 1)
-theme_override_colors/font_outline_color = Color(0.016, 0.027, 0.043, 0.95)
+theme_override_colors/font_color = Color(0.94, 0.79, 0.51, 1)
+theme_override_colors/font_outline_color = Color(0.086, 0.078, 0.125, 0.95)
 theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 12
 text = "演示提示"
 horizontal_alignment = 1

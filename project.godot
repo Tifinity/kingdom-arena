@@ -14,7 +14,7 @@ config/name="王国竞技场"
 config/description="自走棋阵容演武：配置双方英雄，OODA 决策与有限状态机驱动的自动战斗。"
 run/main_scene="res://scenes/setup/setup_screen.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
-boot_splash/bg_color=Color(0.043, 0.071, 0.106, 1)
+boot_splash/bg_color=Color(0.09, 0.083, 0.14, 1)
 boot_splash/show_image=false
 config/icon="res://icon.svg"
 
@@ -30,7 +30,7 @@ BattleTransition="*res://scenes/battle/battle_transition.tscn"
 window/size/viewport_width=1600
 window/size/viewport_height=900
 window/size/mode=2
-window/stretch/mode="canvas_items"
+window/stretch/mode="viewport"
 window/stretch/aspect="expand"
 
 [gui]
@@ -66,6 +66,6 @@ range_toggle={
 textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-environment/defaults/default_clear_color=Color(0.043, 0.071, 0.106, 1)
+environment/defaults/default_clear_color=Color(0.09, 0.083, 0.14, 1)
 2d/snap/snap_2d_transforms_to_pixel=true
 2d/snap/snap_2d_vertices_to_pixel=true

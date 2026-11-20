@@ -37,8 +37,7 @@ func frame_field(view_size: Vector2, field_min: Vector2, field_max: Vector2, tra
 
 	_sky.visible = training_mode
 	$Walls.visible = training_mode
-	_sky_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE if training_mode else SubViewport.UPDATE_DISABLED
-	_sky_viewport.get_node("Backdrop").set_process(training_mode)
+	_sky_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE if training_mode else SubViewport.UPDATE_DISABLED
 	if training_mode:
 		_sky_viewport.size = Vector2i(view_size.ceil())
 		_sky.transform = Transform3D(camera.basis, camera.position - camera.basis.z * SKY_DISTANCE)

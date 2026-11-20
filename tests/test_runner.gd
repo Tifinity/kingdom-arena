@@ -3574,6 +3574,11 @@ func _check_arena_projection(battle: Battle) -> void:
 	_check(is_equal_approx(span.x * span.y, 2.0 * training_span.x * training_span.y)
 		and viewport.has_point(screen_min) and viewport.has_point(screen_max),
 		"实战竞技场面积为训练场地的两倍，正交相机覆盖全部边界")
+	var floor_mesh := stage.get_node("Floor") as MeshInstance3D
+	var floor_half_depth := Vector3.BACK * floor_mesh.scale.z * 0.5
+	var floor_top := stage.camera.unproject_position(floor_mesh.position - floor_half_depth)
+	var floor_bottom := stage.camera.unproject_position(floor_mesh.position + floor_half_depth)
+	_check(floor_top.y <= 0.0 and floor_bottom.y >= view_size.y, "竞技场铺地投影覆盖视口的上下边缘")
 	var unit := battle.units[0]
 	var point := unit.global_position
 	var screen := stage.ground_transform * point
@@ -3599,7 +3604,8 @@ func _check_arena_projection(battle: Battle) -> void:
 	var ring := ground.get_node("Rings") as MeshInstance3D
 	var shadow_scale := unit.shadow.scale
 	var expected_tint := Color(unit.team_ring.ring_color.darkened(0.57), unit.shadow.self_modulate.a)
-	_check(unit.shadow.texture is GradientTexture2D and shadow.texture == unit.shadow.texture
+	_check(unit.shadow.texture != null and shadow.texture == unit.shadow.texture
+		and shadow.texture_filter == BaseMaterial3D.TEXTURE_FILTER_NEAREST
 		and shadow.modulate.is_equal_approx(expected_tint)
 		and not shadow.modulate.is_equal_approx(unit.shadow.self_modulate),
 		"角色场景预览和战斗共用影子贴图，战斗换为队伍色")
