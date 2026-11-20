@@ -31,24 +31,11 @@
 实际战斗默认不绘制范围环；点击右下角「范围」或按 `Tab` 打开选中单位的攻击/技能范围：
 [范围调试对照](artifacts/flame_slash_ranges.png)。
 
-### 圣光裁决 · 金色冲击波
+### 圣殿骑士 · 金色剑气与圣盾
 
-![圣殿骑士圣光裁决的扩散冲击波](artifacts/templar_judgement_wave.png)
-
-圣殿骑士在 `attack_03` 斩击命中帧释放金色冲击波，从自身沿 190px、±55° 扇形扩散。
-波纹读取伤害效果的范围与方向，只负责表现；伤害仍由原动作效果结算。
-「圣光裁决」现为 0 蓝普通技能（CD12、1.5 AD）。满蓝大招「圣盾守护」播放 `move_02`，
-冲向敌人最密集的可达位置，嘲讽周围敌人并按人数获得护盾；数值见
-[技能追踪表](docs/SKILL_ROSTER.md)。
-
-![圣盾守护落地结界与嘲讽标记](artifacts/templar_taunt.png)
-
-落地特效换成 pixelfx 的 `holy/aegis-ring`：金色光点钻进地面，结界从落点滚开，光柱与盾徽
-绕圈升起，两秒后碎成光屑。半径直接读取嘲讽效果的 160px，圆环边界就是实际嘲讽范围；
-精灵表按前后两层导出，地面层画在单位下方、竖起来的光柱画在单位上方，被罩住的单位是站在
-结界里而不是被整片光斑糊住。重新导出见 `tools/pixelfx_split_layers.mjs`。
-
-![结界细节](artifacts/templar_aegis_ring.png)
+「圣光斩」挥出一道金色剑气，「圣光连斩」在上挑和下劈时各挥出一道剑气，第二斩结算扇形伤害。
+满蓝大招「圣盾守护」冲向敌人最密集的可达位置，落地时展开由战场相机投影的正圆金色结界。
+结界以实际嘲讽范围的 160px 为半径，骑士按命中人数获得护盾。数值见[技能追踪表](docs/SKILL_ROSTER.md)。
 
 ### 狂怒
 
@@ -116,8 +103,8 @@ godot --path .
 macOS 如果 `godot` 不在 PATH：
 `/Applications/Godot.app/Contents/MacOS/Godot --path .`。
 
-也可以用 Godot 编辑器打开 `project.godot` 后按 F5。逻辑基准分辨率为 `1600×900`，默认窗口 `1440×810`，
-窗口可自由缩放，使用 `canvas_items` + `expand` 铺满窗口。非 16:9 窗口会扩展逻辑视口：
+也可以用 Godot 编辑器打开 `project.godot` 后按 F5。游戏默认以独立窗口最大化启动，适配所在屏幕的可用区域，
+还原后可自由缩放。逻辑基准分辨率为 `1600×900`，使用 `canvas_items` + `expand` 铺满窗口。非 16:9 窗口会扩展逻辑视口：
 背景按视口比例铺满，战场边界与双方站位重新计算，布阵界面在扩展出的高度中垂直居中，
 名册列数会在 6~12 列之间随可用宽度变化。
 战斗中途拖动窗口改变大小，单位也会被重新约束在新的战场范围内。
@@ -150,28 +137,11 @@ macOS 如果 `godot` 不在 PATH：
 右下角提供半透明「倍速 / 暂停 / 范围 / 布阵」控制按钮（与布阵界面的四个按钮共用 `control_button.tscn`）；倍速依次循环 ×1 → ×2 → ×0.5 → ×1；「范围」或 `Tab` 开关选中单位的攻击/技能范围环，默认关闭；结算面板有「再来一局 / 重新布阵」。
 战斗顶栏只显示双方名称、剩余人数与计时，不显示总血量；竞技场地面抬高到接近全屏高度。
 
-### 在编辑器里运行时没有跟着窗口放大？
+### 在编辑器里嵌入运行
 
-这是 Godot 的 **Game Embedding（游戏嵌入）** 行为，不是项目的拉伸设置问题。
-Game 嵌入默认使用 **Fixed Size**：启动参数里会带有 `--embedded --resolution 1440x810`，
-所以无论怎么拖拽 Game 面板或编辑器窗口，游戏视口都会固定在 1440×810。
-
-在 Godot 编辑器里解决：
-
-1. 打开顶部 **Game** 主界面；
-2. 点击 Game 栏右上角的尺寸下拉菜单；
-3. 把 **Fixed Size** 改成 **Stretch to Fit**（或 **Keep Aspect Ratio**）；
-4. 或者关闭嵌入：取消 **Embed Game on Next Play** / 选择 **Make Window Floating on Next Play**，
-   再运行就会得到独立、可自由缩放的调试窗口。
-
-也可以直接在终端运行，打开的就是普通独立窗口：
-
-```sh
-godot --path .
-```
-
-Godot 文档：[Game embedding](https://docs.godotengine.org/en/stable/tutorials/editor/game_embedding.html)
-（见 “Embedded window sizing” 一节）。注意嵌入模式本身不支持全屏等窗口模式切换。
+Godot 的游戏嵌入功能需要项目使用 **Windowed** 模式。如需嵌入调试，可以在项目设置的
+**Display → Window → Size → Mode** 中临时切换。Game 面板的尺寸菜单可选 **Stretch to Fit**，
+让游戏画面随面板大小缩放。详见 [Godot 游戏嵌入文档](https://docs.godotengine.org/en/stable/tutorials/editor/game_embedding.html)。
 
 ## 调试单个英雄
 

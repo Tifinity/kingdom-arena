@@ -65,8 +65,16 @@
 - `assets/fx/pixelfx/stat_badges.png`：`status/stat-badges`，12 帧、12 FPS。用 pixelfx 的 `node tools/render.mjs status/stat-badges --sheet` 导出。
 - 来源：[patch-gg/pixelfx](https://github.com/patch-gg/pixelfx)，MIT License。
 
-## Pixelfx 圣殿骑士结界
+## Pixelfx 圣殿骑士特效
 
-- `assets/fx/pixelfx/aegis_ring_back.png`、`aegis_ring_front.png`：`holy/aegis-ring`，金色结界（97 帧、30 FPS、256×136）。按前后两层分别导出，地面层画在单位下方，光柱层画在单位上方。
-- 导出命令：`PIXELFX_DIR=../pixelfx node tools/pixelfx_split_layers.mjs holy/aegis-ring --out <path>`。
-- 来源：[patch-gg/pixelfx](https://github.com/patch-gg/pixelfx)，MIT License；盾徽描边配方改编自 [Sprite Fusion 的 pixel art VFX](https://www.spritefusion.com/pixel-art-vfx)（MIT License, Copyright (c) 2026 Hugo Duprez）。
+- 圣殿骑士的 `attack02.png`、`attack03.png` 仅从授权素材的 Aseprite 源文件导出 `body` 图层。两招的剑气由 pixelfx 特效单独播放。
+- `assets/fx/pixelfx/templar_holy_blade.png`：`melee/radiant-wave` 的金色剑气，仅导出释放后的特效帧。
+- `assets/fx/pixelfx/aegis_ring_ground.png`：用 pixelfx 绘制的正圆俯视法阵，投影由游戏相机完成。
+- 导出命令：`PIXELFX_DIR=../pixelfx node tools/export_templar_fx.mjs`。
+- 来源：[patch-gg/pixelfx](https://github.com/patch-gg/pixelfx)，MIT License。剑气的发光边缘和渐暗轨迹改编自 [Sprite Fusion 的 Slash](https://www.spritefusion.com/pixel-art-vfx/slash)（MIT License, Copyright (c) 2026 Hugo Duprez）。
+
+## Pixelfx 熊人震落
+
+- 熊人的 `attack03.png` 仅从授权素材的 Aseprite 源文件导出 `body` 图层，落地特效由 pixelfx 播放。
+- `assets/fx/pixelfx/ground_pound_25d_ground.png` 和 `ground_pound_25d_air.png` 来自本地 pixelfx 的 `moves/ground-pound-perspective`，55 帧、30 FPS、每帧 196×204。
+- 在 pixelfx 运行 `node tools/render.mjs moves/ground-pound-perspective --sheet --no-actor`。地面层传入 `--opts '{"depth":1,"layer":"ground"}'`，空中层传入 `--opts '{"layer":"air"}'`。Godot 会用战场相机投影地面层。

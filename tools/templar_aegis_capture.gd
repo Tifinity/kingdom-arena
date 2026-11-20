@@ -91,7 +91,7 @@ func _ready() -> void:
 		image.save_png(_path("aegis_%d.png" % index))
 		# 窗口可能被拉伸过：先把设计坐标换成截图里的像素坐标，再定裁切框。
 		var k := float(image.get_width()) / get_viewport().get_visible_rect().size.x
-		var center := Vector2i(ring.global_position * k)
+		var center := Vector2i(ring.get_global_transform_with_canvas().origin * k)
 		var box := Vector2i(ZOOM_RECT * k)
 		var region := Rect2i(center - box / 2, box)
 		region = region.intersection(Rect2i(Vector2i.ZERO, image.get_size()))

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://oty5knyt7tpj"
-path="res://.godot/imported/aegis_ring_back.png-d3d5343ee5768ad8b6801f6b5cc5a1c1.ctex"
+uid="uid://pco3jdi0oawe"
+path="res://.godot/imported/ground_pound_25d_ground.png-e3347276a3220c507f03b8ca0c31f8d2.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/fx/pixelfx/aegis_ring_back.png"
-dest_files=["res://.godot/imported/aegis_ring_back.png-d3d5343ee5768ad8b6801f6b5cc5a1c1.ctex"]
+source_file="res://assets/fx/pixelfx/ground_pound_25d_ground.png"
+dest_files=["res://.godot/imported/ground_pound_25d_ground.png-e3347276a3220c507f03b8ca0c31f8d2.ctex"]
 
 [params]
 

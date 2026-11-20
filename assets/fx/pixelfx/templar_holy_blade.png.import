@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dilv6w0u032cy"
-path="res://.godot/imported/aegis_ring_front.png-f8fd4e738992f4a1dbeadc6753c37f5f.ctex"
+uid="uid://bf8xqxlvg32pd"
+path="res://.godot/imported/templar_holy_blade.png-e2052f9897d5c834b6f8bff1bc1f3ff9.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/fx/pixelfx/aegis_ring_front.png"
-dest_files=["res://.godot/imported/aegis_ring_front.png-f8fd4e738992f4a1dbeadc6753c37f5f.ctex"]
+source_file="res://assets/fx/pixelfx/templar_holy_blade.png"
+dest_files=["res://.godot/imported/templar_holy_blade.png-e2052f9897d5c834b6f8bff1bc1f3ff9.ctex"]
 
 [params]
 
