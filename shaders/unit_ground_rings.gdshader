@@ -34,10 +34,10 @@ void fragment() {
 		color = over(color, vec4(0.95, 0.63, 0.35, stroke(radius, skill_radius, line_width) * dash * 0.56));
 	}
 	if (team_radius > 0.0) {
-		float fill = (1.0 - step(team_radius, radius)) * 0.14;
-		float edge = stroke(radius, team_radius, line_width);
+		float fill = (1.0 - step(team_radius, radius)) * 0.08;
+		float edge = stroke(radius, team_radius, line_width * 0.75);
 		float studs = step(0.80, abs(cos(angle * 2.0)));
-		color = over(color, vec4(team_color.rgb, max(edge * (0.38 + 0.34 * studs), fill)));
+		color = over(color, vec4(team_color.rgb, max(edge * (0.31 + 0.26 * studs), fill)));
 	}
 	if (selection_radius > 0.0) {
 		float phase = floor(selection_time * 7.0) * 0.12;
