@@ -42,9 +42,6 @@ func frame_field(view_size: Vector2, field_min: Vector2, field_max: Vector2, tra
 
 	_sky.visible = training_mode
 	$Walls.visible = training_mode
-	$Concourse.visible = not training_mode
-	$RingBase.visible = not training_mode
-	$RingPosts.visible = not training_mode
 	_sky_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE if training_mode else SubViewport.UPDATE_DISABLED
 	if training_mode:
 		_sky_viewport.size = Vector2i(view_size.ceil())
@@ -53,13 +50,15 @@ func frame_field(view_size: Vector2, field_min: Vector2, field_max: Vector2, tra
 	$Floor.position = ground_to_world(center) + Vector3.DOWN
 	var floor_size := span + Vector2(420.0, 580.0)
 	if not training_mode:
-		floor_size = span + Vector2(86.0, 86.0)
-		_frame_ring(center, span, floor_size, view_size)
+		# 名册打开时镜头会上移，铺地需要覆盖滑动前后的视口。
+		floor_size = Vector2(
+			view_size.x / ground_transform.x.length() + 300.0,
+			view_size.y / ground_transform.y.length() + 1200.0)
 	$Floor.scale = Vector3(floor_size.x, 1.0, floor_size.y)
 	var material := $Floor.material_override as ShaderMaterial
 	material.set_shader_parameter(&"field_min", field_min)
 	material.set_shader_parameter(&"field_max", field_max)
-	material.set_shader_parameter(&"surface", 0 if training_mode else 1)
+	material.set_shader_parameter(&"training_mode", training_mode)
 
 	if training_mode:
 		_frame_training_walls(view_size, field_min, field_max, center, span)
@@ -74,22 +73,6 @@ func set_vertical_offset(pixels: float) -> void:
 	var down := camera.unproject_position(Vector3(0.0, 0.0, SAMPLE_DISTANCE))
 	ground_transform = Transform2D((right - origin) / SAMPLE_DISTANCE, (down - origin) / SAMPLE_DISTANCE, origin)
 	_ground_inverse = ground_transform.affine_inverse()
-
-
-func _frame_ring(center: Vector2, span: Vector2, floor_size: Vector2, view_size: Vector2) -> void:
-	$RingBase.position = ground_to_world(center, -25.0)
-	$RingBase.scale = Vector3(floor_size.x, 46.0, floor_size.y)
-	$Concourse.position = ground_to_world(center, -50.0)
-	$Concourse.scale = Vector3(
-		view_size.x / ground_transform.x.length() + 300.0, 1.0,
-		view_size.y / ground_transform.y.length() + 1200.0)
-	var concourse_material := $Concourse.material_override as ShaderMaterial
-	concourse_material.set_shader_parameter(&"field_min", center - span * 0.5)
-	concourse_material.set_shader_parameter(&"field_max", center + span * 0.5)
-	for index in $RingPosts.get_child_count():
-		var post := $RingPosts.get_child(index) as Node3D
-		var direction := Vector2(-1.0 if index % 2 == 0 else 1.0, -1.0 if index < 2 else 1.0)
-		post.position = ground_to_world(center + (span * 0.5 + Vector2(16.0, 28.0)) * direction)
 
 
 func _frame_training_walls(view_size: Vector2, field_min: Vector2, field_max: Vector2, center: Vector2, span: Vector2) -> void:

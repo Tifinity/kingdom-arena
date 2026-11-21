@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle/arena_stage_3d.gd" id="1"]
 [ext_resource type="Shader" path="res://shaders/arena_floor.gdshader" id="2"]
@@ -27,26 +27,6 @@ shader = ExtResource("4")
 
 [sub_resource type="BoxMesh" id="Mesh_stone"]
 material = SubResource("Material_stone")
-
-[sub_resource type="ShaderMaterial" id="Material_concourse"]
-resource_local_to_scene = true
-render_priority = -110
-shader = ExtResource("2")
-shader_parameter/surface = 2
-
-[sub_resource type="ShaderMaterial" id="Material_ring_stone"]
-shader = ExtResource("4")
-shader_parameter/warmth = 1.0
-
-[sub_resource type="BoxMesh" id="Mesh_ring_stone"]
-material = SubResource("Material_ring_stone")
-
-[sub_resource type="StandardMaterial3D" id="Material_post_cap"]
-shading_mode = 0
-albedo_color = Color(0.53, 0.36, 0.24, 1)
-
-[sub_resource type="BoxMesh" id="Mesh_post_cap"]
-material = SubResource("Material_post_cap")
 
 [node name="ArenaStage3D" type="Node3D"]
 script = ExtResource("1")
@@ -80,76 +60,6 @@ pixel_size = 1.0
 [node name="Floor" type="MeshInstance3D" parent="."]
 mesh = SubResource("Plane_floor")
 material_override = SubResource("Material_floor")
-cast_shadow = 0
-
-[node name="Concourse" type="MeshInstance3D" parent="."]
-visible = false
-mesh = SubResource("Plane_floor")
-material_override = SubResource("Material_concourse")
-cast_shadow = 0
-
-[node name="RingBase" type="MeshInstance3D" parent="."]
-visible = false
-mesh = SubResource("Mesh_ring_stone")
-cast_shadow = 0
-
-[node name="RingPosts" type="Node3D" parent="."]
-visible = false
-
-[node name="BackLeft" type="Node3D" parent="RingPosts"]
-
-[node name="Pier" type="MeshInstance3D" parent="RingPosts/BackLeft"]
-position = Vector3(0, 13, 0)
-scale = Vector3(24, 32, 24)
-mesh = SubResource("Mesh_ring_stone")
-cast_shadow = 0
-
-[node name="Cap" type="MeshInstance3D" parent="RingPosts/BackLeft"]
-position = Vector3(0, 31, 0)
-scale = Vector3(28, 5, 28)
-mesh = SubResource("Mesh_post_cap")
-cast_shadow = 0
-
-[node name="BackRight" type="Node3D" parent="RingPosts"]
-
-[node name="Pier" type="MeshInstance3D" parent="RingPosts/BackRight"]
-position = Vector3(0, 13, 0)
-scale = Vector3(24, 32, 24)
-mesh = SubResource("Mesh_ring_stone")
-cast_shadow = 0
-
-[node name="Cap" type="MeshInstance3D" parent="RingPosts/BackRight"]
-position = Vector3(0, 31, 0)
-scale = Vector3(28, 5, 28)
-mesh = SubResource("Mesh_post_cap")
-cast_shadow = 0
-
-[node name="FrontLeft" type="Node3D" parent="RingPosts"]
-
-[node name="Pier" type="MeshInstance3D" parent="RingPosts/FrontLeft"]
-position = Vector3(0, 13, 0)
-scale = Vector3(24, 32, 24)
-mesh = SubResource("Mesh_ring_stone")
-cast_shadow = 0
-
-[node name="Cap" type="MeshInstance3D" parent="RingPosts/FrontLeft"]
-position = Vector3(0, 31, 0)
-scale = Vector3(28, 5, 28)
-mesh = SubResource("Mesh_post_cap")
-cast_shadow = 0
-
-[node name="FrontRight" type="Node3D" parent="RingPosts"]
-
-[node name="Pier" type="MeshInstance3D" parent="RingPosts/FrontRight"]
-position = Vector3(0, 13, 0)
-scale = Vector3(24, 32, 24)
-mesh = SubResource("Mesh_ring_stone")
-cast_shadow = 0
-
-[node name="Cap" type="MeshInstance3D" parent="RingPosts/FrontRight"]
-position = Vector3(0, 31, 0)
-scale = Vector3(28, 5, 28)
-mesh = SubResource("Mesh_post_cap")
 cast_shadow = 0
 
 [node name="Walls" type="Node3D" parent="."]

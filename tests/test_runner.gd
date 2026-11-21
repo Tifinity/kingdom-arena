@@ -3786,16 +3786,14 @@ func _check_arena_projection(battle: Battle) -> void:
 	_check(is_equal_approx(span.x * span.y, 2.0 * training_span.x * training_span.y)
 		and viewport.has_point(screen_min) and viewport.has_point(screen_max),
 		"实战竞技场面积为训练场地的两倍，正交相机覆盖全部边界")
-	var concourse := stage.get_node("Concourse") as MeshInstance3D
-	var concourse_half_span := Vector3(concourse.scale.x, 0.0, concourse.scale.z) * 0.5
-	var paving_min := stage.camera.unproject_position(concourse.position - concourse_half_span)
-	var paving_max := stage.camera.unproject_position(concourse.position + concourse_half_span)
-	_check(concourse.visible and paving_min.x <= 0.0 and paving_min.y <= 0.0
-		and paving_max.x >= view_size.x and paving_max.y >= view_size.y,
-		"擂台外围铺地投影覆盖整个视口")
 	var floor_mesh := stage.get_node("Floor") as MeshInstance3D
-	_check(floor_mesh.position.y > concourse.position.y and stage.get_node("RingBase").visible
-		and stage.get_node("RingPosts").get_child_count() == 4, "竞技场有抬高台面、石台基和四根角柱")
+	var floor_half_span := Vector3(floor_mesh.scale.x, 0.0, floor_mesh.scale.z) * 0.5
+	var paving_min := stage.camera.unproject_position(floor_mesh.position - floor_half_span)
+	var paving_max := stage.camera.unproject_position(floor_mesh.position + floor_half_span)
+	_check(floor_mesh.visible and floor_mesh.mesh is PlaneMesh and not stage.get_node("Walls").visible
+		and paving_min.x <= 0.0 and paving_min.y <= 0.0
+		and paving_max.x >= view_size.x and paving_max.y >= view_size.y,
+		"竞技场同一平面的石砖覆盖整个视口")
 	var unit := battle.units[0]
 	var point := unit.global_position
 	var screen := stage.ground_transform * point
