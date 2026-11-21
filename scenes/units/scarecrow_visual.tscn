@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/battle/team_ring.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/battle/selection_ring.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/battle/health_bar.gd" id="3"]
-[ext_resource type="Texture2D" path="res://assets/ui/soft_shadow.png" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/units/unit_shadow.tscn" id="4"]
 [ext_resource type="Script" path="res://scripts/battle/scarecrow_body.gd" id="5"]
 
 [sub_resource type="CircleShape2D" id="hurt_shape"]
@@ -14,10 +14,7 @@ radius = 0.0
 
 [node name="UnitVisual" type="Node2D"]
 
-[node name="Shadow" type="Sprite2D" parent="."]
-texture_filter = 1
-z_index = -1
-texture = ExtResource("4")
+[node name="Shadow" parent="." instance=ExtResource("4")]
 position = Vector2(0, -1)
 scale = Vector2(0.34, 0.26)
 
@@ -60,6 +57,9 @@ monitorable = false
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackBox"]
 shape = SubResource("attack_shape")
 debug_color = Color(0.35, 0.7, 1, 0.45)
+
+[node name="Muzzle" type="Marker2D" parent="."]
+position = Vector2(23.04, -74.48)
 
 [node name="FootMarker" type="Marker2D" parent="."]
 

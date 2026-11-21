@@ -7,7 +7,7 @@ extends Node
 ## 由 StateMachine 中当前状态节点负责“做”。这样 AI 与表现/动画解耦，
 ## 行动由 ActionPlan 选择，具体动画/效果由 UnitActionState 执行。
 
-enum Intent { IDLE, ADVANCE, ACTION, KITE }
+enum Intent { IDLE, ADVANCE, ACTION, KITE, REPOSITION }
 
 const THINK_INTERVAL := 0.16
 const INTENT_LABELS := {
@@ -15,6 +15,7 @@ const INTENT_LABELS := {
 	Intent.ADVANCE: "推进",
 	Intent.ACTION: "行动",
 	Intent.KITE: "拉开距离",
+	Intent.REPOSITION: "调整站位",
 }
 
 @export var enabled := true
@@ -23,6 +24,11 @@ var unit: Unit
 var intent: int = Intent.IDLE
 var intent_reason := ""
 var target: Unit
+var movement_destination := Vector2.ZERO
+var movement_target: Unit
+var is_retreating: bool:
+	get:
+		return unit.intent == Intent.KITE
 var planned_action: CombatActionDefinition
 var planned_target: Unit
 var planned_direction := Vector2.ZERO
@@ -148,7 +154,7 @@ func _judge() -> void:
 
 	for enemy in enemies:
 		var distance: float = unit.global_position.distance_to(enemy.global_position)
-		var score := _score_target(enemy, distance)
+		var score := _score_target(enemy, distance) - _engagement_penalty(enemy)
 		if enemy == previous_target:
 			previous_score = score
 		if distance <= threat_radius:
@@ -206,6 +212,20 @@ func _score_target(enemy: Unit, distance: float) -> float:
 	return score
 
 
+func _engagement_penalty(enemy: Unit) -> float:
+	if unit.definition.is_ranged() or unit.battle.training_mode:
+		return 0.0
+	var committed := 0
+	for ally in observation.get("allies", []):
+		if not ally.definition.is_ranged() and ally.has_live_target() and ally.target == enemy:
+			committed += 1
+	return maxf(0.0, committed - 1.0) * 0.34
+
+
+func has_movement_goal() -> bool:
+	return intent in [Intent.ADVANCE, Intent.KITE, Intent.REPOSITION] and is_instance_valid(movement_target) and movement_target.alive
+
+
 func _should_kite() -> bool:
 	if unit.definition.behavior_profile != null and unit.definition.behavior_profile.movement != null:
 		return unit.definition.behavior_profile.movement.should_kite(unit)
@@ -214,21 +234,17 @@ func _should_kite() -> bool:
 	return unit.distance_to_target() < unit.attack_range * 0.42
 
 
-func kite_goal_distance() -> float:
-	if planned_action != null and planned_action.movement_kind() == ActionMovementDefinition.Kind.CHARGE:
-		return planned_action.movement.charge_setup_distance
-	return unit.kite_stop_distance()
-
-
-func _can_prepare_charge(charge_target: Unit, setup_distance: float) -> bool:
-	var away := unit.global_position - charge_target.global_position
-	var missing := setup_distance - away.length()
-	if missing <= 0.0 or unit.battle == null:
-		return false
+func _charge_setup_destination(action: CombatActionDefinition, charge_target: Unit) -> Vector2:
+	var position := unit.global_position
+	if action.movement_kind() != ActionMovementDefinition.Kind.CHARGE or not is_instance_valid(charge_target):
+		return position
+	var away := position - charge_target.global_position
+	var missing := action.movement.charge_setup_distance - away.length()
+	if missing <= 0.0:
+		return position
 	if away.length_squared() < 0.001:
 		away = Vector2(float(unit.facing), 0.0)
-	var possible: Vector2 = unit.battle.clamp_unit_position(unit.global_position + away.normalized() * missing)
-	return unit.global_position.distance_to(possible) > 4.0
+	return unit.battle.clamp_unit_position(position + away.normalized() * missing)
 
 
 # --- D：决策 ------------------------------------------------------------
@@ -247,34 +263,59 @@ func _decide() -> void:
 
 	if target == null or not is_instance_valid(target) or not target.alive:
 		target = null
+		movement_target = null
 		intent_reason = "没有可攻击目标"
 		last_decide_text = "%s：%s" % [INTENT_LABELS[intent], intent_reason]
 		return
 
 	var plan := _select_action()
-	if plan != null:
+	unit.target = target
+	var threat: Unit = observation.get("nearest")
+	var retreat := unit.global_position
+	if is_instance_valid(threat) and not unit.battle.training_mode and unit.status_controller.forced_target() == null and _should_kite():
+		var movement := unit.definition.behavior_profile.movement if unit.definition.behavior_profile != null else null
+		if movement != null:
+			retreat = movement.retreat_position(unit, threat)
+		else:
+			var away := threat.global_position.direction_to(unit.global_position)
+			retreat = unit.battle.clamp_unit_position(unit.global_position + away * unit.kite_stop_distance())
+	var can_retreat := retreat.distance_squared_to(unit.global_position) >= 32.0 * 32.0
+	if plan != null and (not can_retreat or plan.action.category != CombatActionDefinition.Category.BASIC):
 		planned_action = plan.action
 		planned_target = plan.target
 		planned_point = plan.point
 		planned_has_point = plan.has_point
 		if planned_action.target_mode in [CombatActionDefinition.TargetMode.ENEMY, CombatActionDefinition.TargetMode.POINT]:
 			target = plan.target
-		if planned_action.movement_kind() == ActionMovementDefinition.Kind.CHARGE \
-				and planned_action.movement.charge_setup_distance > 0.0 \
-				and _can_prepare_charge(plan.target, planned_action.movement.charge_setup_distance):
+		var setup_destination := _charge_setup_destination(planned_action, plan.target)
+		if unit.global_position.distance_squared_to(setup_destination) > 12.0 * 12.0:
+			movement_destination = setup_destination
+			movement_target = plan.target
 			intent = Intent.KITE
 			intent_reason = "为 %s 拉开冲锋距离" % planned_action.display_name
 		else:
 			intent = Intent.ACTION
 			intent_reason = "使用 %s（%s，%s）" % [planned_action.display_name, planned_action.category_label(), plan_reason]
-	elif _should_kite():
+	elif can_retreat:
+		movement_destination = retreat
+		movement_target = threat
+		intent = Intent.KITE
+		intent_reason = "避开最近威胁 %s" % threat.definition.display_name
+	elif unit.battle.training_mode and _should_kite():
+		movement_target = target
+		movement_destination = target.global_position + target.global_position.direction_to(unit.global_position) * unit.kite_stop_distance()
 		intent = Intent.KITE
 		intent_reason = "距离过近，后撤拉开射程"
-	elif unit.is_target_in_range(6.0):
-		intent_reason = "所有可用动作都在冷却，等待时机"
 	else:
-		intent = Intent.ADVANCE
-		intent_reason = "向目标推进，等待动作就绪"
+		var destination := unit.movement_goal()
+		var in_range := unit.is_target_in_range(6.0)
+		if in_range and (unit.battle.training_mode or unit.global_position.distance_squared_to(destination) < 26.0 * 26.0):
+			intent_reason = "站位合适，等待动作就绪"
+		else:
+			intent = Intent.REPOSITION if in_range else Intent.ADVANCE
+			movement_destination = destination
+			movement_target = target
+			intent_reason = "冷却期间调整交战距离与角度" if in_range else "向目标周围的空位推进"
 
 	last_decide_text = "%s：%s" % [INTENT_LABELS[intent], intent_reason]
 
@@ -284,11 +325,14 @@ func _select_action() -> ActionPlan:
 	var best_plan: ActionPlan = null
 	var best_score := -INF
 	var enemies: Array = observation.get("enemies", [])
+	var nearest_distance: float = observation.get("nearest_distance", INF)
 	var forced := unit.status_controller.forced_target() if unit.status_controller != null else null
 	for action in unit.actions:
 		if action == null:
 			continue
 		if not unit.is_action_ready(action) or not unit.has_mana(action):
+			continue
+		if action.ai_enemy_proximity > 0.0 and nearest_distance > action.ai_enemy_proximity:
 			continue
 		if forced != null and (not action.is_offensive() or action.target_mode == CombatActionDefinition.TargetMode.SELF):
 			continue
@@ -312,6 +356,10 @@ func _select_action() -> ActionPlan:
 					var lowest := _lowest_hp_enemy_in_range(action, enemies)
 					if lowest != null:
 						candidates.append(lowest)
+				elif action.targeting != null and action.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_CURRENT_HP_ENEMY:
+					var weakest := _lowest_current_hp_enemy_in_range(action, enemies)
+					if weakest != null:
+						candidates.append(weakest)
 				elif action.targeting != null and action.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_ARMOR_ENEMY:
 					var softest := _lowest_armor_enemy_in_range(action, enemies)
 					if softest != null:
@@ -417,6 +465,19 @@ func _lowest_hp_enemy_in_range(action: CombatActionDefinition, enemies: Array) -
 				continue
 		if lowest == null or enemy.hp_ratio() < lowest.hp_ratio():
 			lowest = enemy as Unit
+	return lowest
+
+
+func _lowest_current_hp_enemy_in_range(action: CombatActionDefinition, enemies: Array) -> Unit:
+	var lowest: Unit = null
+	for enemy in enemies:
+		if not is_instance_valid(enemy) or not enemy.alive:
+			continue
+		if action.movement_kind() != ActionMovementDefinition.Kind.CHARGE \
+				and unit.global_position.distance_to(enemy.global_position) > action.action_range + enemy.body_radius + 6.0:
+			continue
+		if lowest == null or enemy.hp < lowest.hp:
+			lowest = enemy
 	return lowest
 
 
@@ -529,7 +590,6 @@ func _plan_victims(action: CombatActionDefinition, effect: ActionEffectDefinitio
 		action.target_mode == CombatActionDefinition.TargetMode.POINT)
 
 
-## 在 360° 方向上搜索直线矩形内敌人数最多的方向。
 func _contains_summon(action: CombatActionDefinition) -> bool:
 	for effect in action.effects:
 		if effect.kind == ActionEffectDefinition.Kind.SUMMON:
@@ -537,27 +597,21 @@ func _contains_summon(action: CombatActionDefinition) -> bool:
 	return false
 
 
+## 优先试朝敌人中心的方向，命中人数相同时保留这个方向。
 func _best_direction_for(action: CombatActionDefinition) -> Dictionary:
-	var rect_effect: ActionEffectDefinition = null
-	for effect in action.effects:
-		if effect.kind == ActionEffectDefinition.Kind.DAMAGE and effect.shape == ActionEffectDefinition.Shape.RECT:
-			rect_effect = effect
-			break
-	if rect_effect == null or unit.battle == null:
-		return {}
-
 	var directions: Array[Vector2] = []
-	if unit.has_live_target():
-		directions.append((target.global_position - unit.global_position).normalized())
+	if is_instance_valid(target) and target.alive:
+		directions.append(unit.global_position.direction_to(target.global_position))
+	for enemy: Unit in observation.get("enemies", []):
+		if enemy != target:
+			directions.append(unit.global_position.direction_to(enemy.global_position))
 	for index in 36:
 		directions.append(Vector2.from_angle(TAU * float(index) / 36.0))
 
 	var best_direction := Vector2.ZERO
-	var best_count := -1
+	var best_count := 0
 	for direction in directions:
-		if direction.length_squared() < 0.0001:
-			continue
-		var count: int = ActionTargetQuery.enemies(unit, rect_effect, target, direction).size()
+		var count := ActionTargetQuery.directional_targets(unit, action, direction).size()
 		if count > best_count:
 			best_count = count
 			best_direction = direction
@@ -624,6 +678,8 @@ func _act() -> void:
 		Intent.ADVANCE:
 			last_action_text = "移动 → %s（距离 %.0fpx）" % [target_name, unit.distance_to_target()]
 		Intent.KITE:
-			last_action_text = "后撤，重新拉开与 %s 的距离" % target_name
+			last_action_text = "向安全位置撤离"
+		Intent.REPOSITION:
+			last_action_text = "换位 → 保持与 %s 的交战空间" % target_name
 		_:
 			last_action_text = "原地待机，持续观察"

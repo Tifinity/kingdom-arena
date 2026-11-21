@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/werewolf_frames.tres" id="2"]
@@ -7,6 +7,9 @@
 [ext_resource type="Resource" path="res://resources/actions/werewolf_rend.tres" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/units/werewolf_visual.tscn" id="6"]
 [ext_resource type="Resource" path="res://resources/behaviors/werewolf.tres" id="7"]
+[ext_resource type="Resource" path="res://resources/actions/werewolf_shadow_hunt.tres" id="8"]
+[ext_resource type="Resource" path="res://resources/actions/werewolf_blood_claw.tres" id="9"]
+[ext_resource type="Resource" path="res://resources/passives/werewolf_pursuit.tres" id="10"]
 
 [resource]
 script = ExtResource("1")
@@ -33,8 +36,9 @@ foot_offset = 7.0
 character_height = 17.0
 body_radius = 31.5
 accent_color = Color(1.000, 0.561, 0.639, 1)
-actions = [ExtResource("4"), ExtResource("5")]
+actions = [ExtResource("4"), ExtResource("8"), ExtResource("9"), ExtResource("5")]
 behavior_profile = ExtResource("7")
 visual_scene = ExtResource("6")
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")
+passive = ExtResource("10")

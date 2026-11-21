@@ -210,23 +210,24 @@ return Intent.ATTACK(basic_attack)
 
 ## 4. 具体例子
 
-### 弓箭手：穿透箭
+### 弓箭手：贯穿箭
 
 ```text
 resources/actions/archer_piercing_shot.tres
   animation = &"attack_02"
-  range = 420
-  windup = 0.42
-  cooldown = 6.0
-  delivery = PROJECTILE
-  projectile_scene = res://scenes/fx/piercing_arrow.tscn
+  action_range = 360
+  cooldown = 14.0
+  mana_cost = 100.0
+  effect.shape = RECT
+  effect.length = 360
+  effect.width = 40
+  effect.damage_ratio = 1.5
   priority = 10
 ```
 
-- 只是新动作资源 + 投射物场景；
-- `SpriteFrames` 已有 `attack_02`；
-- 弓箭手的 `UnitDefinition` 的 `actions` 加上它；
-- 试炼场的技能卡会直接向稻草人施放该技能，不再只是播放 `attack_02` 动画。
+- 直线上的所有敌人由 `RECT` 范围效果统一结算；
+- `SpriteFrames` 使用已有的 `attack_02`；
+- 弓箭手的 `UnitDefinition.actions` 已包含该动作，试炼场技能卡可施放。
 
 ### 法师：范围火球
 

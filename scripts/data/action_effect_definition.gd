@@ -35,6 +35,8 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 @export var status_duration: float = 0.0
 ## 旧语义：减速为速度倍率；流血/燃烧为每秒伤害。新状态由 StatusBehavior 解释。
 @export var status_power: float = 0.0
+## 状态每秒伤害按施法者当前 AD 的倍率计算；非零时优先于固定 status_power。
+@export var status_power_attack_ratio := 0.0
 ## 施加层数；中毒等可叠层状态使用。
 @export var status_stacks := 1
 ## 状态只作用于本次动作已命中的目标，用于连斩后的流血等效果。

@@ -6,7 +6,9 @@ extends CanvasLayer
 var battle: Battle
 var selected_unit: Unit
 var _refresh_accum := 0.0
-var status_row: HBoxContainer
+var status_row: HFlowContainer
+var _status_icon_keys: Array = []
+var _roster_cards: Array[BattleRosterCard] = []
 var debug_panel: PanelContainer
 var debug_fields: Dictionary = {}
 const DEBUG_FIELD_DEFS := [
@@ -31,6 +33,7 @@ const DEBUG_FIELD_DEFS := [
 @onready var range_button: Button = $Root/Controls/RangeButton
 @onready var exit_button: Button = $Root/Controls/ExitButton
 @onready var countdown_label: Label = $Root/Countdown
+@onready var roster_columns: Array[VBoxContainer] = [$Root/BlueRoster, $Root/RedRoster]
 @onready var hint_label: Label = $Root/Hint
 @onready var inspector: PanelContainer = $Root/Inspector
 @onready var inspector_state: Label = $Root/Inspector/Margin/VBox/Header/InspectorState
@@ -69,6 +72,7 @@ func _ready() -> void:
 	exit_button.pressed.connect(_on_exit_pressed)
 	rematch_button.pressed.connect(_on_rematch_pressed)
 	back_button.pressed.connect(_on_back_pressed)
+	$Root/Inspector/Margin/VBox/Header/Close.pressed.connect(_close_inspector)
 	_build_status_row()
 	_build_debug_panel()
 	refresh_controls()
@@ -80,6 +84,25 @@ func bind(p_battle: Battle) -> void:
 	_refresh()
 
 
+func set_roster(units: Array[Unit]) -> void:
+	for unit in units:
+		var card := BattleRosterCard.new()
+		roster_columns[unit.team].add_child(card)
+		card.bind(unit)
+		card.pressed.connect(_select_from_roster.bind(card))
+		_roster_cards.append(card)
+	_refresh()
+
+
+func _select_from_roster(card: BattleRosterCard) -> void:
+	if is_instance_valid(card.unit) and card.unit.alive:
+		battle.select_unit(null if selected_unit == card.unit else card.unit)
+
+
+func _close_inspector() -> void:
+	battle.select_unit(null)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if battle == null:
 		return
@@ -87,8 +110,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if get_tree().paused and event is InputEventMouseButton:
 		var mouse := event as InputEventMouseButton
 		if mouse.button_index == MOUSE_BUTTON_LEFT and mouse.pressed:
-			var world_point := battle.get_global_transform_with_canvas().affine_inverse() * mouse.position
-			battle._select_at(world_point)
+			battle._select_at(mouse.position)
 			get_viewport().set_input_as_handled()
 			return
 	if event is InputEventKey:
@@ -136,6 +158,8 @@ func _process(delta: float) -> void:
 func _refresh() -> void:
 	if battle == null:
 		return
+	for card in _roster_cards:
+		card.refresh(is_instance_valid(selected_unit) and card.unit == selected_unit)
 	timer_label.text = _format_time(battle.elapsed)
 	blue_alive.text = "%d/%d" % [battle.team_alive(0), battle.team_sizes[0]]
 	red_alive.text = "%d/%d" % [battle.team_alive(1), battle.team_sizes[1]]
@@ -188,6 +212,8 @@ func hide_countdown() -> void:
 func set_selected_unit(unit: Unit) -> void:
 	selected_unit = unit
 	inspector.visible = unit != null
+	for card in _roster_cards:
+		card.refresh(is_instance_valid(unit) and card.unit == unit)
 	hint_label.visible = unit == null
 	if unit == null:
 		_update_status_icons([])
@@ -198,9 +224,10 @@ func set_selected_unit(unit: Unit) -> void:
 
 
 func _build_status_row() -> void:
-	status_row = HBoxContainer.new()
+	status_row = HFlowContainer.new()
 	status_row.name = "StatusRow"
-	status_row.add_theme_constant_override("separation", 4)
+	status_row.add_theme_constant_override("h_separation", 4)
+	status_row.add_theme_constant_override("v_separation", 3)
 	status_row.visible = false
 	var vbox := $Root/Inspector/Margin/VBox
 	vbox.add_child(status_row)
@@ -210,40 +237,53 @@ func _build_status_row() -> void:
 func _update_status_icons(statuses: Array) -> void:
 	if status_row == null:
 		return
-	for child in status_row.get_children():
-		status_row.remove_child(child)
-		child.queue_free()
-	status_row.visible = not statuses.is_empty()
+	var keys: Array = []
 	for data in statuses:
-		var box := HBoxContainer.new()
-		box.add_theme_constant_override("separation", 1)
-		var icon := TextureRect.new()
-		icon.custom_minimum_size = Vector2(22, 22)
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.texture = data.get("icon")
-		icon.tooltip_text = "%s" % data.get("display_name", "状态")
-		if icon.texture != null:
-			box.add_child(icon)
-		else:
-			var fallback := Label.new()
-			fallback.custom_minimum_size = Vector2(22, 22)
-			fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			fallback.text = str(data.get("display_name", "状态")).left(1)
-			fallback.add_theme_color_override("font_color", Color("#e7c46b"))
-			box.add_child(fallback)
-		var stacks := int(data.get("stacks", 1))
-		if stacks > 1:
-			var stack_label := Label.new()
-			stack_label.text = "×%d" % stacks
-			stack_label.add_theme_font_size_override("font_size", 11)
-			stack_label.add_theme_color_override("font_color", Color("#e7c46b"))
-			box.add_child(stack_label)
+		keys.append([data.get("id"), data.get("icon"), data.get("stacks"), data.get("display_name")])
+	if keys != _status_icon_keys:
+		_status_icon_keys = keys
+		for child in status_row.get_children():
+			status_row.remove_child(child)
+			child.queue_free()
+		for data in statuses:
+			status_row.add_child(_make_status_icon(data))
+	status_row.visible = not statuses.is_empty()
+	for index in statuses.size():
+		var data: Dictionary = statuses[index]
+		var box := status_row.get_child(index) as Control
 		box.tooltip_text = "%s · %s" % [
 			data.get("display_name", "状态"),
 			"常驻" if bool(data.get("persistent", false)) else "剩余 %.1f 秒" % float(data.get("remaining", 0.0)),
 		]
-		status_row.add_child(box)
+
+
+func _make_status_icon(data: Dictionary) -> HBoxContainer:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 1)
+	var texture: Texture2D = data.get("icon")
+	if texture != null:
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(24, 24)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = texture
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(icon)
+	else:
+		var fallback := Label.new()
+		fallback.custom_minimum_size = Vector2(24, 24)
+		fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fallback.text = str(data.get("display_name", "状态")).left(1)
+		fallback.add_theme_color_override("font_color", Color("#e7c46b"))
+		box.add_child(fallback)
+	var stacks := int(data.get("stacks", 1))
+	if stacks > 1:
+		var stack_label := Label.new()
+		stack_label.text = "×%d" % stacks
+		stack_label.add_theme_font_size_override("font_size", 12)
+		stack_label.add_theme_color_override("font_color", Color("#e7c46b"))
+		box.add_child(stack_label)
+	return box
 
 
 func _build_debug_panel() -> void:
@@ -374,7 +414,8 @@ func _update_inspector() -> void:
 		var passive_state := "未生效"
 		if passive.hp_threshold_status != null:
 			passive_state = "生效中" if passive.threshold_active(selected_unit.status_controller) else "未生效"
-		elif passive.heal_bonus_ratio > 0.0 or passive.hp_regen_ratio_per_second > 0.0:
+		elif passive.heal_bonus_ratio > 0.0 or passive.hp_regen_ratio_per_second > 0.0 \
+				or passive.bonus_damage_ratio > 0.0 or passive.on_hit_status != null:
 			passive_state = "常驻"
 		else:
 			var passive_remaining := passive.remaining(selected_unit.status_controller)
@@ -412,10 +453,10 @@ func show_result(result: Dictionary) -> void:
 	var winner: int = result.get("winner", -1)
 	if winner == 0 or winner == 1:
 		var color := GameState.team_color(winner)
-		result_title.text = "%s 获胜" % GameState.team_name(winner)
+		result_title.text = "%s 获胜" % _result_team_name(winner)
 		result_title.add_theme_color_override("font_color", color)
 		var loser := 1 - winner
-		result_sub.text = "%s全员阵亡" % GameState.team_name(loser)
+		result_sub.text = "%s全员阵亡" % _result_team_name(loser)
 	else:
 		result_title.text = "同归于尽"
 		result_title.add_theme_color_override("font_color", Color("#e7c46b"))
@@ -438,6 +479,13 @@ func show_result(result: Dictionary) -> void:
 		]
 	else:
 		mvp_value.text = "无"
+
+
+func _result_team_name(team: int) -> String:
+	var name := GameState.team_name(team)
+	if GameState.selected_team_preset(0) == GameState.selected_team_preset(1):
+		return "%s（%s）" % [name, GameState.team_short_name(team)]
+	return name
 
 
 func _on_speed_pressed() -> void:

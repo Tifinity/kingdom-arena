@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "狙击"
+description = "与目标距离至少 {bonus_damage_min_distance} 像素时，造成的所有伤害提高 {bonus_damage_at_distance_percent}%。"
+bonus_damage_min_distance = 300.0
+bonus_damage_at_distance_ratio = 0.1

@@ -1,42 +1,39 @@
+class_name GroundPoundFx
 extends Node2D
 
-## pixelfx moves/ground-pound 的落地冲击部分（impacts/ground-slam）。
-@export var sheet: Texture2D
-const FRAME_SIZE := Vector2i(288, 208)
-const FRAME_COUNT := 97
+## pixelfx moves/ground-pound-perspective. Floor art is circular in world space.
+const SHEET_RADIUS := 78.0
+const FRAME_COUNT := 55
 const FPS := 30.0
 
-var _sprite: Sprite2D
 var _elapsed := 0.0
+var _projected_ground: Sprite3D
 
-
-func _ready() -> void:
-	_sprite = Sprite2D.new()
-	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_sprite.offset = Vector2(0, -60)
-	add_child(_sprite)
-	_show_frame(0)
+@onready var _ground: Sprite2D = $Ground
+@onready var _air: Sprite3D = $Air
 
 
 func setup_from_effect(source: Unit, effect: ActionEffectDefinition) -> void:
-	global_position = source.global_position
-	scale = Vector2.ONE * (effect.radius / 104.0)
+	var cast := source.current_cast
+	global_position = cast.point if cast != null and cast.has_point and not effect.center_on_self else source.global_position
+	var size_ratio := effect.radius / SHEET_RADIUS
+	scale = Vector2.ONE * size_ratio
+
+	var stage: ArenaStage3D = source.battle.stage
+	_projected_ground = stage.add_ground_sprite(_ground, self, ArenaStage3D.GROUND_MARKER_PRIORITY + 2)
+	_projected_ground.name = "ProjectedGround"
+	stage.sync_ground_sprite(_projected_ground, _ground, 0.25)
+	_ground.hide()
+	_air.pixel_size = size_ratio
+	_air.global_transform = Transform3D(stage.camera.basis, stage.ground_to_world(global_position, 0.25))
 
 
 func _process(delta: float) -> void:
 	_elapsed += delta
-	var frame := int(_elapsed * FPS)
-	if frame >= FRAME_COUNT:
+	var index := int(_elapsed * FPS)
+	if index >= FRAME_COUNT:
 		queue_free()
-	else:
-		_show_frame(frame)
-
-
-func _show_frame(index: int) -> void:
-	if sheet == null or _sprite == null:
 		return
-	var atlas := AtlasTexture.new()
-	atlas.atlas = sheet
-	atlas.region = Rect2((index % 9) * FRAME_SIZE.x, (index / 9) * FRAME_SIZE.y,
-		FRAME_SIZE.x, FRAME_SIZE.y)
-	_sprite.texture = atlas
+	if _projected_ground != null:
+		_projected_ground.frame = index
+	_air.frame = index

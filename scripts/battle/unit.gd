@@ -85,6 +85,12 @@ var team_ring: UnitTeamRing
 var selection_ring: UnitSelectionRing
 var visual: AnimatedSprite2D
 var health_bar: UnitHealthBar
+## 视觉子场景根节点与其中的投射物出手锚点（场景里名为 Muzzle）。
+## 锚点缺失时回退到按体型推算的位置，旧视觉场景无需立刻迁移。
+var _visual_root: Node2D
+var _health_bar_anchor: Vector2
+var _health_bar_scale: Vector2
+var _muzzle_marker: Marker2D
 @onready var visual_host: Node2D = $VisualHost
 @onready var status_controller: UnitStatusController = $StatusController
 @onready var brain: UnitBrain = $Brain
@@ -147,6 +153,10 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	team_ring = visual_root.get_node("TeamRing")
 	selection_ring = visual_root.get_node("SelectionRing")
 	health_bar = visual_root.get_node("HealthBar")
+	_health_bar_anchor = health_bar.position
+	_health_bar_scale = health_bar.scale
+	_visual_root = visual_root
+	_muzzle_marker = visual_root.get_node_or_null("Muzzle") as Marker2D
 
 	visual.flip_h = team == 1
 	visual.speed_scale = 1.0
@@ -374,14 +384,29 @@ func target_reach(extra := 0.0) -> float:
 	return attack_range + target_radius + body_radius * 0.35 + extra
 
 
+func basic_target_reach(extra := 0.0) -> float:
+	# 单一普攻为扇形/直线时，推进判定要与动作的实际命中范围一致。
+	var basic_action: CombatActionDefinition = null
+	for action in actions:
+		if action == null or action.category != CombatActionDefinition.Category.BASIC:
+			continue
+		if basic_action != null:
+			basic_action = null
+			break
+		basic_action = action
+	var aoe_reach := action_aoe_reach(basic_action)
+	if aoe_reach > 0.0:
+		var target_radius := target.body_radius if has_live_target() else 0.0
+		return (aoe_reach + target_radius + extra) * AOE_CAST_BUFFER
+	return target_reach(extra)
+
+
 func is_target_in_range(extra := 0.0) -> bool:
-	if not has_live_target():
-		return false
-	return distance_to_target() <= target_reach(extra)
+	return has_live_target() and distance_to_target() <= basic_target_reach(extra)
 
 
 func desired_stop_distance() -> float:
-	return maxf(target_reach(-12.0), 40.0)
+	return maxf(basic_target_reach(-12.0), 40.0)
 
 
 ## 每名英雄围绕目标占据不同的位置：同排英雄沿 Y 轴错开，
@@ -391,7 +416,7 @@ func desired_combat_position() -> Vector2:
 		return definition.behavior_profile.movement.desired_position(self)
 	if not has_live_target():
 		return global_position
-	var stop := maxf(target_reach(-18.0), 54.0)
+	var stop := maxf(basic_target_reach(-18.0), 54.0)
 	var lateral_span := minf(50.0, stop * 0.36)
 	var lateral := (2.0 - float(slot)) / 2.0 * lateral_span
 	var forward := sqrt(maxf(stop * stop - lateral * lateral, 0.0)) * 0.92
@@ -602,10 +627,14 @@ func begin_action_effects() -> void:
 ## 记录一次实际造成伤害的命中；技能命中会为“热诚决斗”类被动叠一层。
 ## DoT 的周期伤害不经过这里，因此不会叠被动。
 func register_damage_hit(victim: Unit, is_skill := false) -> void:
-	if not alive or not is_skill or victim == null or not is_instance_valid(victim):
+	if not alive or victim == null or not is_instance_valid(victim):
 		return
 	var passive: PassiveDefinition = definition.passive if definition != null else null
 	if passive == null:
+		return
+	if passive.on_hit_status != null and victim.team != team and victim.status_controller != null:
+		victim.status_controller.apply(passive.on_hit_status, self)
+	if not is_skill:
 		return
 	if passive.skill_hit_stacks_status != null and status_controller != null:
 		status_controller.apply(passive.skill_hit_stacks_status, self)
@@ -638,7 +667,7 @@ func heal(amount: float, healer: Unit = null) -> void:
 	health_bar.set_ratio(hp / max_hp)
 	if hp > before:
 		if battle != null:
-			battle.spawn_heal_text(get_hit_point(), hp - before)
+			battle.spawn_heal_text(get_effect_point(), hp - before)
 		if healer != null:
 			healer.last_heal_amount += hp - before
 		sync_conditional_passives()
@@ -652,7 +681,9 @@ func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
 		push_warning("未找到状态定义: %s" % effect.status_id)
 		return
 	var duration := effect.status_duration if effect.status_duration > 0.0 else definition.duration
-	var power := effect.status_power if effect.status_power > 0.0 else definition.base_power
+	var power := effect.status_power if not is_zero_approx(effect.status_power) else definition.base_power
+	if effect.status_power_attack_ratio > 0.0 and source != null and is_instance_valid(source):
+		power = source.current_attack_damage() * effect.status_power_attack_ratio
 	status_controller.apply(definition, source, {
 		"duration": duration,
 		"power": power,
@@ -672,7 +703,7 @@ func apply_burn(duration: float, dps: float, source: Unit) -> void:
 func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 	if not is_instance_valid(victim) or not victim.alive:
 		return
-	var impact := victim.get_hit_point()
+	var impact := victim.get_effect_point()
 	var blocked := victim.is_guarding()
 	var is_skill := current_cast != null and current_cast.action.category == CombatActionDefinition.Category.SKILL
 	var damage := current_attack_damage() * maxf(effect.damage_ratio, 0.0)
@@ -764,7 +795,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 	if not victims.is_empty():
 		damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
 	for victim in victims:
-		var impact := victim.get_hit_point()
+		var impact := victim.get_effect_point()
 		if effect.shape == ActionEffectDefinition.Shape.SINGLE:
 			battle.spawn_slash(impact, accent_color, signf(victim.global_position.x - global_position.x))
 		elif effect.shape == ActionEffectDefinition.Shape.CONE:
@@ -827,8 +858,8 @@ func apply_shield(amount: float, duration: float, cap: float) -> void:
 	shield_time = duration
 	health_bar.set_shield_ratio(shield / max_hp)
 	if battle != null and shield > before:
-		battle.spawn_shield_text(get_hit_point(), shield - before)
-		battle.spawn_hit_spark(get_hit_point(), Color("#59d9ff"), 1.8)
+		battle.spawn_shield_text(get_effect_point(), shield - before)
+		battle.spawn_hit_spark(get_effect_point(), Color("#59d9ff"), 1.8)
 
 
 func is_guarding() -> bool:
@@ -838,6 +869,16 @@ func is_guarding() -> bool:
 func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, ignore_armor := false, ignore_shield := false) -> void:
 	if not alive or raw_amount <= 0.0:
 		return
+	if source != null and is_instance_valid(source) and source != self and source.definition != null:
+		var source_passive: PassiveDefinition = source.definition.passive
+		if source_passive != null and source_passive.bonus_damage_ratio > 0.0 \
+				and source_passive.bonus_damage_target_status != &"" and status_controller != null \
+				and status_controller.has_status(source_passive.bonus_damage_target_status):
+			raw_amount *= 1.0 + source_passive.bonus_damage_ratio
+		if source_passive != null and source_passive.bonus_damage_min_distance > 0.0 \
+				and source_passive.bonus_damage_at_distance_ratio > 0.0 \
+				and source.global_position.distance_to(global_position) >= source_passive.bonus_damage_min_distance:
+			raw_amount *= 1.0 + source_passive.bonus_damage_at_distance_ratio
 	if is_training_dummy():
 		# 稻草人只记录伤害与飘字，不扣血、不进硬直、不死亡；护甲与格挡照常显示。
 		var recorded := raw_amount if ignore_armor else raw_amount * (1.0 - current_armor())
@@ -852,7 +893,7 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 	if guard_time > 0.0:
 		# 格挡期间完全免伤，也不进入受击硬直。
 		guard_blocked_hit = true
-		var block_at := get_hit_point() if hit_position == null else Vector2(hit_position)
+		var block_at := get_effect_point() if hit_position == null else Vector2(hit_position)
 		_flash_left = 0.09
 		visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
 		battle.spawn_hit_spark(block_at, Color("#e7c46b"), 1.8)
@@ -867,7 +908,7 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 		if shield <= 0.0:
 			shield_time = 0.0
 		if amount <= 0.0:
-			battle.spawn_hit_spark(get_hit_point(), Color(0.35, 0.85, 1.0), 1.2)
+			battle.spawn_hit_spark(get_effect_point(), Color(0.35, 0.85, 1.0), 1.2)
 			return
 	hp = maxf(0.0, hp - amount)
 	last_damage_source = source
@@ -927,7 +968,27 @@ func get_hit_point() -> Vector2:
 	return global_position + Vector2(0.0, -visual_height * 0.52)
 
 
+## 投影后的旧特效层仍用 Vector2 接口。这个锚点表示角色身上的视觉高度。
+func get_effect_point() -> Vector2:
+	var hit_point := get_hit_point()
+	if battle is Battle:
+		return battle.stage.elevated_canvas_point(global_position, hit_point - global_position)
+	return hit_point
+
+
+func update_arena_projection(depth_scale: float) -> void:
+	health_bar.position = Vector2(_health_bar_anchor.x, _health_bar_anchor.y / depth_scale)
+	health_bar.scale = Vector2(_health_bar_scale.x, _health_bar_scale.y / depth_scale)
+	$StatusVisuals/AttributeBadges.scale.y = 1.0 / depth_scale
+
+
+## 投射物出生点：优先读取视觉场景里的 Muzzle 锚点，方便按角色在编辑器里拖拽调试。
+## 朝向翻转只作用于 Body 贴图（flip_h），锚点自身不会翻，因此水平坐标要按 facing 镜像。
+## 没有 Muzzle 锚点的视觉场景回退到按体型推算，新角色可以逐步迁移。
 func get_muzzle_point() -> Vector2:
+	if _muzzle_marker != null and _visual_root != null:
+		var local := _muzzle_marker.position
+		return _visual_root.to_global(Vector2(local.x * float(facing), local.y))
 	var visual_height := character_height * absf(visual.scale.y) if visual != null else character_height * definition.visual_scale
 	return global_position + Vector2(
 		float(facing) * body_radius * 0.72,

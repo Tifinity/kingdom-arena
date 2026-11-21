@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+
+[sub_resource type="Resource" id="effect_0"]
+script = ExtResource("2")
+kind = 1
+shape = 0
+trigger_frame = 6
+damage_ratio = 0.5
+projectile_kind = 1
+status_id = &"slow"
+status_duration = 2.0
+status_power = 0.4
+
+[resource]
+script = ExtResource("1")
+action_id = &"archer_slow_arrow"
+display_name = "减速箭"
+description = "射出减速箭，命中造成 {damage_0} 伤害，并降低目标 60% 移速，持续 2 秒。"
+category = 1
+target_mode = 0
+animation = &"attack_01"
+action_range = 510.0
+cooldown = 6.0
+priority = 7
+effects = [SubResource("effect_0")]

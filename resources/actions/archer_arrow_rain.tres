@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/fx/archer_arrow_rain.tscn" id="4"]
+
+[sub_resource type="Resource" id="visual"]
+script = ExtResource("2")
+kind = 2
+trigger_frame = 6
+radius = 140.0
+effect_scene = ExtResource("4")
+
+[sub_resource type="Resource" id="effect_0"]
+script = ExtResource("2")
+kind = 0
+shape = 1
+trigger_frame = 13
+damage_ratio = 1.5
+radius = 140.0
+
+[sub_resource type="Resource" id="targeting"]
+script = ExtResource("3")
+selection = 2
+
+[resource]
+script = ExtResource("1")
+action_id = &"archer_arrow_rain"
+display_name = "箭雨"
+description = "在敌人最密集处落下箭雨，对范围内所有敌人造成 {damage_0} 伤害。"
+category = 1
+target_mode = 3
+animation = &"attack_01"
+action_range = 510.0
+cooldown = 12.0
+action_duration = 0.9
+priority = 9
+targeting = SubResource("targeting")
+effects = [SubResource("visual"), SubResource("effect_0")]

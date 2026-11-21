@@ -58,7 +58,7 @@ func _ready() -> void:
 	knight.target = enemies[0]
 	knight.planned_action = block
 	knight.state_machine.transition_to(&"action", true)
-	battle._select_at(knight.global_position + Vector2(0, -50))
+	battle._select_at(battle.unit_screen_position(knight))
 	await _wait(0.18)
 	knight.take_damage(100.0, enemies[0])
 	await _wait(0.12)

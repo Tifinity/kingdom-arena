@@ -31,24 +31,11 @@
 实际战斗默认不绘制范围环；点击右下角「范围」或按 `Tab` 打开选中单位的攻击/技能范围：
 [范围调试对照](artifacts/flame_slash_ranges.png)。
 
-### 圣光裁决 · 金色冲击波
+### 圣殿骑士 · 金色剑气与圣盾
 
-![圣殿骑士圣光裁决的扩散冲击波](artifacts/templar_judgement_wave.png)
-
-圣殿骑士在 `attack_03` 斩击命中帧释放金色冲击波，从自身沿 190px、±55° 扇形扩散。
-波纹读取伤害效果的范围与方向，只负责表现；伤害仍由原动作效果结算。
-「圣光裁决」现为 0 蓝普通技能（CD12、1.5 AD）。满蓝大招「圣盾守护」播放 `move_02`，
-冲向敌人最密集的可达位置，嘲讽周围敌人并按人数获得护盾；数值见
-[技能追踪表](docs/SKILL_ROSTER.md)。
-
-![圣盾守护落地结界与嘲讽标记](artifacts/templar_taunt.png)
-
-落地特效换成 pixelfx 的 `holy/aegis-ring`：金色光点钻进地面，结界从落点滚开，光柱与盾徽
-绕圈升起，两秒后碎成光屑。半径直接读取嘲讽效果的 160px，圆环边界就是实际嘲讽范围；
-精灵表按前后两层导出，地面层画在单位下方、竖起来的光柱画在单位上方，被罩住的单位是站在
-结界里而不是被整片光斑糊住。重新导出见 `tools/pixelfx_split_layers.mjs`。
-
-![结界细节](artifacts/templar_aegis_ring.png)
+「圣光斩」挥出一道金色剑气，「圣光连斩」在上挑和下劈时各挥出一道剑气，第二斩结算扇形伤害。
+满蓝大招「圣盾守护」冲向敌人最密集的可达位置，落地时展开由战场相机投影的正圆金色结界。
+结界以实际嘲讽范围的 160px 为半径，骑士按命中人数获得护盾。数值见[技能追踪表](docs/SKILL_ROSTER.md)。
 
 ### 狂怒
 
@@ -57,6 +44,13 @@
 精锐兽人的被动：生命低于 50% 时攻击力 +50%，并获得 10% 吸血（按实际造成的伤害回复生命）。
 状态特效取自 pixelfx `status/seething`，导出时跳过替身身体，只保留怒纹、蒸汽与应激线；
 生命回到阈值以上时，攻击加成、吸血和特效一起移除。重新导出见 `tools/export_rage_status.mjs`。
+
+### 盔甲护身
+
+![重甲斧兵盔甲护身](artifacts/armored_axeman_armor_guard.png)
+
+重甲斧兵的防御技能：对自身提高 20 个百分点护甲，持续 6 秒。施放时铜甲片向身侧扣合，迸出短促火星；随后小甲片在腰间环绕，状态结束时消失。
+特效使用 pixelfx 导出的前后两层序列帧，不替换角色材质。重新导出与截取见 [特效工作流](docs/VFX_WORKFLOW.md)。
 
 ### 格挡
 
@@ -106,9 +100,9 @@ godot --path .
 macOS 如果 `godot` 不在 PATH：
 `/Applications/Godot.app/Contents/MacOS/Godot --path .`。
 
-也可以用 Godot 编辑器打开 `project.godot` 后按 F5。逻辑基准分辨率为 `1600×900`，默认窗口 `1440×810`，
-窗口可自由缩放，使用 `canvas_items` + `expand` 铺满窗口。非 16:9 窗口会扩展逻辑视口：
-背景按视口比例铺满，战场边界与双方站位重新计算，布阵界面在扩展出的高度中垂直居中，
+也可以用 Godot 编辑器打开 `project.godot` 后按 F5。游戏默认以独立窗口最大化启动，适配所在屏幕的可用区域，
+还原后可自由缩放。以 `1600×900` 为基准，界面与战场通过 `viewport` + `expand` 缩放到窗口。场景铺地、铜纹边框和战斗标记以 4px 图元绘制，纹理使用最近邻采样。
+非 16:9 窗口会扩展逻辑视口，背景铺满视口，战场边界与双方站位重新计算，布阵界面在扩展出的高度中垂直居中，
 名册列数会在 6~12 列之间随可用宽度变化。
 战斗中途拖动窗口改变大小，单位也会被重新约束在新的战场范围内。
 
@@ -119,6 +113,9 @@ macOS 如果 `godot` 不在 PATH：
    - 已部署英雄可以从一个槽位拖到另一个槽位：目标为空则移动，目标已有英雄则交换。
    - 点击已部署槽位可查看该英雄详情；点 `×` 或右键移除。
    - 每侧 5 个槽位，槽位顺序即战场站位。双方可以混搭任意阵营的英雄。
+   - 左右两侧的队名是独立下拉菜单。开局默认蓝方为「晨曦王庭」、红方为「荒野兽人」，两边都可以选择「暗夜亡灵」或互换阵营。
+   - 选好队伍后仍可拖拽换人。切换队伍时保留该侧的编辑，点「恢复预设」可还原当前队伍的默认角色和顺序。
+   - 晨曦王庭：士兵、骑士、圣殿骑士、重甲斧兵、枪兵。荒野兽人：精锐兽人、重甲兽人、兽人骑兵、狼人、熊人。暗夜亡灵：骷髅、重甲骷髅、巨剑骷髅、骷髅弓箭手、死灵法师。
    - 「随机阵容」生成双方各 5 名互不重复的随机英雄；「清空」清空两侧。
    - 顶部显示双方战力与人数，底部详情栏显示当前英雄的生命、攻击、攻速、射程、护甲、移速。
 2. **开战**：点击右上角「开始战斗」。倒计时 3 秒后所有单位由 AI 接管。
@@ -134,31 +131,14 @@ macOS 如果 `godot` 不在 PATH：
 | `R` | 重开当前对局 |
 | `Esc` | 返回布阵 |
 
-右下角提供半透明「倍速 / 暂停 / 范围 / 布阵」控制按钮（与布阵界面的四个按钮共用 `control_button.tscn`）；倍速依次循环 ×1 → ×2 → ×0.5 → ×1；「范围」或 `Tab` 开关选中单位的攻击/技能范围环，默认关闭；结算面板有「再来一局 / 重新布阵」。
-战斗顶栏只显示双方名称、剩余人数与计时，不显示总血量；竞技场地面抬高到接近全屏高度。
+右下角有「倍速 / 暂停 / 范围 / 布阵」按钮。倍速依次循环 ×1 → ×2 → ×0.5 → ×1。「范围」或 `Tab` 开关选中单位的攻击和技能范围环，默认关闭。结算面板可以重赛或返回布阵。
+战斗顶栏显示双方名称、剩余人数与计时。竞技场铺地延伸至窗口上下边缘，铜纹边线标出单位可走的区域。
 
-### 在编辑器里运行时没有跟着窗口放大？
+### 在编辑器里嵌入运行
 
-这是 Godot 的 **Game Embedding（游戏嵌入）** 行为，不是项目的拉伸设置问题。
-Game 嵌入默认使用 **Fixed Size**：启动参数里会带有 `--embedded --resolution 1440x810`，
-所以无论怎么拖拽 Game 面板或编辑器窗口，游戏视口都会固定在 1440×810。
-
-在 Godot 编辑器里解决：
-
-1. 打开顶部 **Game** 主界面；
-2. 点击 Game 栏右上角的尺寸下拉菜单；
-3. 把 **Fixed Size** 改成 **Stretch to Fit**（或 **Keep Aspect Ratio**）；
-4. 或者关闭嵌入：取消 **Embed Game on Next Play** / 选择 **Make Window Floating on Next Play**，
-   再运行就会得到独立、可自由缩放的调试窗口。
-
-也可以直接在终端运行，打开的就是普通独立窗口：
-
-```sh
-godot --path .
-```
-
-Godot 文档：[Game embedding](https://docs.godotengine.org/en/stable/tutorials/editor/game_embedding.html)
-（见 “Embedded window sizing” 一节）。注意嵌入模式本身不支持全屏等窗口模式切换。
+Godot 的游戏嵌入功能需要项目使用 **Windowed** 模式。如需嵌入调试，可以在项目设置的
+**Display → Window → Size → Mode** 中临时切换。Game 面板的尺寸菜单可选 **Stretch to Fit**，
+让游戏画面随面板大小缩放。详见 [Godot 游戏嵌入文档](https://docs.godotengine.org/en/stable/tutorials/editor/game_embedding.html)。
 
 ## 调试单个英雄
 
@@ -174,6 +154,7 @@ scenes/units/<id>_visual.tscn       每个英雄的视觉节点：
   ├─ TeamRing / SelectionRing
   ├─ Body (AnimatedSprite2D)        ← 拖这里调整动画位置/缩放
   ├─ HealthBar                      ← 拖这里调整血条位置
+  ├─ Muzzle                         ← 拖这里调整投射物出手点
   └─ FootMarker / HitPoint
 
 resources/units/<id>.tres           UnitDefinition（数值、Action、visual_scene…）
@@ -217,12 +198,30 @@ scenes/units/armored_axeman_visual.tscn
 - `Shadow` 的 `position`/`scale`：影子；
 - `Hurtbox` 的 `CollisionShape2D`：受击范围（圆形，红色调试轮廓）；
 - `AttackBox` 的 `CollisionShape2D`：基础普攻范围（圆形，蓝色调试轮廓）；
-- `FootMarker`、`HitPoint`：命中点/脚底锚点。
+- `FootMarker`、`HitPoint`：命中点/脚底锚点；
+- `Muzzle`：投射物出手点。箭矢、法术弹从这里生成，朝左时自动镜像到身体另一侧。
 
 `Hurtbox` / `AttackBox` 目前是**编辑器可视化和调试形状**：`monitoring = false`、
 碰撞层为 0，不参与实际伤害结算。当前伤害仍由 Action 的距离/扇形/矩形数据判定。
 `AttackBox` 表示基础普攻范围；技能范围请用战斗中选中单位后的「范围」按钮查看，
 或编辑对应 `ActionEffectDefinition` 的 shape/length/width。
+
+### 投射物出手点怎么调
+
+打开对应英雄的视觉子场景（例如 `scenes/units/soldier_visual.tscn`），
+选中 `Muzzle`（Marker2D），在 2D 视图里直接把它拖到弓/手上：
+
+```text
+scenes/units/soldier_visual.tscn
+  └─ Muzzle   ← 选中后在 2D 视图拖动 position
+```
+
+- 坐标是**视觉场景像素**，和 `Body` 的 `position` 同一空间，不是 100×100 帧内坐标；
+- 只需要按“朝右”摆一次，代码会按 `facing` 镜像水平坐标，朝左时自动换到另一侧；
+- 普通射箭、后撤射击、法术弹共用这个点；飞行方向由 `projectile.gd` 在生成时重新瞄准目标；
+- 没有 `Muzzle` 的视觉场景会回退到按 `body_radius` / `character_height` 推算的位置，
+  所以新增英雄可以先生成场景、之后再补锚点；
+- 首次生成（或批量补锚点）时，`position` 与旧公式算出的点完全一致，所以接入锚点不会让现有单位突然位移；之后可以随时在编辑器里拖拽。
 
 `tools/build_assets.py` 只会在视觉场景**不存在**时生成它，**不会覆盖手工调整**。
 需要重置某个英雄时，删除对应 `_visual.tscn` 后重新运行构建脚本即可。
@@ -494,6 +493,7 @@ UnitActionState（唯一行动状态）
 格挡：    priority 6  + 缺失生命比例 × 25（生命 ≤ 55% 才候选）
 旋风斩：  priority 9  + 矩形内敌人数 × 2
 重击：    priority 8
+盔甲护身：priority 5（自身护甲 +20 个百分点，持续 6 秒）
 普攻：    priority 0，兜底
 ```
 
@@ -511,6 +511,18 @@ UnitActionState（唯一行动状态）
 
 完整架构与扩展计划见
 [技能与行为扩展方案](docs/SKILLS_BEHAVIOR_PLAN.md)。
+
+## 从技能实验室导入
+
+在技能实验室从「竞技场 · 箭雨」范例开始，修改节点参数后点击「导出到竞技场」，得到 `archer_arrow_rain.arena-skill.json`。在王国竞技场项目根目录执行：
+
+```sh
+godot --headless --path . res://tools/import_arena_skill.tscn -- ~/Downloads/archer_arrow_rain.arena-skill.json
+```
+
+如果 macOS 上没有 `godot` 命令，用 `/Applications/Godot.app/Contents/MacOS/Godot` 替换。第一次操作新检出的项目时，先在 Godot 编辑器打开项目，让素材完成导入。
+
+导入会更新弓箭手已有的箭雨资源。名字、冷却、蓝耗、射程、半径和 AD 倍率取自 JSON，角色动作、命中帧及特效场景沿用项目绑定。改过的半径会同时用于 AI 选点、伤害与特效。下次启动游戏后，可在英雄试炼场选择弓箭手并点击箭雨验证。当前绑定只支持箭雨的一次圆形伤害，校验失败时不会修改资源。
 
 ## 测试
 

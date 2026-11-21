@@ -124,7 +124,7 @@ UNITS = [
     Unit("greatsword_skeleton", "巨剑骷髅", "断魂巨剑", 2, "战士", 15,
          "拖着巨剑的骸骨，一次挥砍就能重创脆皮。",
          130, 18, 0.65, 96, 96, 0.08, 0.42, 0, 0, 4.2, 33, source="Greatsword Skeleton"),
-    Unit("skeleton_archer", "骷髅弓手", "骸骨射手", 2, "射手", 16,
+    Unit("skeleton_archer", "骷髅弓箭手", "骸骨射手", 2, "射手", 16,
          "从墓穴中爬出的弓手，远程压制力不俗。",
          80, 10, 0.90, 495, 118, 0.02, 0.36, 1, 1, 3.9, 28, source="Skeleton Archer"),
     Unit("necromancer", "死灵法师", "墓穴低语者", 2, "法师", 17,
@@ -215,6 +215,7 @@ def _write_effect_resource(effect_id: str, effect: dict) -> str:
         *([f'status_id = &"{effect["status_id"]}"'] if effect.get("status_id") else []),
         f'status_duration = {effect.get("status_duration", 0.0):.2f}',
         f'status_power = {effect.get("status_power", 0.0):.2f}',
+        f'status_power_attack_ratio = {effect.get("status_power_attack_ratio", 0.0):.2f}',
         f'status_stacks = {effect.get("status_stacks", 1)}',
         f'requires_action_hit = {"true" if effect.get("requires_action_hit", False) else "false"}',
         f'burn_duration = {effect.get("burn_duration", 0.0):.2f}',
@@ -332,10 +333,12 @@ def _write_action(
             f'distance = {advance_distance:.1f}',
             f'target_gap = {teleport_gap:.1f}',
             f'leap_height = {leap_height:.1f}',
-            f'charge_setup_distance = {charge_setup_distance:.1f}',
-            f'charge_pass_distance = {charge_pass_distance:.1f}',
-            '',
         ]
+        if charge_setup_distance > 0.0:
+            lines.append(f'charge_setup_distance = {charge_setup_distance:.1f}')
+        if charge_pass_distance > 0.0:
+            lines.append(f'charge_pass_distance = {charge_pass_distance:.1f}')
+        lines.append('')
     if targeting_selection:
         lines += [
             '[sub_resource type="Resource" id="targeting"]',
@@ -374,6 +377,7 @@ def _write_action(
 def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         length=0.0, width=0.0, projectile=0, duration=0.0, center_self=False,
         status_kind=0, status_duration=0.0, status_power=0.0,
+        status_power_attack_ratio=0.0,
         status_id="", status_stacks=1,
         heal_amount=0.0, heal_ratio=0.0, summon_id="", summon_count=1, knockback=0.0,
         burn_duration=0.0, burn_dps_ratio=0.0,
@@ -387,7 +391,8 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         "length": length, "width": width, "projectile_kind": projectile,
         "duration": duration, "center_on_self": center_self,
         "status_kind": status_kind, "status_duration": status_duration,
-        "status_power": status_power, "status_id": status_id,
+        "status_power": status_power, "status_power_attack_ratio": status_power_attack_ratio,
+        "status_id": status_id,
         "status_stacks": status_stacks, "heal_amount": heal_amount,
         "heal_ratio": heal_ratio, "summon_unit_id": summon_id,
         "summon_count": summon_count, "knockback": knockback,
@@ -454,8 +459,8 @@ def _skills_for(unit: Unit) -> list[dict]:
                              movement_kind=4, advance=700.0, advance_distance=340.0,
                              teleport_gap=0.0, targeting_selection=5, leap_height=80.0,
                              description="跳向中距离内护甲最低的敌人，造成 1.0 AD 单体伤害。"))
-        skills.append(_skill("soldier_backstep_shot", "后撤射击", "move",
-                             [_fx(kind=1, shape=0, ratio=1.3, frame=4, projectile=1,
+        skills.append(_skill("soldier_backstep_shot", "后撤射击", "attack_03",
+                             [_fx(kind=1, shape=0, ratio=1.3, frame=7, projectile=1,
                                   straight_projectile=True)],
                              10.0, 8, 330.0, rng, movement_kind=5,
                              advance=420.0, advance_distance=100.0,
@@ -481,12 +486,16 @@ def _skills_for(unit: Unit) -> list[dict]:
     elif slug == "knight_templar":
         skills.append(_skill("knight_templar_cleave", "圣光斩", "attack_02",
                              [_fx(shape=2, ratio=1.3, frame=4, radius=rng + 10.0, half=62.0)],
-                             7.0, 7, rng, rng))
-        skills.append(_skill("knight_templar_judgement", "圣光裁决", "attack_03",
-                             [_fx(shape=2, ratio=1.5, frame=6, radius=190.0, half=55.0)],
-                             12.0, 10, 200.0, rng,
-                             description="斩击时金色冲击波向前扩散，对扇形敌人造成 {damage_0} 伤害。"))
-        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_judgement_wave.tscn"
+                             7.0, 7, rng + 10.0, rng,
+                             description="挥出一道金色剑气，对前方扇形敌人造成 {damage_0} 伤害。"))
+        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_holy_blade.tscn"
+        skills.append(_skill("knight_templar_judgement", "圣光连斩", "attack_03",
+                             [_fx(kind=2, frame=3, radius=190.0),
+                              _fx(shape=2, ratio=1.5, frame=6, radius=190.0, half=55.0)],
+                             12.0, 10, 190.0, rng,
+                             description="连续挥出两道金色剑气，第二斩对前方扇形敌人造成 {damage_0} 伤害。"))
+        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_holy_blade_rising.tscn"
+        skills[-1]["effects"][1]["scene_path"] = "res://scenes/fx/templar_holy_blade.tscn"
         skills.append(_skill("knight_templar_block", "圣盾守护", "move_02",
                              [_fx(kind=5, shape=1, frame=7, radius=160.0, center_self=True,
                                   status_id="taunt", status_duration=2.5),
@@ -495,7 +504,7 @@ def _skills_for(unit: Unit) -> list[dict]:
                              16.0, 13, 340.0, rng, mana=100.0, target_mode=3,
                              category=2, action_duration=0.8, advance=850.0,
                              advance_distance=340.0, movement_kind=4, targeting_selection=2))
-        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/templar_taunt_pulse.tscn"
+        skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/aegis_ring.tscn"
     elif slug == "armored_axeman":
         skills.append(_skill("armored_axeman_heavy", "重击", "attack_03",
                              [_fx(shape=0, ratio=2.0, frame=8)],
@@ -671,16 +680,27 @@ def _skills_for(unit: Unit) -> list[dict]:
                              description="跳向敌人最密集处，落地对范围内敌人造成 1.3 AD 伤害并眩晕 0.5 秒。"))
         skills[-1]["effects"][0]["scene_path"] = "res://scenes/fx/ground_pound.tscn"
     elif slug == "werewolf":
+        skills.append(_skill("werewolf_shadow_hunt", "猎影突袭", "attack_01",
+                             [_fx(shape=0, ratio=1.0, frame=0)],
+                             8.0, 8, 300.0, rng, teleport_to_target=True,
+                             targeting_selection=6,
+                             description="闪现到 300 像素内当前生命值最低的敌人身前，立即进行一次普通攻击。"))
+        skills.append(_skill("werewolf_blood_claw", "血痕爪", "attack_01",
+                             [_fx(shape=0, ratio=0.9, frame=4),
+                              _fx(kind=5, shape=0, frame=4, status_kind=2,
+                                  status_duration=2.0, status_power_attack_ratio=0.5,
+                                  requires_action_hit=True)],
+                             10.0, 7, rng, rng,
+                             description="单体造成 0.9 AD 伤害，并使其流血 2 秒，每秒受到 0.5 AD 伤害。"))
         skills.append(_skill("werewolf_rend", "血月连斩", "attack_02",
-                             [_fx(shape=0, ratio=1.0, frame=7),
-                              _fx(shape=0, ratio=1.15, frame=9),
-                              _fx(shape=0, ratio=1.35, frame=11),
-                              _fx(kind=5, shape=0, frame=11, status_kind=2,
-                                  status_duration=4.0, status_power=3.0,
+                             [_fx(shape=0, ratio=0.6, frame=frame) for frame in [5, 7, 9, 11, 12]] +
+                             [_fx(kind=5, shape=0, frame=12, status_kind=2,
+                                  status_duration=5.0, status_power_attack_ratio=0.3,
                                   requires_action_hit=True)],
                              14.0, 10, 300.0, rng, mana=100.0,
                              preferred_min_range=130.0, teleport_to_target=True,
-                             description="优先闪现至中距离目标身前连续斩击 3 次，共造成 {total_damage}单体伤害，并使其流血 4 秒。"))
+                             targeting_selection=6,
+                             description="闪现到 300 像素内当前生命值最低的敌人身前连续斩击 5 次，共造成 {total_damage}单体伤害，并使其流血 5 秒，每秒受到 0.3 AD 伤害。"))
 
     # 所有以自身为原点的扇形/矩形技能，action_range 与实际伤害形状完全一致。
     for spec in skills:
@@ -729,8 +749,8 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
         ranged_name = "soldier_ranged_basic"
         _write_action(
             RES_ACTIONS / f"{ranged_name}.tres", ranged_name, "弓箭普攻", 0, 0,
-            "idle", 430.0, 1.1, 0,
-            _fx(kind=1, shape=0, frame=2, ratio=1.0, projectile=1,
+            "attack_03", 430.0, 1.1, 0,
+            _fx(kind=1, shape=0, frame=7, ratio=1.0, projectile=1,
                 straight_projectile=True), min_range=125.0,
             description="远距离射出一箭，造成 1.0 AD 单体伤害。",
         )
@@ -769,12 +789,15 @@ def build_visual_scene(unit: Unit, foot_offset: float, character_height: float) 
     bar_y = -character_height * scale - 15.0
     shadow_scale = unit.body_radius * 1.05 / 80.0
     hurt_radius = unit.body_radius * 1.05
+    # 投射物出手锚点；默认值与 unit.gd 的回退公式一致，之后可在编辑器里拖拽微调。
+    muzzle_x = unit.body_radius * 0.72
+    muzzle_y = -character_height * scale * 0.56
     content = f'''[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle/team_ring.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/battle/selection_ring.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/battle/health_bar.gd" id="3"]
-[ext_resource type="Texture2D" path="res://assets/ui/soft_shadow.png" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/units/unit_shadow.tscn" id="4"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/{unit.slug}_frames.tres" id="5"]
 
 [sub_resource type="CircleShape2D" id="hurt_shape"]
@@ -785,10 +808,7 @@ radius = {unit.attack_range:.1f}
 
 [node name="UnitVisual" type="Node2D"]
 
-[node name="Shadow" type="Sprite2D" parent="."]
-texture_filter = 1
-z_index = -1
-texture = ExtResource("4")
+[node name="Shadow" parent="." instance=ExtResource("4")]
 position = Vector2(0, -1)
 scale = Vector2({shadow_scale:.3f}, {shadow_scale:.3f})
 
@@ -830,6 +850,9 @@ monitorable = false
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackBox"]
 shape = SubResource("attack_shape")
 debug_color = Color(0.35, 0.7, 1, 0.45)
+
+[node name="Muzzle" type="Marker2D" parent="."]
+position = Vector2({muzzle_x:.2f}, {muzzle_y:.2f})
 
 [node name="FootMarker" type="Marker2D" parent="."]
 
@@ -933,7 +956,14 @@ def build_character(unit: Unit) -> tuple[float, str]:
         if any(pat in raw for pat in SKIP_PATTERNS):
             continue
         dest_name = raw.replace("/", "_") + ".png"
-        shutil.copy2(path, out_dir / dest_name)
+        dest_path = out_dir / dest_name
+        # These checked-in strips export only the body layer. Their effects play separately.
+        if (unit.slug, raw) not in (
+            ("knight_templar", "attack02"),
+            ("knight_templar", "attack03"),
+            ("werebear", "attack03"),
+        ):
+            shutil.copy2(path, dest_path)
         copied[raw] = dest_name
 
     # Build the canonical animation -> destination file map.
@@ -1050,6 +1080,7 @@ def build_character(unit: Unit) -> tuple[float, str]:
         "soldier": "soldier_dual_weapons",
         "knight_templar": "knight_templar_guardian",
         "werebear": "werebear_thick_hide",
+        "werewolf": "werewolf_pursuit",
     }
     passive_path = passive_paths.get(unit.slug, "")
     passive_id = str(6 + len(action_paths)) if passive_path else ""

@@ -13,14 +13,18 @@ signal slot_dropped(source_team: int, source_slot: int, target_team: int, target
 var slots: Array[LineupSlot] = []
 
 @onready var accent_bar: ColorRect = $Margin/VBox/Header/AccentBar
-@onready var team_name: Label = $Margin/VBox/Header/TeamInfo/TeamName
+@onready var preset_option: OptionButton = $Margin/VBox/Header/TeamPreset
+@onready var restore_preset_button: Button = $Margin/VBox/PowerRow/RestorePreset
 @onready var count_label: Label = $Margin/VBox/Header/CountLabel
 @onready var power_label: Label = $Margin/VBox/PowerRow/PowerLabel
 @onready var slots_box: VBoxContainer = $Margin/VBox/Slots
 
 
 func _ready() -> void:
-	team_name.text = GameState.team_name(team)
+	for preset in GameState.TEAM_PRESETS:
+		preset_option.add_item(preset["name"])
+	preset_option.item_selected.connect(_on_preset_selected)
+	restore_preset_button.pressed.connect(_on_restore_preset)
 	accent_bar.color = GameState.team_color(team)
 	count_label.add_theme_color_override("font_color", GameState.team_color(team))
 	for index in GameState.TEAM_SIZE:
@@ -35,6 +39,8 @@ func _ready() -> void:
 
 
 func refresh() -> void:
+	preset_option.select(GameState.selected_team_preset(team))
+	restore_preset_button.disabled = not GameState.is_team_preset_edited(team)
 	var lineup: Array = GameState.get_lineup(team)
 	var count := 0
 	for index in GameState.TEAM_SIZE:
@@ -47,6 +53,16 @@ func refresh() -> void:
 		slots[index].set_definition(definition)
 	count_label.text = "%d/%d" % [count, GameState.TEAM_SIZE]
 	power_label.text = "战力 %d" % GameState.lineup_power(team)
+
+
+func _on_preset_selected(index: int) -> void:
+	GameState.select_team_preset(team, index)
+	refresh()
+
+
+func _on_restore_preset() -> void:
+	GameState.restore_team_preset(team)
+	refresh()
 
 
 func _on_slot_pressed(slot_team: int, slot_index: int) -> void:

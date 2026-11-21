@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+
+[sub_resource type="Resource" id="effect_0"]
+script = ExtResource("2")
+kind = 5
+shape = 3
+trigger_frame = 0
+damage_ratio = 0.0
+status_id = &"armored_axeman_armor_guard"
+status_duration = 6.0
+status_power = 0.0
+
+[resource]
+script = ExtResource("1")
+action_id = &"armored_axeman_armor_guard"
+display_name = "盔甲护身"
+description = "凝神披甲，护甲 +20 个百分点，持续 6 秒。"
+category = 1
+target_mode = 2
+animation = &"attack_02"
+animation_speed = 0.8
+action_range = 0.0
+cooldown = 10.0
+mana_cost = 0.0
+action_duration = 0.6
+ai_enemy_proximity = 160.0
+priority = 5
+effects = Array[ExtResource("2")]([SubResource("effect_0")])
