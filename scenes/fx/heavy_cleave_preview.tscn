@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://b5hcdp3r1p608"]
+
+[ext_resource type="Script" path="res://scripts/fx/heavy_cleave_preview.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/units/armored_axeman_visual.tscn" id="2"]
+[ext_resource type="PackedScene" uid="uid://by25jj8wts82o" path="res://scenes/fx/heavy_cleave.tscn" id="3"]
+
+[node name="HeavyCleavePreview" type="Node2D" unique_id=1226253210]
+script = ExtResource("1")
+
+[node name="Axeman" parent="." unique_id=1503659557 instance=ExtResource("2")]
+
+[node name="Effect" parent="." unique_id=163979585 instance=ExtResource("3")]
+preview_play = false
+preview_time = 0.0

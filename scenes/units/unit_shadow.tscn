@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/ui/pixel_shadow.png" id="1"]
+
+[node name="Shadow" type="Sprite2D"]
+self_modulate = Color(0.62, 0.65, 0.76, 1)
+z_index = -1
+texture_filter = 1
+texture = ExtResource("1")

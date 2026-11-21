@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/status/werebear_thick_hide.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "厚皮"
+description = "生命低于 {hp_threshold_percent}% 时，护甲 +6 个百分点。"
+hp_threshold = 0.5
+hp_threshold_status = ExtResource("2")

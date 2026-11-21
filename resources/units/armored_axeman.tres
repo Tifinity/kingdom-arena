@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/armored_axeman_frames.tres" id="2"]
@@ -8,6 +8,8 @@
 [ext_resource type="Resource" path="res://resources/actions/armored_axeman_spin.tres" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/units/armored_axeman_visual.tscn" id="7"]
 [ext_resource type="Resource" path="res://resources/behaviors/armored_axeman.tres" id="8"]
+[ext_resource type="Resource" path="res://resources/actions/armored_axeman_armor_guard.tres" id="9"]
+[ext_resource type="Resource" path="res://resources/passives/armored_axeman_dread.tres" id="10"]
 
 [resource]
 script = ExtResource("1")
@@ -18,14 +20,14 @@ faction = 0
 role = "战士"
 roster_order = 4
 description = "挥动巨斧的重装战士，单次伤害极高。"
-max_hp = 800.0
-attack_damage = 82.0
-attack_speed = 1.35
+max_hp = 140.0
+attack_damage = 16.0
+attack_speed = 0.75
 attack_range = 86.0
 max_mana = 100.0
 mana_regen = 8.0
 move_speed = 95.0
-armor = 0.12
+armor = 0.10
 attack_windup = 0.40
 attack_kind = 0
 projectile_kind = 0
@@ -34,7 +36,8 @@ foot_offset = 7.0
 character_height = 20.0
 body_radius = 34.6
 accent_color = Color(0.941, 0.702, 0.420, 1)
-actions = [ExtResource("4"), ExtResource("5"), ExtResource("6")]
+actions = [ExtResource("4"), ExtResource("5"), ExtResource("9"), ExtResource("6")]
+passive = ExtResource("10")
 behavior_profile = ExtResource("8")
 visual_scene = ExtResource("7")
 sprite_frames = ExtResource("2")

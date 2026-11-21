@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+
+[sub_resource type="Resource" id="effect"]
+script = ExtResource("2")
+kind = 1
+shape = 0
+trigger_frame = 7
+damage_ratio = 1.0
+projectile_kind = 6
+
+[resource]
+script = ExtResource("1")
+action_id = &"priest_holy_bolt"
+display_name = "圣光弹"
+description = "发射圣光弹，对一名敌人造成 {damage_0}。"
+category = 1
+target_mode = 0
+animation = &"attack_01"
+action_range = 465.0
+cooldown = 6.0
+priority = 4
+effects = [SubResource("effect")]

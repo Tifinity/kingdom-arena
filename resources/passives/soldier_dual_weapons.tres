@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "双武器"
+description = "远距离使用弓箭普攻；近战距离挥剑普攻，造成 1.2 AD 伤害。"

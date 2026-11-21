@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/knight_frames.tres" id="2"]
@@ -9,6 +9,7 @@
 [ext_resource type="Resource" path="res://resources/actions/knight_block.tres" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/units/knight_visual.tscn" id="8"]
 [ext_resource type="Resource" path="res://resources/behaviors/knight.tres" id="9"]
+[ext_resource type="Resource" path="res://resources/passives/knight_morale.tres" id="10"]
 
 [resource]
 script = ExtResource("1")
@@ -19,14 +20,14 @@ faction = 0
 role = "坦克"
 roster_order = 2
 description = "披甲的王国骑士，护甲与生命都很扎实。"
-max_hp = 940.0
-attack_damage = 64.0
-attack_speed = 1.15
-attack_range = 80.0
+max_hp = 150.0
+attack_damage = 12.0
+attack_speed = 0.70
+attack_range = 60.0
 max_mana = 100.0
 mana_regen = 8.0
-move_speed = 105.0
-armor = 0.18
+move_speed = 140.0
+armor = 0.15
 attack_windup = 0.32
 attack_kind = 0
 projectile_kind = 0
@@ -36,6 +37,7 @@ character_height = 19.0
 body_radius = 33.6
 accent_color = Color(0.490, 0.698, 1.000, 1)
 actions = [ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7")]
+passive = ExtResource("10")
 behavior_profile = ExtResource("9")
 visual_scene = ExtResource("8")
 sprite_frames = ExtResource("2")

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/status/knight_morale_armor.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/status/knight_morale_attack.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+display_name = "斗志昂扬"
+description = "战斗开始时护甲 +{status_0_power_percent} 个百分点、攻击力 +{status_1_power}，持续 {status_0_duration} 秒。"
+battle_start_statuses = Array[StatusDefinition]([ExtResource("2"), ExtResource("3")])

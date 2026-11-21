@@ -10,6 +10,7 @@
 [ext_resource type="Resource" uid="uid://wppu4j6vgo1b" path="res://resources/actions/armored_orc_block.tres" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/units/armored_orc_visual.tscn" id="8"]
 [ext_resource type="Resource" uid="uid://blr1paoxd22ai" path="res://resources/behaviors/armored_orc.tres" id="9"]
+[ext_resource type="Resource" path="res://resources/passives/armored_orc_regen.tres" id="10"]
 
 [resource]
 script = ExtResource("1")
@@ -20,15 +21,16 @@ faction = 1
 role = "坦克"
 roster_order = 11
 description = "铁颚重甲兽人，移动缓慢但极难击倒。"
-max_hp = 1060.0
-attack_damage = 72.0
-attack_speed = 1.5
-attack_range = 85.0
+max_hp = 180.0
+attack_damage = 12.0
+attack_speed = 0.65
+attack_range = 84.0
 move_speed = 92.0
-armor = 0.22
+armor = 0.20
 attack_windup = 0.42
 behavior_profile = ExtResource("9")
 actions = Array[ExtResource("1_ofpmm")]([ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7")])
+passive = ExtResource("10")
 visual_scene = ExtResource("8")
 sprite_frames = ExtResource("2")
 portrait = ExtResource("3")

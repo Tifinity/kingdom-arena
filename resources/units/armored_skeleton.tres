@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/armored_skeleton_frames.tres" id="2"]
 [ext_resource type="Texture2D" path="res://assets/portraits/armored_skeleton.png" id="3"]
 [ext_resource type="Resource" path="res://resources/actions/armored_skeleton_basic.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/actions/armored_skeleton_shockwave.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/actions/armored_skeleton_counterstorm.tres" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/units/armored_skeleton_visual.tscn" id="6"]
 [ext_resource type="Resource" path="res://resources/behaviors/armored_skeleton.tres" id="7"]
 
@@ -17,14 +18,14 @@ faction = 2
 role = "坦克"
 roster_order = 14
 description = "墓园守卫，旧甲提供了可观的防护。"
-max_hp = 680.0
-attack_damage = 60.0
-attack_speed = 1.30
+max_hp = 150.0
+attack_damage = 11.0
+attack_speed = 0.70
 attack_range = 80.0
 max_mana = 100.0
 mana_regen = 8.0
 move_speed = 108.0
-armor = 0.18
+armor = 0.16
 attack_windup = 0.34
 attack_kind = 0
 projectile_kind = 0
@@ -33,7 +34,7 @@ foot_offset = 8.0
 character_height = 24.0
 body_radius = 31.5
 accent_color = Color(0.490, 0.698, 1.000, 1)
-actions = [ExtResource("4"), ExtResource("5")]
+actions = [ExtResource("4"), ExtResource("8"), ExtResource("5")]
 behavior_profile = ExtResource("7")
 visual_scene = ExtResource("6")
 sprite_frames = ExtResource("2")

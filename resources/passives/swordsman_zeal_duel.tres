@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/status/swordsman_zeal.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "热诚决斗"
+description = "每次技能命中获得一层热诚，持续 6 秒，每层攻速 +5%；叠满 5 层后，每次攻击额外造成 5 点伤害。"
+skill_hit_stacks_status = ExtResource("2")

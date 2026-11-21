@@ -1,17 +1,13 @@
 class_name DamageNumber
 extends Node2D
 
-## 飘字伤害数字。
+## 屏幕空间的战斗飘字。出生点由战斗相机投影，文字本身保持原比例。
 
 var _label: Label
 
 
 func _ready() -> void:
 	_label = $Label
-
-
-func setup(value: float, color: Color, at: Vector2) -> void:
-	setup_text("-%d" % maxi(1, roundi(value)), color, at)
 
 
 func setup_text(text: String, color: Color, at: Vector2) -> void:

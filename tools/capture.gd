@@ -27,9 +27,16 @@ func _ready() -> void:
 
 	var lab = LAB_SCENE.instantiate()
 	add_child(lab)
-	await _real_wait(0.35)
-	lab._select_definition(UnitCatalog.get_definition(&"werebear"))
 	await _real_wait(0.5)
+	var knight := UnitCatalog.get_definition(&"knight")
+	lab._select_definition(knight)
+	await _real_wait(0.8)
+	lab.hero.brain.enabled = false
+	for action in knight.actions:
+		if action != null and action.action_id == &"knight_flame_slash":
+			lab._cast_action(action)
+			break
+	await _real_wait(0.72)
 	await _shot("hero_lab.png")
 	lab.queue_free()
 	await get_tree().process_frame
@@ -46,7 +53,7 @@ func _ready() -> void:
 			if unit.team == 0:
 				chosen = unit
 				break
-		battle._select_at(chosen.global_position + Vector2(0, -50))
+		battle._select_at(battle.unit_screen_position(chosen))
 	await _real_wait(0.4)
 	await _shot("battle.png")
 
@@ -57,7 +64,7 @@ func _ready() -> void:
 			ranged = unit
 			break
 	if ranged != null:
-		battle._select_at(ranged.global_position + Vector2(0, -45))
+		battle._select_at(battle.unit_screen_position(ranged))
 	var projectile_wait := 0.0
 	while battle.projectiles_root.get_child_count() == 0 and projectile_wait < 8.0:
 		await _real_wait(0.03)

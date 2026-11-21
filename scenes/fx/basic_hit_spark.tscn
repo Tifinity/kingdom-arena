@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cg4qv0sk6oweo"]
+
+[ext_resource type="Script" path="res://scripts/fx/basic_hit_spark.gd" id="1"]
+
+[node name="BasicHitSpark" type="Node2D" unique_id=351470644]
+script = ExtResource("1")

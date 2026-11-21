@@ -10,6 +10,8 @@ enum Mode { MULTIPLY, ADD }
 @export var mode := Mode.MULTIPLY
 ## 数值越低越强时设为 true，例如减速倍率 0.5 比 0.7 更强。
 @export var stronger_when_lower := false
+## 附带的吸血比例，例如 0.1 表示造成伤害的 10% 回复生命。
+@export var lifesteal_bonus := 0.0
 
 
 func modify_stat(instance: StatusInstance, stat_name: StringName, value: float) -> float:
@@ -18,6 +20,10 @@ func modify_stat(instance: StatusInstance, stat_name: StringName, value: float) 
 	if mode == Mode.MULTIPLY:
 		return value * instance.power
 	return value + instance.power
+
+
+func modify_lifesteal(_instance: StatusInstance, value: float) -> float:
+	return value + lifesteal_bonus
 
 
 func is_stronger(existing_power: float, new_power: float) -> bool:

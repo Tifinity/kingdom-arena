@@ -2,7 +2,7 @@ extends Node
 
 ## 无界面冒烟测试：
 ## 1) 22 份英雄数据/动画完整；2) 布阵场景能实例化并生成卡牌；
-## 3) 默认阵容可以完整打完一场战斗，且 FSM 真的经历了攻击/受击/死亡；
+## 3) 默认阵容可以完整打完一场战斗，且 FSM 真的经历了攻击/死亡；
 ## 4) OODA 快照有观察、判断、决策、行动文本。
 
 var failures := 0
@@ -30,21 +30,34 @@ func _check(condition: bool, message: String) -> void:
 func _run_all() -> void:
 	await get_tree().process_frame
 	await _test_catalog()
+	await _test_archer_kit()
 	await _test_setup_scene()
 	await _test_hero_lab()
+	await _test_swordsman_kit()
+	await _test_priest_kit()
+	await _test_knight_kit()
 	await _test_flame_slash()
+	await _test_templar_holy_blades()
+	await _test_templar_guardian_ultimate()
 	await _test_smart_knight()
 	await _test_wizard_and_elite_orc()
 	await _test_lancer_charge()
 	await _test_orc_rider_tank()
+	await _test_werebear_skills()
+	await _test_new_passives_and_soldier()
 	await _test_werewolf_combo()
+	await _test_werewolf_new_skills()
 	await _test_armored_skeleton_basic_and_ultimate()
 	await _test_axeman_skills()
+	await _test_action_framework()
 	await _test_skill_effects()
+	await _test_armored_orc_kit()
 	await _test_stun_effect()
 	await _test_status_framework()
-	await _test_basic_no_interrupt()
+	await _test_damage_no_interrupt()
+	await _test_knight_swordsman_skills_no_cc()
 	await _test_necromancer()
+	await _test_tactical_movement()
 	await _test_battle()
 	await _test_extra_lineup()
 	await _test_stat_editor()
@@ -53,6 +66,19 @@ func _run_all() -> void:
 func _test_catalog() -> void:
 	print("\n[1] 英雄数据")
 	_check(UnitCatalog.count() == 22, "名册包含 22 名英雄（实际 %d）" % UnitCatalog.count())
+	var swordsman := UnitCatalog.get_definition(&"swordsman")
+	var triple: CombatActionDefinition = swordsman.actions[1]
+	var flurry: CombatActionDefinition = swordsman.actions[2]
+	_check(triple.detail_text(swordsman.attack_damage).contains("三剑，每一剑造成 15（AD × 1.0）单体伤害")
+		and flurry.detail_text(swordsman.attack_damage).contains("15（AD × 1.0）")
+		and flurry.effects.size() == 5,
+		"技能描述按每次伤害倍率显示基础伤害和连击次数")
+	var original_swordsman_attack := swordsman.attack_damage
+	swordsman.attack_damage = 20.0
+	_check(swordsman.skill_description_text().contains("每一剑造成 20（AD × 1.0）单体伤害")
+		and swordsman.skill_description_text().contains("每一次造成 20（AD × 1.0）"),
+		"英雄攻击力变化后技能描述实时重算")
+	swordsman.attack_damage = original_swordsman_attack
 	var expected_factions := {
 		UnitDefinition.Faction.HUMAN: [&"soldier", &"knight", &"knight_templar", &"armored_axeman", &"lancer", &"swordsman", &"archer", &"priest", &"wizard"],
 		UnitDefinition.Faction.WILDERNESS: [&"orc", &"elite_orc", &"armored_orc", &"orc_rider", &"werebear", &"werewolf"],
@@ -72,6 +98,7 @@ func _test_catalog() -> void:
 	var missing_visual: Array[String] = []
 	var missing_behavior: Array[String] = []
 	var nonzero_starting_mana: Array[StringName] = []
+	var basic_timing_mismatch: Array[StringName] = []
 	for definition in UnitCatalog.all():
 		if not is_zero_approx(definition.starting_mana):
 			nonzero_starting_mana.append(definition.unit_id)
@@ -80,9 +107,25 @@ func _test_catalog() -> void:
 		if (definition.behavior_profile == null or definition.behavior_profile.targeting == null
 				or definition.behavior_profile.movement == null):
 			missing_behavior.append(definition.unit_id)
+		for action in definition.actions:
+			if (action != null and action.category == CombatActionDefinition.Category.BASIC
+					and absf(action.cooldown - definition.attack_interval()) > 0.02):
+				basic_timing_mismatch.append(definition.unit_id)
 	_check(missing_visual.is_empty(), "22 名英雄都有视觉子场景")
+	var missing_muzzle: Array[String] = []
+	for definition in UnitCatalog.all():
+		if definition.visual_scene == null:
+			continue
+		var visual_instance := definition.visual_scene.instantiate()
+		if visual_instance.get_node_or_null("Muzzle") == null:
+			missing_muzzle.append(definition.display_name)
+		visual_instance.free()
+	_check(missing_muzzle.is_empty(),
+		"所有英雄视觉场景都有 Muzzle 出手锚点（缺失：%s）" % ", ".join(PackedStringArray(missing_muzzle)))
 	_check(missing_behavior.is_empty(), "22 名英雄都有索敌/移动行为配置")
-	_check(nonzero_starting_mana.is_empty(), "22 名英雄的入场蓝量配置均为 0")
+	_check(nonzero_starting_mana == [&"swordsman"] and is_equal_approx(swordsman.starting_mana, 50.0),
+		"剑士入场蓝量为 50，其余英雄为 0")
+	_check(basic_timing_mismatch.is_empty(), "所有英雄普攻冷却与攻速一致")
 
 	var missing_ultimate: Array[String] = []
 	var bad_mana: Array[String] = []
@@ -107,9 +150,13 @@ func _test_catalog() -> void:
 		for animation in [&"attack_02", &"attack_03"]:
 			if definition.sprite_frames != null and definition.sprite_frames.has_animation(animation) and not used_animations.has(animation):
 				missing_attack_use.append("%s/%s" % [definition.unit_id, animation])
-	_check(missing_ultimate.is_empty(), "每名英雄都有一个满蓝大招")
+	var allowed_no_ultimate: Array[String] = ["elite_orc", "soldier"]
+	missing_ultimate.sort()
+	allowed_no_ultimate.sort()
+	_check(missing_ultimate == allowed_no_ultimate,
+		"精锐兽人与士兵第三技能留空，其余英雄都有满蓝大招")
 	_check(bad_mana.is_empty(), "普通技能只受 CD，不再消耗蓝量")
-	_check(missing_attack_use.is_empty(), "所有现有 attack02/attack03 动画都被技能使用")
+	_check(missing_attack_use.is_empty(), "所有现有攻击动画都已由动作使用")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.HEAL), "技能数据包含治疗效果")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.SUMMON), "技能数据包含召唤效果")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.SHIELD), "技能数据包含护盾效果")
@@ -134,7 +181,7 @@ func _test_catalog() -> void:
 
 	var expected_ranged := {
 		&"archer": 510.0, &"priest": 465.0, &"wizard": 540.0,
-		&"skeleton_archer": 495.0, &"necromancer": 525.0,
+		&"skeleton_archer": 495.0,
 	}
 	var ranged_range_ok := true
 	var ranged_basic_ok := true
@@ -145,12 +192,12 @@ func _test_catalog() -> void:
 			continue
 		var basic: CombatActionDefinition = null
 		for action in definition.actions:
-			if action.action_id == (&"%s_basic" % unit_id) or action.action_id == &"necromancer_ghostfire":
+			if action.action_id == (&"%s_basic" % unit_id):
 				basic = action
 		if basic == null or not is_equal_approx(basic.action_range, expected_ranged[unit_id]):
 			ranged_basic_ok = false
 	_check(ranged_range_ok, "所有远程单位的射程为原来的 1.5 倍")
-	_check(ranged_basic_ok, "所有远程单位的基础攻击距离同步为 1.5 倍")
+	_check(ranged_basic_ok, "远程单位的基础攻击距离同步")
 
 	var knight_definition := UnitCatalog.get_definition(&"knight")
 	var archer_definition := UnitCatalog.get_definition(&"archer")
@@ -189,6 +236,99 @@ func _test_catalog() -> void:
 			"%s: 头像与基础数据有效" % definition.display_name)
 
 
+func _test_archer_kit() -> void:
+	print("\n[1b] 弓箭手技能与狙击被动")
+	var definition := UnitCatalog.get_definition(&"archer")
+	var slow: CombatActionDefinition = definition.actions[1]
+	var rain: CombatActionDefinition = definition.actions[2]
+	var pierce: CombatActionDefinition = definition.actions[3]
+	_check(slow.action_id == &"archer_slow_arrow" and slow.animation == &"attack_01"
+		and is_equal_approx(slow.effects[0].damage_ratio, 0.5)
+		and slow.effects[0].status_id == &"slow"
+		and is_equal_approx(slow.effects[0].status_duration, 2.0)
+		and is_equal_approx(slow.effects[0].status_power, 0.4),
+		"减速箭命中造成 0.5 AD，并减速 60% 持续 2 秒")
+	_check(rain.action_id == &"archer_arrow_rain" and rain.animation == &"attack_01"
+		and rain.select_densest_cluster() and rain.effects.size() == 2
+		and rain.effects[0].effect_scene != null and rain.effects[0].radius > 0.0
+		and rain.effects[1].kind == ActionEffectDefinition.Kind.DAMAGE
+		and rain.effects[1].shape == ActionEffectDefinition.Shape.CIRCLE
+		and is_equal_approx(rain.effects[1].radius, rain.effects[0].radius),
+		"箭雨在密集敌群处播放特效，特效半径与伤害半径一致")
+	_check(pierce.action_id == &"archer_piercing_shot" and pierce.animation == &"attack_02"
+		and pierce.effects[0].shape == ActionEffectDefinition.Shape.RECT
+		and is_equal_approx(pierce.effects[0].damage_ratio, 1.5),
+		"贯穿箭对直线敌人造成 1.5 AD")
+	_check(definition.passive != null and definition.passive.display_name == "狙击"
+		and is_equal_approx(definition.passive.bonus_damage_min_distance, 300.0)
+		and is_equal_approx(definition.passive.bonus_damage_at_distance_ratio, 0.1),
+		"狙击在目标距离至少 300 像素时提高所有伤害 10%")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"archer")
+	GameState.set_slot(1, 0, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var archer: Unit = null
+	var victim: Unit = null
+	for unit in battle.units:
+		if unit.team == 0:
+			archer = unit
+		else:
+			victim = unit
+	if archer != null and victim != null:
+		archer.brain.enabled = false
+		victim.brain.enabled = false
+		archer.position = Vector2(500, 600)
+		victim.position = Vector2(799, 600)
+		var before := victim.hp
+		victim.take_damage(10.0, archer, null, true)
+		_check(is_equal_approx(before - victim.hp, 10.0), "299 像素时没有狙击加成")
+		victim.position = Vector2(800, 600)
+		before = victim.hp
+		victim.take_damage(10.0, archer, null, true)
+		_check(is_equal_approx(before - victim.hp, 11.0), "恰好 300 像素时获得 10% 狙击加成")
+		await _test_piercing_arrow(battle, archer, victim, pierce)
+	else:
+		_check(false, "弓箭手狙击固定场景生成")
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _test_piercing_arrow(battle: Battle, archer: Unit, victim: Unit, pierce: CombatActionDefinition) -> void:
+	var direction := Vector2(-1.0, -0.3).normalized()
+	archer.position = Vector2(920, 710)
+	victim.position = archer.position + direction * 125.0
+	var far := battle._spawn_unit(victim.definition, 1, 1, archer.position + direction * 300.0)
+	var off_axis := battle._spawn_unit(victim.definition, 1, 2,
+		archer.position + direction * 230.0 + direction.orthogonal() * 95.0)
+	far.brain.enabled = false
+	off_axis.brain.enabled = false
+	var near_hp := victim.hp
+	archer.target = victim
+	archer.planned_target = victim
+	archer.planned_action = pierce
+	archer.planned_direction = direction
+	archer.mana = pierce.mana_cost
+	archer.state_machine.transition_to(&"action", true)
+	var fx: Sprite2D = null
+	for _tick in 75:
+		await get_tree().physics_frame
+		fx = battle.effects_root.get_node_or_null("ArcherPiercingArrowFx") as Sprite2D
+		if fx != null:
+			break
+	_check(victim.hp < near_hp and far.hp < far.max_hp and is_equal_approx(off_axis.hp, off_axis.max_hp)
+		and battle.action_hits == 2, "贯穿箭只命中斜向一条直线上的两个敌人")
+	_check(is_instance_valid(fx) and fx.global_transform.x.normalized().is_equal_approx(direction)
+		and is_equal_approx(fx.scale.x * 180.0, pierce.effects[0].length)
+		and is_equal_approx(fx.scale.y * 20.0, pierce.effects[0].width),
+		"贯穿箭特效随瞄准方向和伤害长度、宽度摆放")
+	await get_tree().create_timer(0.55).timeout
+	_check(not is_instance_valid(fx) and battle.action_hits == 2, "贯穿箭尾迹消散，不重复结算")
+
+
 func _test_setup_scene() -> void:
 	print("\n[2] 布阵场景")
 	var scene: PackedScene = load("res://scenes/setup/setup_screen.tscn")
@@ -205,6 +345,41 @@ func _test_setup_scene() -> void:
 	_check(blue.slots.size() == 5 and red.slots.size() == 5, "双方各有 5 个布阵槽位")
 	_check(GameState.unit_count(0) == 5 and GameState.unit_count(1) == 5, "默认双方阵容各 5 人")
 	_check(blue.power_label.text.begins_with("战力"), "布阵面板显示战力")
+	var royal := [&"soldier", &"knight", &"knight_templar", &"armored_axeman", &"lancer"]
+	var orcs := [&"elite_orc", &"armored_orc", &"orc_rider", &"werewolf", &"werebear"]
+	var undead := [&"skeleton", &"armored_skeleton", &"greatsword_skeleton", &"skeleton_archer", &"necromancer"]
+	_check(blue.preset_option.item_count == 3 and red.preset_option.item_count == 3
+		and blue.preset_option.text == "晨曦王庭" and red.preset_option.text == "荒野兽人"
+		and GameState.get_lineup(0) == royal and GameState.get_lineup(1) == orcs,
+		"双方提供三种预设，开局加载指定的人类和兽人阵容")
+	red.preset_option.item_selected.emit(2)
+	_check(red.preset_option.text == "暗夜亡灵" and GameState.get_lineup(1) == undead
+		and red.slots[0].definition.unit_id == &"skeleton"
+		and red.slots[3].definition.display_name == "骷髅弓箭手" and GameState.get_lineup(0) == royal,
+		"红方可以选择暗夜亡灵，蓝方阵容不受影响")
+	blue.preset_option.item_selected.emit(2)
+	blue.slots[0]._drop_data(Vector2.ZERO, HeroDragData.from_hero(&"archer"))
+	blue.preset_option.item_selected.emit(1)
+	blue.preset_option.item_selected.emit(2)
+	_check(GameState.get_slot(0, 0) == &"archer" and GameState.get_lineup(1) == undead
+		and not blue.restore_preset_button.disabled and red.restore_preset_button.disabled,
+		"镜像队伍可以分别换人，切换回来保留各侧编辑")
+	blue.restore_preset_button.pressed.emit()
+	_check(GameState.get_lineup(0) == undead and blue.restore_preset_button.disabled,
+		"恢复预设还原当前队伍的原始角色和站位")
+	var mirror: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(mirror)
+	_check(mirror.hud.blue_name.text == "暗夜亡灵" and mirror.hud.red_name.text == "暗夜亡灵"
+		and mirror.living_units(0)[4].definition.unit_id == &"necromancer",
+		"战斗使用所选队名和阵容")
+	mirror.hud.show_result({"winner": 0})
+	_check(mirror.hud.result_title.text == "暗夜亡灵（蓝方） 获胜"
+		and mirror.hud.result_sub.text == "暗夜亡灵（红方）全员阵亡",
+		"同阵营对阵时结算标明胜负双方颜色")
+	mirror.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+	setup._refresh_panels()
 
 	var target_definition := UnitCatalog.get_definition(&"werebear")
 	setup._select_definition(target_definition)
@@ -240,7 +415,7 @@ func _test_setup_scene() -> void:
 
 
 func _test_hero_lab() -> void:
-	print("\n[3] 英雄试炼场")
+	print("\n[3] 英雄试炼场：稻草人靶与四技能")
 	var scene: PackedScene = load("res://scenes/debug/hero_lab.tscn")
 	_check(scene != null, "hero_lab.tscn 可加载")
 	if scene == null:
@@ -249,41 +424,565 @@ func _test_hero_lab() -> void:
 	add_child(lab)
 	await get_tree().process_frame
 	_check(lab.hero_grid.get_child_count() == 22, "试炼场生成 22 张英雄卡（实际 %d）" % lab.hero_grid.get_child_count())
-	_check(lab.preview_unit != null, "试炼场默认生成预览单位")
-	_check(lab.animation_buttons.get_child_count() > 0, "动作预览按钮已生成")
+	_check(is_instance_valid(lab.battle), "试炼场默认启动真实 Battle")
+	_check(is_instance_valid(lab.hero) and is_instance_valid(lab.dummy), "默认场景生成英雄与稻草人")
+	_check(lab.battle.training_mode and lab.battle.battle_active and not lab.battle.finished,
+		"默认进入训练模式并直接开战")
+	_check(lab.dummy.definition.training_dummy and lab.dummy.definition.display_name == "稻草人",
+		"右侧单位是训练用稻草人")
+	_check(lab.skill_cards.size() == 4 and lab.skill_cards[0].action != null,
+		"底部生成四个技能槽并绑定主动技能")
+
+	# 稻草人：不移动、不死亡、不掉血，但记录伤害。
+	var dummy_hp: float = lab.dummy.hp
+	var dummy_position: Vector2 = lab.dummy.position
+	lab.dummy.take_damage(99999.0, lab.hero)
+	lab.dummy.move_step(Vector2.RIGHT, 1.0)
+	lab.dummy.apply_knockback(lab.hero.global_position, 400.0)
+	_check(lab.dummy.alive and is_equal_approx(lab.dummy.hp, dummy_hp),
+		"稻草人承受致命伤害后仍存活且生命不变")
+	_check(lab.dummy.position.is_equal_approx(dummy_position),
+		"稻草人不会被移动或击退")
+	_check(lab.battle.training_damage() > 0.0, "稻草人记录实际受到的伤害")
+
+	# 基础属性与当前属性分列显示；开战被动与减速应分别体现在当前值和状态列表里。
+	var knight := UnitCatalog.get_definition(&"knight")
+	lab._select_definition(knight)
+	await get_tree().process_frame
+	lab._refresh_live()
+	_check(lab.hero.current_attack_damage() > knight.attack_damage
+		and lab.hero.current_armor() > knight.armor,
+		"骑士开战被动改变当前攻击与当前护甲")
+	_check(lab.stat_atk_current.text.contains("+") and lab.stat_armor_current.text.contains("+"),
+		"当前属性列标出相对基础值的增益差值")
+	_check(lab.buffs_label.text.contains("斗志昂扬"), "状态列表显示开战被动")
+	var slow: StatusDefinition = StatusCatalog.get_definition(&"slow")
+	lab.hero.status_controller.apply(slow, lab.hero, {"duration": 5.0, "power": 0.5})
+	lab._refresh_live()
+	_check(lab.stat_speed_current.text.contains("(")
+		and lab.hero.status_controller.modify_stat(&"move_speed", lab.hero.move_speed) < lab.hero.move_speed,
+		"减速后当前移速低于基础移速并显示差值")
+	_check(lab.buffs_label.text.contains("减速"), "状态列表显示减速 debuff")
 
 	var wizard := UnitCatalog.get_definition(&"wizard")
 	lab._select_definition(wizard)
 	await get_tree().process_frame
-	_check(lab.preview_unit.definition.unit_id == &"wizard", "切换到法师后预览单位同步更新")
+	_check(lab.hero.definition.unit_id == &"wizard", "切换英雄后训练单位同步更新")
 	_check(lab.detail_name.text == "法师", "右侧详情同步更新")
 	_check(is_equal_approx(lab.stat_max_mana.value, wizard.max_mana)
 		and is_equal_approx(lab.stat_starting_mana.value, wizard.starting_mana),
 		"属性面板包含最大蓝量与入场蓝量")
-	lab._play_animation(&"attack_01")
-	_check(lab.current_anim.text.begins_with("普攻1"), "手动播放普攻动画并更新状态标签")
-	_check(lab.preview_unit.current_animation() == &"attack_01", "预览单位实际切到 attack_01")
+
+	var fireball: CombatActionDefinition = null
+	for action in wizard.actions:
+		if action.action_id == &"wizard_fireball":
+			fireball = action
+			break
+	_check(fireball != null, "法师配置火球术")
+	if fireball != null:
+		lab.hero.brain.enabled = false
+		lab._cast_action(fireball)
+		await get_tree().create_timer(0.9).timeout
+		_check(lab.hero.action_cooldown(fireball) > 0.0,
+			"点击技能卡会真实施放技能并进入冷却")
+		_check(lab.battle.training_damage() > 0.0,
+			"手动施放的技能实际命中稻草人并记录伤害")
+		lab.hero.brain.enabled = true
+
 	var original_attack := wizard.attack_damage
 	lab.stat_atk.value = 77.0
 	await get_tree().process_frame
-	_check(is_equal_approx(wizard.attack_damage, 77.0) and is_equal_approx(lab.preview_unit.attack_damage, 77.0),
-		"在属性展示 SpinBox 上修改立即生效")
+	_check(is_equal_approx(wizard.attack_damage, 77.0) and is_equal_approx(lab.hero.attack_damage, 77.0),
+		"在属性 SpinBox 上修改立即同步到训练单位")
 	lab.stat_atk.value = original_attack
 	await get_tree().process_frame
 	var original_max_mana := wizard.max_mana
 	var original_starting_mana := wizard.starting_mana
 	lab.stat_max_mana.value = 150.0
 	lab.stat_starting_mana.value = 50.0
+	await get_tree().process_frame
+	# 入场蓝量设置后英雄会立刻开始回蓝，因此只检查从 50 起且没有被旧值覆盖。
 	_check(is_equal_approx(wizard.max_mana, 150.0)
 		and is_equal_approx(wizard.starting_mana, 50.0)
-		and is_equal_approx(lab.preview_unit.max_mana, 150.0)
-		and is_equal_approx(lab.preview_unit.mana, 50.0),
+		and is_equal_approx(lab.hero.max_mana, 150.0)
+		and lab.hero.mana >= 50.0 and lab.hero.mana < 60.0,
 		"修改最大蓝量/入场蓝量立即生效")
-	await get_tree().process_frame
 	lab.stat_max_mana.value = original_max_mana
 	lab.stat_starting_mana.value = original_starting_mana
 	await get_tree().process_frame
+
+	# 治疗类主动技能在试炼场里可以对自己演示：施放前自动受伤以满足目标条件。
+	var priest := UnitCatalog.get_definition(&"priest")
+	lab._select_definition(priest)
+	await get_tree().process_frame
+	var blessing: CombatActionDefinition = null
+	for action in priest.actions:
+		if action.action_id == &"priest_blessing":
+			blessing = action
+			break
+	if blessing != null:
+		lab.hero.brain.enabled = false
+		lab._cast_action(blessing)
+		await get_tree().create_timer(0.7).timeout
+		_check(lab.hero.hp > lab.hero.max_hp * 0.47,
+			"治疗技能会自动受伤并治疗自己，可在试炼场演示辅助技能")
+
+	var archer := UnitCatalog.get_definition(&"archer")
+	lab._select_definition(archer)
+	await get_tree().process_frame
+	var rain: CombatActionDefinition = archer.actions[2]
+	lab.hero.brain.enabled = false
+	var rain_damage: float = lab.hero.current_attack_damage() * rain.effects[1].damage_ratio
+	lab.skill_cards[1].cast_requested.emit(rain)
+	if lab.hero.global_position.distance_to(lab.dummy.global_position) >= archer.passive.bonus_damage_min_distance:
+		rain_damage *= 1.0 + archer.passive.bonus_damage_at_distance_ratio
+	await get_tree().create_timer(0.55).timeout
+	var rain_scene: PackedScene = rain.effects[0].effect_scene
+	var rain_fx: Node2D = null
+	for effect in lab.battle.effects_root.get_children():
+		if effect.scene_file_path == rain_scene.resource_path:
+			rain_fx = effect
+			break
+	var arrows := rain_fx.get_node("Arrows") as Sprite2D if is_instance_valid(rain_fx) else null
+	_check(is_instance_valid(arrows) and arrows.frame < 12 and is_zero_approx(lab.battle.training_damage()),
+		"箭雨预警和下落阶段尚未造成伤害")
+	_check(is_instance_valid(rain_fx) and is_equal_approx(rain_fx.scale.x * 70.0, rain.effects[1].radius)
+		and rain_fx.global_position.is_equal_approx(lab.dummy.global_position),
+		"箭雨预警圈对齐实际落点与伤害半径")
+	await get_tree().create_timer(0.36).timeout
+	_check(is_instance_valid(arrows) and arrows.frame >= 12 and is_equal_approx(lab.battle.training_damage(), rain_damage),
+		"箭雨齐落时按技能资源倍率结算（%.2f / %.2f）" % [lab.battle.training_damage(), rain_damage])
+	await get_tree().create_timer(0.42).timeout
+	_check(not is_instance_valid(rain_fx) and is_equal_approx(lab.battle.training_damage(), rain_damage),
+		"箭雨只结算一次，余尘消散后移除特效")
+
+	lab.skill_cards[1].cast_requested.emit(rain)
+	await get_tree().create_timer(0.55).timeout
+	lab.hero.state_machine.transition_to(&"idle", true)
+	await get_tree().create_timer(0.37).timeout
+	var lingering := false
+	for effect in lab.battle.effects_root.get_children():
+		if effect.scene_file_path == rain_scene.resource_path:
+			lingering = true
+	_check(not lingering and is_equal_approx(lab.battle.training_damage(), rain_damage),
+		"箭雨在伤害帧前中断时取消落地和伤害")
+
+	lab.positioning_button.toggled.emit(true)
+	lab._select_definition(UnitCatalog.get_definition(&"soldier"))
+	var ranged_basic: CombatActionDefinition
+	for action: CombatActionDefinition in lab.hero.actions:
+		if action.action_id == &"soldier_ranged_basic":
+			ranged_basic = action
+			break
+	_check(ranged_basic != null and not lab.hero.brain.enabled and lab.range_readout.visible,
+		"手动站位在切换英雄后保持开启")
+	if ranged_basic != null:
+		var reach := ActionActivation.enemy_reach(lab.hero, ranged_basic, lab.dummy)
+		var outside: Vector2 = lab.dummy.position - Vector2(reach + 0.5, 0.0)
+		lab._set_paused(true)
+		var click := InputEventMouseButton.new()
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.pressed = true
+		click.position = lab.battle.stage.ground_transform * outside
+		lab._unhandled_input(click)
+		lab.basic_button.pressed.emit()
+		_check(lab.hero.position.is_equal_approx(outside) and lab.range_readout.text.contains("范围外")
+			and lab.battle.action_casts == 0 and get_tree().paused,
+			"暂停时可点击摆位，射程外的普攻不会施放")
+		var nudge := InputEventKey.new()
+		nudge.keycode = KEY_RIGHT
+		nudge.pressed = true
+		lab._unhandled_input(nudge)
+		var inside: Vector2 = lab.hero.position
+		_check(inside.is_equal_approx(outside + Vector2.RIGHT) and lab.range_readout.text.contains("范围内")
+			and is_equal_approx(lab.hero.selection_ring.attack_range, reach),
+			"方向键微调 1px 可跨过实际普攻边界，范围圈同步")
+		lab.basic_button.pressed.emit()
+		_check(lab.hero.current_cast != null and lab.hero.current_cast.action == ranged_basic,
+			"手动普攻在远距离使用士兵的弓箭普攻")
+		await get_tree().create_timer(1.3).timeout
+		_check(lab.hero.position.is_equal_approx(inside) and lab.battle.training_damage() > 0.0,
+			"手动普攻实际命中，英雄在攻击后保持站位")
+	lab.positioning_button.toggled.emit(false)
+	_check(lab.hero.brain.enabled and not lab.range_readout.visible and not lab.basic_button.visible,
+		"退出手动站位恢复默认的自动交战")
 	lab.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _test_swordsman_kit() -> void:
+	print("\n[3c] 剑士追击步与热诚决斗")
+	var definition := UnitCatalog.get_definition(&"swordsman")
+	var chase: CombatActionDefinition = null
+	var basic: CombatActionDefinition = null
+	var triple: CombatActionDefinition = null
+	for action in definition.actions:
+		if action == null:
+			continue
+		if action.action_id == &"swordsman_chase_step":
+			chase = action
+		elif action.action_id == &"swordsman_triple":
+			triple = action
+		elif action.category == CombatActionDefinition.Category.BASIC:
+			basic = action
+	_check(chase != null and chase.display_name == "追击步"
+		and chase.category == CombatActionDefinition.Category.SKILL,
+		"剑士配置主动技能追击步")
+	if chase != null:
+		var has_damage := false
+		var status_effect: ActionEffectDefinition = null
+		for effect in chase.effects:
+			if effect.kind == ActionEffectDefinition.Kind.DAMAGE or effect.kind == ActionEffectDefinition.Kind.PROJECTILE:
+				has_damage = true
+			elif effect.kind == ActionEffectDefinition.Kind.STATUS:
+				status_effect = effect
+		_check(chase.mana_cost <= 0.001 and is_equal_approx(chase.cooldown, 9.0)
+			and chase.movement_kind() == ActionMovementDefinition.Kind.ADVANCE
+			and is_equal_approx(chase.movement_distance(), 160.0),
+			"追击步为 CD9、无耗蓝、位移 160 像素的主动技能")
+		_check(not has_damage and status_effect != null
+			and status_effect.status_id == &"swordsman_chase_haste",
+			"追击步不造成伤害，只施加攻速状态")
+		_check(chase.targeting != null
+			and chase.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_HP_ENEMY,
+			"追击步的目标规则为范围内最低血量敌人")
+	var passive := definition.passive
+	var zeal: StatusDefinition = passive.skill_hit_stacks_status if passive != null else null
+	_check(passive != null and passive.display_name == "热诚决斗" and zeal != null
+		and is_equal_approx(zeal.duration, 6.0) and zeal.max_stacks == 5
+		and zeal.stack_policy == StatusDefinition.StackPolicy.STACK,
+		"热诚决斗配置为每次技能命中叠一层、持续 6 秒、最多 5 层")
+	if zeal != null and zeal.behavior is ZealDuelBehavior:
+		var behavior := zeal.behavior as ZealDuelBehavior
+		_check(is_equal_approx(behavior.attack_speed_per_stack, 0.05)
+			and is_equal_approx(behavior.max_stack_bonus_damage, 5.0),
+			"热诚每层攻速 +5%，满层每次攻击额外 +5")
+	else:
+		_check(false, "热诚决斗绑定 ZealDuelBehavior")
+	_check(definition.skill_description_text().contains("追击步")
+		and definition.skill_description_text().contains("热诚决斗"),
+		"剑士技能详情包含追击步与热诚决斗")
+	if chase == null or basic == null or triple == null or passive == null or zeal == null:
+		_check(false, "剑士追击步/热诚决斗资源完整")
+		return
+
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"swordsman")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"archer")
+	GameState.set_slot(1, 2, &"skeleton")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var hero: Unit = null
+	var enemies: Array[Unit] = []
+	for unit in battle.units:
+		if unit.team == 0:
+			hero = unit
+		else:
+			enemies.append(unit)
+	if hero == null or enemies.size() != 3:
+		_check(false, "剑士追击步固定场景生成")
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	hero.brain.enabled = false
+	for enemy in enemies:
+		enemy.brain.enabled = false
+	battle.battle_active = true
+	hero.position = Vector2(700, 650)
+	enemies[0].position = Vector2(980, 650)
+	enemies[1].position = Vector2(960, 720)
+	enemies[2].position = Vector2(1000, 590)
+	enemies[0].hp = enemies[0].max_hp
+	enemies[1].hp = enemies[1].max_hp * 0.5
+	enemies[2].hp = enemies[2].max_hp * 0.8
+	# 只让追击步参与决策，检查最低血量目标选择。
+	for action in hero.actions:
+		if action == null or action == chase or action.category == CombatActionDefinition.Category.BASIC:
+			continue
+		hero.action_cooldowns[action.action_id] = 99.0
+	hero.mana = 0.0
+	hero.action_cooldowns[chase.action_id] = 0.0
+	hero.brain.enabled = true
+	hero.brain.force_think()
+	_check(hero.planned_action == chase and hero.planned_target == enemies[1],
+		"AI 在范围内选择血量最低的敌人作为追击步目标")
+	hero.brain.enabled = false
+
+	# 实际施放：无伤害、向前位移并施加攻速 buff。
+	var haste: StatusDefinition = StatusCatalog.get_definition(&"swordsman_chase_haste")
+	hero.status_controller.clear_all()
+	var start_position := hero.global_position
+	hero.target = enemies[1]
+	hero.planned_action = chase
+	hero.planned_direction = (enemies[1].global_position - hero.position).normalized()
+	hero.planned_has_point = false
+	var damage_before := battle.training_damage()
+	hero.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.6).timeout
+	_check(hero.state_machine.current_name != &"death"
+		and hero.global_position.distance_to(start_position) > 50.0,
+		"追击步实际朝目标方向位移一段距离")
+	_check(haste != null and hero.status_controller.has_status(haste.id)
+		and hero.current_attack_speed() > 1.0 / hero.attack_interval * 1.05,
+		"追击步施加 10% 攻速提升并反映在当前攻速")
+	_check(is_equal_approx(battle.training_damage(), damage_before),
+		"追击步本身不造成伤害")
+
+	# 热诚决斗：只有技能命中叠层，普攻不叠；每次叠加刷新 6 秒。
+	hero.status_controller.clear_all()
+	var base_speed := hero.current_attack_speed()
+	hero.register_damage_hit(enemies[0], false)
+	_check(hero.status_controller.stacks(zeal.id) == 0, "普攻命中不会叠加热诚")
+	hero.register_damage_hit(enemies[0], true)
+	_check(hero.status_controller.stacks(zeal.id) == 1
+		and hero.status_controller.remaining(zeal.id) > 5.5
+		and is_equal_approx(hero.current_attack_speed(), base_speed * 1.05),
+		"技能命中叠 1 层并提高 5% 攻速")
+	hero.status_controller._physics_process(4.0)
+	hero.register_damage_hit(enemies[0], true)
+	_check(hero.status_controller.stacks(zeal.id) == 2
+		and hero.status_controller.remaining(zeal.id) > 5.5,
+		"再次技能命中叠层并刷新 6 秒持续时间")
+	hero.register_damage_hit(enemies[0], true)
+	hero.register_damage_hit(enemies[0], true)
+	_check(hero.status_controller.stacks(zeal.id) == 4
+		and is_equal_approx(hero.apply_status_damage_bonus(100.0, false), 100.0),
+		"4 层热诚尚未获得固定额外伤害")
+	hero.register_damage_hit(enemies[0], true)
+	_check(hero.status_controller.stacks(zeal.id) == 5
+		and is_equal_approx(hero.current_attack_speed(), base_speed * 1.25)
+		and is_equal_approx(hero.apply_status_damage_bonus(100.0, false), 105.0)
+		and is_equal_approx(hero.apply_status_damage_bonus(100.0, true), 105.0),
+		"满 5 层时 +25% 攻速且每次攻击额外 +5 伤害")
+	hero.start_action_cooldown(basic)
+	_check(hero.action_cooldown(basic) < hero.attack_interval * 0.95,
+		"满层攻速缩短基础普攻冷却")
+
+	# 真实动作路径：突刺斩 3 次命中叠 3 层。
+	hero.status_controller.clear_all()
+	hero.action_cooldowns[triple.action_id] = 0.0
+	if hero.state_machine.current_name != &"idle":
+		hero.state_machine.transition_to(&"idle", true)
+	hero.position = enemies[0].global_position + Vector2(-70.0, 0.0)
+	hero.target = enemies[0]
+	hero.planned_action = triple
+	hero.planned_target = enemies[0]
+	hero.planned_direction = Vector2.RIGHT
+	hero.planned_has_point = false
+	hero.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.8).timeout
+	_check(hero.status_controller.stacks(zeal.id) == 3,
+		"突刺斩三次技能命中真实叠加 3 层热诚")
+	hero.status_controller.clear_all()
+
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _test_priest_kit() -> void:
+	print("\n[3d] 牧师三技能与恩泽被动")
+	var definition := UnitCatalog.get_definition(&"priest")
+	var holy_bolt: CombatActionDefinition = null
+	var blessing: CombatActionDefinition = null
+	var sanctuary: CombatActionDefinition = null
+	for action in definition.actions:
+		if action == null:
+			continue
+		if action.action_id == &"priest_holy_bolt":
+			holy_bolt = action
+		elif action.action_id == &"priest_blessing":
+			blessing = action
+		elif action.action_id == &"priest_sanctuary":
+			sanctuary = action
+	var grace := definition.passive
+	_check(holy_bolt != null and blessing != null and sanctuary != null,
+		"牧师配置圣光弹、祈福与圣光普照")
+	_check(holy_bolt != null and not holy_bolt.effects.is_empty()
+		and holy_bolt.effects[0].kind == ActionEffectDefinition.Kind.PROJECTILE
+		and holy_bolt.effects[0].projectile_kind == UnitDefinition.ProjectileKind.HOLY_BOLT,
+		"圣光弹使用圣光投射物")
+	_check(blessing != null and blessing.target_mode == CombatActionDefinition.TargetMode.ALLY
+		and blessing.targeting != null
+		and blessing.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_HP_ALLY
+		and blessing.requires_wounded_ally,
+		"祈福默认选择最低血量受伤友军")
+	_check(sanctuary != null and sanctuary.target_mode == CombatActionDefinition.TargetMode.ALLY
+		and sanctuary.targeting != null
+		and sanctuary.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_HP_ALLY
+		and not sanctuary.effects.is_empty() and sanctuary.effects[0].effect_scene != null,
+		"圣光普照以最低血量友军为中心并带治疗特效")
+	_check(grace != null and grace.display_name == "恩泽"
+		and is_equal_approx(grace.heal_below_hp_ratio, 0.4)
+		and is_equal_approx(grace.heal_bonus_ratio, 0.2),
+		"恩泽配置为低于 40% 生命时治疗 +20%")
+	if holy_bolt == null or blessing == null or grace == null:
+		_check(false, "牧师技能资源完整")
+		return
+
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"priest")
+	GameState.set_slot(0, 1, &"soldier")
+	GameState.set_slot(1, 0, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var priest: Unit = null
+	var patient: Unit = null
+	var enemy: Unit = null
+	for unit in battle.units:
+		if unit.team == 1:
+			enemy = unit
+		elif unit.definition.unit_id == &"priest":
+			priest = unit
+		else:
+			patient = unit
+	if priest == null or patient == null or enemy == null:
+		_check(false, "牧师测试固定场景生成")
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	for unit in battle.units:
+		unit.brain.enabled = false
+	battle.battle_active = true
+	priest.position = Vector2(700, 650)
+	patient.position = Vector2(760, 650)
+	enemy.position = Vector2(850, 650)
+	patient.hp = patient.max_hp * 0.35
+	priest.mana = priest.max_mana
+	var before_heal := patient.hp
+	priest.target = enemy
+	priest.planned_action = blessing
+	priest.planned_target = patient
+	priest.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.7).timeout
+	var heal_gain := patient.hp - before_heal
+	_check(heal_gain > 17.0 and heal_gain <= 21.0,
+		"祈福治疗受伤队友并按恩泽提高 20% 治疗量")
+
+	var enemy_hp := enemy.hp
+	priest.position = Vector2(700, 650)
+	enemy.position = Vector2(850, 650)
+	priest.mana = 0.0
+	priest.target = enemy
+	priest.planned_action = holy_bolt
+	priest.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(1.0).timeout
+	_check(enemy.hp < enemy_hp, "圣光弹命中敌人并造成伤害")
+
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _test_knight_kit() -> void:
+	print("\n[4] 骑士双连斩、格挡奖励与开战被动")
+	var definition := UnitCatalog.get_definition(&"knight")
+	var cleave: CombatActionDefinition = definition.actions[1]
+	var block: CombatActionDefinition = definition.actions[3]
+	_check(cleave.display_name == "双连斩" and cleave.effects.size() == 2
+		and cleave.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
+		and cleave.effects[1].shape == ActionEffectDefinition.Shape.SINGLE
+		and is_equal_approx(cleave.effects[0].damage_ratio, 1.2)
+		and is_equal_approx(cleave.effects[1].damage_ratio, 1.5)
+		and cleave.effects[0].trigger_frame < cleave.effects[1].trigger_frame,
+		"双连斩依次对同一目标造成 1.2/1.5 AD")
+	_check(definition.skill_description_text().contains("14.4（AD × 1.2）")
+		and definition.skill_description_text().contains("18（AD × 1.5）")
+		and definition.skill_description_text().contains("斗志昂扬"),
+		"技能详情显示两段伤害和被动数值")
+	_check(definition.passive != null and definition.passive.battle_start_statuses.size() == 2,
+		"骑士配置独立的开战被动资源")
+	var armor_status: StatusDefinition = definition.passive.battle_start_statuses[0]
+	var original_armor_power := armor_status.base_power
+	armor_status.base_power = 0.08
+	_check(definition.skill_description_text().contains("护甲 +8 个百分点"),
+		"调整被动状态数值后技能描述实时重算")
+	armor_status.base_power = original_armor_power
+	_check(is_equal_approx(block.effects[0].guard_reward_shield_ratio, 0.08)
+		and is_equal_approx(block.effects[0].guard_reward_shield_duration, 3.0),
+		"骑士格挡成功奖励 8% 最大生命护盾 3 秒")
+	var original_block_reward := block.effects[0].guard_reward_shield_ratio
+	block.effects[0].guard_reward_shield_ratio = 0.12
+	_check(block.detail_text().contains("最大生命 12% 的护盾"),
+		"调整格挡奖励数值后技能描述实时重算")
+	block.effects[0].guard_reward_shield_ratio = original_block_reward
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"archer")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var knight: Unit = null
+	var enemies: Array[Unit] = []
+	for unit in battle.units:
+		if unit.team == 0:
+			knight = unit
+		else:
+			enemies.append(unit)
+	if knight == null or enemies.size() != 2:
+		_check(false, "骑士固定场景生成")
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	knight.brain.enabled = false
+	for enemy in enemies:
+		enemy.brain.enabled = false
+	_check(is_equal_approx(knight.current_attack_damage(), 12.0) and is_equal_approx(knight.current_armor(), 0.15),
+		"倒计时期间尚未获得被动加成")
+	await get_tree().create_timer(2.5).timeout
+	_check(battle.battle_active and is_equal_approx(knight.current_attack_damage(), 17.0)
+		and is_equal_approx(knight.current_armor(), 0.20)
+		and knight.status_controller.remaining(&"knight_morale_attack") > 19.0,
+		"开战时获得攻击 +5、护甲 +5 个百分点，持续 20 秒")
+	battle.hud.set_selected_unit(knight)
+	_check(battle.hud.skill_status.text.contains("斗志昂扬 · 被动 · 生效中")
+		and battle.hud.skill_status.text.contains("20.4（AD × 1.2）")
+		and battle.hud.skill_status.text.contains("25.5（AD × 1.5）"),
+		"战斗观察镜显示被动剩余时间和当前攻击力对应的技能伤害")
+	knight.position = Vector2(700, 650)
+	enemies[0].position = Vector2(750, 650)
+	enemies[1].position = Vector2(752, 670)
+	knight.target = enemies[0]
+	knight.planned_action = cleave
+	var first_hp := enemies[0].hp
+	var other_hp := enemies[1].hp
+	var hits_before := battle.action_hits
+	knight.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.8).timeout
+	var expected_damage := 17.0 * 2.7 * (1.0 - enemies[0].current_armor())
+	_check(is_equal_approx(enemies[0].hp, first_hp - expected_damage)
+		and is_equal_approx(enemies[1].hp, other_hp)
+		and battle.action_hits == hits_before + 2,
+		"双连斩实际两次命中锁定目标，附近单位不受伤")
+	knight.apply_guard(1.0, 0.08, 3.0)
+	knight._physics_process(1.01)
+	_check(is_equal_approx(knight.shield, 0.0), "未挡住伤害时不获得奖励护盾")
+	knight.apply_guard(1.0, 0.08, 3.0)
+	var guarded_hp := knight.hp
+	knight.take_damage(100.0, enemies[0])
+	knight._physics_process(1.01)
+	_check(is_equal_approx(knight.hp, guarded_hp)
+		and is_equal_approx(knight.shield, knight.max_hp * 0.08)
+		and knight.shield_time > 0.0,
+		"格挡成功后免伤并获得 3 秒奖励护盾")
+	knight.apply_guard(1.0, 0.08, 3.0)
+	knight.take_damage(100.0, enemies[0])
+	knight._physics_process(1.01)
+	_check(is_equal_approx(knight.shield, knight.max_hp * 0.16),
+		"格挡奖励叠加现有护盾，不会清除原有护盾")
+	knight.status_controller._physics_process(20.1)
+	_check(is_equal_approx(knight.current_attack_damage(), 12.0)
+		and is_equal_approx(knight.current_armor(), 0.15),
+		"被动到期后攻击和护甲恢复基础值")
+	battle.queue_free()
 	await get_tree().process_frame
 	GameState.reset_lineups()
 
@@ -309,29 +1008,12 @@ func _test_flame_slash() -> void:
 		and block.effects[0].duration >= 1.0, "格挡效果持续 1 秒")
 	_check(not skill.effects.is_empty() and skill.effects[0].shape == ActionEffectDefinition.Shape.CONE,
 		"火焰斩击配置为扇形 AOE")
+	_check(skill.display_name == "烈焰剑" and is_equal_approx(skill.effects[0].damage_ratio, 1.5)
+		and is_equal_approx(skill.effects[0].radius, 170.0)
+		and is_equal_approx(skill.effects[0].half_angle, 65.0),
+		"烈焰剑维持原扇形范围，伤害提高到 1.5 AD")
 	_check(skill.mana_cost > 0.0 and knight_definition.max_mana > 0.0,
 		"火焰斩击有蓝耗，单位有蓝量属性")
-	var knight_no_cc := true
-	for action in knight_definition.actions:
-		if action == null or action.action_id not in [&"knight_cleave", &"knight_flame_slash"]:
-			continue
-		if action.interrupts_target:
-			knight_no_cc = false
-		for effect in action.effects:
-			if effect.kind == ActionEffectDefinition.Kind.DISPLACE and effect.knockback > 0.0:
-				knight_no_cc = false
-	_check(knight_no_cc, "骑士技能不打断、不击退")
-	var swordsman_definition := UnitCatalog.get_definition(&"swordsman")
-	var swordsman_no_cc := true
-	for action in swordsman_definition.actions:
-		if action == null or action.action_id not in [&"swordsman_triple", &"swordsman_flurry"]:
-			continue
-		if action.interrupts_target:
-			swordsman_no_cc = false
-		for effect in action.effects:
-			if effect.kind == ActionEffectDefinition.Kind.DISPLACE and effect.knockback > 0.0:
-				swordsman_no_cc = false
-	_check(swordsman_no_cc, "剑士技能不打断、不击退")
 
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
@@ -360,14 +1042,10 @@ func _test_flame_slash() -> void:
 	# 把敌人放到骑士前方扇形内/外，关闭敌人 AI，手动触发技能。
 	knight.position = Vector2(700, 650)
 	enemies[0].position = Vector2(820, 650)   # 扇形内
-	enemies[1].position = Vector2(820, 720)   # 扇形内，避免与另一名敌人发生软分离
+	enemies[1].position = Vector2(820, 700)   # 扇形内
 	enemies[2].position = Vector2(600, 650)   # 身后，不应命中
-	var positions_before: Array[Vector2] = []
 	for enemy in enemies:
 		enemy.brain.enabled = false
-		enemy.state_machine.transition_to(&"idle", true)
-		enemy.state_machine.set_physics_process(false)
-		positions_before.append(enemy.global_position)
 	var hp_before: Array[float] = [enemies[0].hp, enemies[1].hp, enemies[2].hp]
 	# 先验证决策层：技能就绪且目标在范围内时，应选中火焰斩击而不是普攻。
 	knight.mana = knight.max_mana
@@ -392,12 +1070,6 @@ func _test_flame_slash() -> void:
 	_check(enemies[0].hp < hp_before[0] and enemies[1].hp < hp_before[1],
 		"扇形内两名敌人同时受到火焰斩击伤害")
 	_check(enemies[2].hp == hp_before[2], "身后敌人不受扇形 AOE 影响")
-	_check(enemies[0].state_machine.current_name != &"hurt"
-		and enemies[1].state_machine.current_name != &"hurt",
-		"火焰斩击不打断目标")
-	_check(enemies[0].global_position.distance_to(positions_before[0]) < 0.1
-		and enemies[1].global_position.distance_to(positions_before[1]) < 0.1,
-		"火焰斩击不击退目标")
 	_check(battle.skill_casts == 1 and knight.action_cooldown(skill) > 0.0,
 		"一次技能只释放一次并进入冷却")
 	_check(knight.mana < knight.max_mana, "释放火焰斩击消耗蓝量")
@@ -422,10 +1094,10 @@ func _test_flame_slash() -> void:
 	if cleave != null:
 		enemies[1].position = knight.position + Vector2(112, 0)
 		_check(not knight.is_target_in_action_range(cleave, 4.0),
-			"回旋斩不会在扇形有效半径之外释放")
-		enemies[1].position = knight.position + Vector2(95, 0)
+			"双连斩不会在单体攻击范围之外释放")
+		enemies[1].position = knight.position + Vector2(65, 0)
 		_check(knight.is_target_in_action_range(cleave, 4.0),
-			"回旋斩在安全范围内可释放")
+			"双连斩在单体攻击范围内可释放")
 
 	# 低血量、火焰斩击与格挡都就绪时，防御紧迫度应让格挡胜出。
 	knight.hp = knight.max_hp * 0.4
@@ -477,6 +1149,261 @@ func _test_flame_slash() -> void:
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
+
+
+func _test_templar_holy_blades() -> void:
+	print("\n[4b] 圣殿骑士金色剑气")
+	var definition := UnitCatalog.get_definition(&"knight_templar")
+	var cleave := definition.actions[1]
+	var combo := definition.actions[2]
+	_check(cleave.display_name == "圣光斩" and cleave.effects.size() == 1
+		and cleave.effects[0].effect_scene != null, "圣光斩在伤害帧释放一道剑气")
+	_check(combo.display_name == "圣光连斩" and combo.effects.size() == 2,
+		"圣光连斩绑定两段剑气")
+	if combo.effects.size() != 2:
+		return
+	var rising: ActionEffectDefinition = combo.effects[0]
+	var damage: ActionEffectDefinition = combo.effects[1]
+	_check(rising.kind == ActionEffectDefinition.Kind.VISUAL and rising.trigger_frame == 3
+		and rising.effect_scene != null and damage.kind == ActionEffectDefinition.Kind.DAMAGE
+		and damage.trigger_frame == 6 and damage.effect_scene != null
+		and damage.shape == ActionEffectDefinition.Shape.CONE
+		and is_equal_approx(damage.radius, 190.0)
+		and is_equal_approx(damage.half_angle, 55.0)
+		and is_equal_approx(damage.damage_ratio, 1.5)
+		and is_zero_approx(combo.mana_cost), "两次挥砍分帧出特效，第二段结算原有扇形伤害")
+	_check(combo.detail_text(definition.attack_damage).contains("两道金色剑气")
+		and combo.detail_text(definition.attack_damage).contains("AD × 1.5"),
+		"圣光连斩描述展示两道剑气与伤害倍率")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight_templar")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"archer")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var templar: Unit = null
+	var enemies: Array[Unit] = []
+	for unit in battle.units:
+		unit.brain.enabled = false
+		if unit.team == 0:
+			templar = unit
+		else:
+			enemies.append(unit)
+	if templar == null or enemies.size() != 2:
+		_check(false, "圣光连斩固定场景生成")
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	templar.position = Vector2(700, 650)
+	enemies[0].position = Vector2(850, 650)
+	enemies[1].position = Vector2(600, 650)
+	var front_hp := enemies[0].hp
+	var rear_hp := enemies[1].hp
+	templar.target = enemies[0]
+	templar.planned_action = combo
+	templar.state_machine.transition_to(&"action", true)
+	while templar.current_cast != null and templar.current_cast.next_effect < 1:
+		await get_tree().physics_frame
+	var first := battle.effects_root.get_node_or_null("TemplarHolyBladeRising") as TemplarHolyBlade
+	_check(first != null and first.rising and is_equal_approx(enemies[0].hp, front_hp),
+		"先挥出上挑剑气")
+	while templar.current_cast != null and templar.current_cast.next_effect < 2:
+		await get_tree().physics_frame
+	var second := battle.effects_root.get_node_or_null("TemplarHolyBlade") as TemplarHolyBlade
+	_check(is_instance_valid(first) and second != null and not second.rising
+		and second.global_position.distance_to(templar.get_effect_point()) < 1.0
+		and second.global_transform.x.normalized().dot(Vector2.RIGHT) > 0.99
+		and first.global_transform.determinant() * second.global_transform.determinant() < 0.0,
+		"第二道剑气从骑士身前朝同一目标方向展开，弧线与第一道相反")
+	_check(is_equal_approx(enemies[0].hp, front_hp - templar.current_attack_damage() * 1.5 * (1.0 - enemies[0].current_armor()))
+		and is_equal_approx(enemies[1].hp, rear_hp), "连斩只结算一次，命中前方扇形")
+	await get_tree().create_timer(0.45).timeout
+	_check(not is_instance_valid(first) and not is_instance_valid(second), "两道剑气播放后自动清理")
+	enemies[0].position = templar.position + Vector2.LEFT * 75.0
+	templar.planned_direction = Vector2.LEFT
+	templar.planned_action = cleave
+	templar.state_machine.transition_to(&"action", true)
+	while templar.current_cast != null and templar.current_cast.next_effect < 1:
+		await get_tree().physics_frame
+	var slash := battle.effects_root.get_node_or_null("TemplarHolyBlade") as TemplarHolyBlade
+	_check(slash != null and slash.global_transform.x.normalized().dot(Vector2.LEFT) > 0.99
+		and not battle.effects_root.has_node("TemplarHolyBladeRising"), "圣光斩只释放一道剑气，支持向左挥砍")
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _test_templar_guardian_ultimate() -> void:
+	print("\n[4c] 圣殿骑士冲阵嘲讽大招")
+	var definition := UnitCatalog.get_definition(&"knight_templar")
+	var ultimate: CombatActionDefinition = definition.actions[3]
+	_check(ultimate.action_id == &"knight_templar_block" and ultimate.mana_cost == definition.max_mana
+		and ultimate.animation == &"move_02"
+		and ultimate.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT
+		and ultimate.select_densest_cluster()
+		and ultimate.effects.size() == 2,
+		"原格挡改为使用移动2的满蓝敌群嘲讽大招")
+	_check(ultimate.effects[0].status_id == &"taunt"
+		and ultimate.effects[0].shape == ActionEffectDefinition.Shape.CIRCLE
+		and is_equal_approx(ultimate.effects[0].radius, 160.0)
+		and ultimate.effects[1].kind == ActionEffectDefinition.Kind.SHIELD
+		and is_equal_approx(ultimate.effects[1].shield_per_target_ratio, 0.12),
+		"大招在 160px 圆形内嘲讽，并按每名敌人 12% 最大生命获盾")
+	_check(ultimate.effects[0].effect_scene != null
+		and ultimate.effects[0].effect_scene.resource_path == "res://scenes/fx/aegis_ring.tscn",
+		"大招落地特效使用 pixelfx 的 Aegis ring 结界")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight_templar")
+	GameState.set_slot(0, 1, &"archer")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"armored_orc")
+	GameState.set_slot(1, 2, &"skeleton")
+	GameState.set_slot(1, 3, &"skeleton_archer")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var templar: Unit = null
+	var ally: Unit = null
+	var enemies: Array[Unit] = []
+	for unit in battle.units:
+		if unit.team == 0:
+			if unit.definition.unit_id == &"knight_templar":
+				templar = unit
+			else:
+				ally = unit
+		else:
+			enemies.append(unit)
+	if templar == null or ally == null or enemies.size() != 4:
+		_check(false, "圣盾守护固定场景生成")
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	ally.brain.enabled = false
+	for enemy in enemies:
+		enemy.brain.enabled = false
+		enemy.target = ally
+	templar.position = Vector2(600, 1050)
+	ally.position = Vector2(560, 1100)
+	enemies[0].position = Vector2(830, 1020)
+	enemies[1].position = Vector2(860, 1070)
+	enemies[2].position = Vector2(900, 1030)
+	enemies[3].position = Vector2(550, 1250)
+	# 两处敌群人数相同：优先保护正被追击的远程友军。
+	var original_third_position := enemies[2].position
+	var original_fourth_position := enemies[3].position
+	enemies[2].position = Vector2(450, 1420)
+	enemies[3].position = Vector2(510, 1460)
+	enemies[2].target = templar
+	enemies[3].target = templar
+	var protected_cluster := ActionTargetQuery.densest_circle_point(templar, enemies, 160.0, 340.0)
+	var protected_point: Vector2 = protected_cluster.get("point", Vector2.ZERO)
+	_check(int(protected_cluster.get("count", 0)) == 2
+		and protected_point.distance_to(Vector2(845, 1045)) < 80.0,
+		"同样密集时优先冲向正在追击后排友军的敌群")
+	enemies[2].position = original_third_position
+	enemies[3].position = original_fourth_position
+	enemies[2].target = ally
+	enemies[3].target = ally
+	templar.mana = templar.max_mana
+	templar.brain.enabled = true
+	templar.brain.force_think()
+	var chosen_point := templar.planned_point
+	_check(templar.planned_action == ultimate and templar.planned_has_point
+		and templar.brain.planned_target_count == 3
+		and chosen_point.distance_to(Vector2(863, 1040)) < 65.0
+		and templar.global_position.distance_to(chosen_point) > 150.0,
+		"AI 选择可到达的三人密集区，不追逐附近的单个敌人")
+	templar.brain.enabled = false
+	templar.state_machine.transition_to(&"action", true)
+	_check(templar.current_animation() == &"move_02", "冲向目标地点时播放移动2动画")
+	var effect_deadline := Time.get_ticks_msec() + 2000
+	while templar.shield <= 0.0 and Time.get_ticks_msec() < effect_deadline:
+		await get_tree().process_frame
+	_check(templar.global_position.distance_to(chosen_point) < 15.0
+		and templar.mana < 15.0,
+		"圣殿骑士实际冲入敌群并消耗满蓝")
+	_check(is_equal_approx(templar.shield, templar.max_hp * 0.36)
+		and templar.shield_time > 3.0,
+		"三名受嘲讽敌人提供 36% 最大生命护盾")
+	var all_taunted := true
+	for index in 3:
+		all_taunted = all_taunted and enemies[index].status_controller.has_status(&"taunt")
+		all_taunted = all_taunted and enemies[index].target == templar
+	_check(all_taunted and not enemies[3].status_controller.has_status(&"taunt")
+		and enemies[3].target == ally,
+		"圆形内三名敌人被强制改攻圣殿骑士，圈外敌人不受影响")
+	var ring := battle.effects_root.get_node_or_null("AegisRingFx") as AegisRingFx
+	var projected: Sprite3D = null
+	if ring != null:
+		for child in ring.get_children():
+			if child is Sprite3D:
+				projected = child
+				break
+	_check(ring != null and is_equal_approx(ring.radius, 160.0)
+		and ring.global_position.distance_to(templar.global_position) < 1.0
+		and projected != null
+		and is_equal_approx(projected.basis.x.length(), 160.0 / AegisRingFx.SHEET_RING_RADIUS)
+		and is_equal_approx(projected.basis.x.length(), projected.basis.y.length())
+		and is_zero_approx(projected.basis.x.y) and is_zero_approx(projected.basis.y.y)
+		and enemies[0].status_controller.get_vfx(&"taunt") != null
+		and enemies[3].status_controller.get_vfx(&"taunt") == null,
+		"160px 正圆法阵贴在三维地面，由战场相机投影")
+	var basic: CombatActionDefinition = enemies[0].actions[0]
+	_check(ActionActivation.reason(enemies[0], basic, ally).contains("被嘲讽"),
+		"嘲讽期间不能对原友军目标发动攻击")
+	var orc_block: CombatActionDefinition = null
+	for action in enemies[1].actions:
+		if action.action_id == &"armored_orc_block":
+			orc_block = action
+			break
+	enemies[1].hp = enemies[1].max_hp * 0.4
+	_check(orc_block != null and ActionActivation.reason(enemies[1], orc_block, enemies[1]).contains("被嘲讽"),
+		"嘲讽期间不能改用自我格挡规避强制攻击")
+	enemies[0].brain.enabled = true
+	enemies[0].brain.force_think()
+	_check(enemies[0].brain.target == templar and enemies[0].planned_target == templar,
+		"受嘲讽敌人重新决策时仍锁定圣殿骑士")
+	enemies[0].brain.enabled = false
+	enemies[0].status_controller._physics_process(2.6)
+	_check(enemies[0].status_controller.forced_target() == null
+		and not ActionActivation.reason(enemies[0], basic, ally).contains("被嘲讽"),
+		"嘲讽到期后恢复自由选敌")
+	# 减速会拉长冲刺时间；嘲讽仍要等真正到达选定区域后结算。
+	templar.state_machine.transition_to(&"idle", true)
+	templar.position = Vector2(600, 1050)
+	templar.mana = templar.max_mana
+	templar.action_cooldowns[ultimate.action_id] = 0.0
+	templar.status_controller.apply(StatusCatalog.get_definition(&"slow"), enemies[0], {
+		"duration": 3.0, "power": 0.3,
+	})
+	templar.target = enemies[0]
+	templar.planned_target = enemies[0]
+	templar.planned_action = ultimate
+	templar.planned_point = chosen_point
+	templar.planned_has_point = true
+	templar.planned_direction = (chosen_point - templar.global_position).normalized()
+	templar.state_machine.transition_to(&"action", true)
+	var slow_deadline := Time.get_ticks_msec() + 3000
+	while not enemies[0].status_controller.has_status(&"taunt") and Time.get_ticks_msec() < slow_deadline:
+		await get_tree().process_frame
+	_check(enemies[0].status_controller.has_status(&"taunt")
+		and templar.global_position.distance_to(chosen_point) <= 18.0,
+		"受到减速时大招等待到达目标地点再释放嘲讽")
+	var rings: Array[Node] = []
+	for child in battle.effects_root.get_children():
+		if child.get_script() != null and child.get_script().resource_path == "res://scripts/fx/aegis_ring_fx.gd":
+			rings.append(child)
+	await get_tree().create_timer(3.2).timeout
+	var rings_cleared := not rings.is_empty()
+	for node in rings:
+		rings_cleared = rings_cleared and not is_instance_valid(node)
+	_check(rings_cleared, "结界播放完毕自动清理")
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
 
 
 func _test_smart_knight() -> void:
@@ -608,6 +1535,8 @@ func _test_wizard_and_elite_orc() -> void:
 	battle.hud.set_selected_unit(wizard)
 	_check(battle.hud.skill_status.text.contains("火球术") and battle.hud.skill_status.text.contains("冰封术")
 		and battle.hud.skill_status.text.contains("CD"), "战斗观察镜显示每招冷却和蓝耗")
+	_check(battle.hud.skill_status.text.contains(fireball.detail_text(wizard.attack_damage)),
+		"战斗观察镜显示按当前攻击力计算的技能伤害")
 	await get_tree().create_timer(0.9).timeout
 	_check(enemy.burn_time > 0.0 and enemy.hp < enemy.max_hp and battle.projectiles_fired > 0,
 		"火球飞行命中后造成伤害和灼烧")
@@ -620,13 +1549,18 @@ func _test_wizard_and_elite_orc() -> void:
 	await get_tree().process_frame
 
 	var elite_def := UnitCatalog.get_definition(&"elite_orc")
-	var sweep: CombatActionDefinition = elite_def.actions[1]
-	var heavy: CombatActionDefinition = elite_def.actions[2]
+	var sweep: CombatActionDefinition = elite_def.actions[2]
+	var hunt: CombatActionDefinition = elite_def.actions[1]
 	_check(sweep.animation == &"attack_02" and sweep.target_mode == CombatActionDefinition.TargetMode.DIRECTION
-		and sweep.advance_speed > 0.0 and sweep.effects.size() == 4,
+		and sweep.movement_kind() == ActionMovementDefinition.Kind.ADVANCE and sweep.movement_speed() > 0.0
+		and sweep.effects.size() == 4 and sweep.display_name == "巨斧狂袭",
 		"attack02 向人群推进并连续攻击")
-	_check(heavy.animation == &"attack_03" and heavy.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
-		and heavy.effects[0].damage_ratio >= 3.0, "attack03 是高伤害单体大招")
+	_check(hunt.animation == &"attack_03" and hunt.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
+		and is_equal_approx(hunt.effects[0].damage_ratio, 1.5) and hunt.mana_cost == 0.0,
+		"attack03 是冷酷捕猎：0 蓝重击当前目标")
+	_check(elite_def.actions.size() == 3 and elite_def.passive != null
+		and elite_def.passive.hp_threshold_status != null,
+		"精锐兽人两主动加狂怒被动，第三格留空")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"elite_orc")
@@ -659,15 +1593,37 @@ func _test_wizard_and_elite_orc() -> void:
 	elite.position = Vector2(start_x, elite.position.y)
 	enemies[0].position = elite.position + Vector2(75, 0)
 	enemies[1].position = elite.position + Vector2(95, 40)
-	elite.mana = elite.max_mana
 	elite.target = enemies[0]
-	elite.planned_action = heavy
+	elite.planned_action = hunt
 	var target_hp := enemies[0].hp
 	var other_hp := enemies[1].hp
 	elite.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(0.8).timeout
-	_check(enemies[0].hp < target_hp - 100.0 and is_equal_approx(enemies[1].hp, other_hp),
-		"attack03 仅对目标造成高额伤害")
+	var expected_hunt_damage := minf(target_hp,
+		elite.attack_damage * hunt.effects[0].damage_ratio * (1.0 - enemies[0].armor))
+	_check(target_hp - enemies[0].hp >= expected_hunt_damage - 0.1
+		and is_equal_approx(enemies[1].hp, other_hp),
+		"冷酷捕猎仅对当前目标造成 1.5 AD")
+
+	# 狂怒：生命低于 50% 时攻击 +50%、10% 吸血，并显示 Rage 循环特效。
+	elite.hp = elite.max_hp * 0.4
+	elite.sync_conditional_passives()
+	_check(elite.status_controller.has_status(&"elite_orc_rage"), "生命低于 50% 时触发狂怒")
+	_check(is_equal_approx(elite.current_attack_damage(), elite.attack_damage * 1.5),
+		"狂怒提高 50% 攻击力")
+	var rage_fx := elite.status_controller.get_vfx(&"elite_orc_rage")
+	_check(rage_fx is RageStatusFx and rage_fx.is_playing(), "狂怒使用 Seething 状态特效")
+	battle.hud.set_selected_unit(elite)
+	await get_tree().process_frame
+	_check(battle.hud.skill_status.text.contains("狂怒") and battle.hud.skill_status.text.contains("生效中"),
+		"观察镜显示狂怒生效中")
+	var hp_before := elite.hp
+	enemies[1].take_damage(20.0, elite, null, true)
+	_check(is_equal_approx(elite.hp - hp_before, 2.0), "狂怒按造成伤害的 10% 吸血")
+	elite.heal(elite.max_hp * 0.3)
+	_check(not elite.status_controller.has_status(&"elite_orc_rage"), "生命回到 50% 以上后狂怒结束")
+	_check(is_equal_approx(elite.current_attack_damage(), elite.attack_damage),
+		"狂怒结束后攻击恢复基础值")
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
@@ -678,7 +1634,7 @@ func _test_lancer_charge() -> void:
 	var definition := UnitCatalog.get_definition(&"lancer")
 	var pierce: CombatActionDefinition = definition.actions[1]
 	var flame: CombatActionDefinition = definition.actions[2]
-	_check(pierce.charge_to_farthest and flame.charge_to_farthest and pierce.charge_speed > 0.0,
+	_check(pierce.select_farthest() and flame.select_farthest() and pierce.movement_kind() == ActionMovementDefinition.Kind.CHARGE and pierce.movement_speed() > 0.0,
 		"两招均配置为向最远敌人冲锋")
 	_check(pierce.mana_cost == 0.0 and flame.mana_cost >= definition.max_mana,
 		"attack2 仅受 CD 限制，attack3 满蓝释放")
@@ -757,6 +1713,238 @@ func _test_lancer_charge() -> void:
 	await get_tree().process_frame
 
 
+func _test_werebear_skills() -> void:
+	print("\n[熊人] 双爪、怒吼与震落")
+	var definition := UnitCatalog.get_definition(&"werebear")
+	var claw: CombatActionDefinition = definition.actions[1]
+	var roar: CombatActionDefinition = definition.actions[2]
+	var quake: CombatActionDefinition = definition.actions[3]
+	_check(claw.effects.size() == 2 and is_equal_approx(claw.effects[0].damage_ratio, 0.9)
+		and is_equal_approx(claw.effects[1].damage_ratio, 0.9), "暴怒双爪有两次单体 0.9 AD 命中")
+	_check(roar.cooldown == 10.0 and roar.effects[0].shape == ActionEffectDefinition.Shape.CIRCLE
+		and roar.effects[0].status_power == 0.5 and roar.effects[0].status_duration == 2.0
+		and roar.effects[0].effect_scene != null and roar.animation == &"idle"
+		and roar.effects[0].trigger_frame == 0,
+		"怒吼范围减速 50%，持续 2 秒")
+	_check(quake.select_densest_cluster() and quake.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT
+		and quake.effects[0].effect_scene != null and quake.effects[1].status_duration == 0.5,
+		"天声震落跳向密集敌群并配置落地特效与眩晕")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"werebear")
+	for index in 3:
+		GameState.set_slot(1, index, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var bear: Unit = null
+	var enemies: Array[Unit] = []
+	for fighter in battle.units:
+		fighter.brain.enabled = false
+		if fighter.team == 0:
+			bear = fighter
+		else:
+			enemies.append(fighter)
+	if bear == null or enemies.size() != 3:
+		_check(false, "熊人与三名目标生成成功")
+		GameState.reset_lineups()
+		battle.queue_free()
+		return
+	var start := battle.field_min + Vector2(220.0, 220.0)
+	bear.position = start
+	enemies[0].position = start + Vector2(85.0, 0.0)
+	enemies[1].position = start + Vector2(280.0, 0.0)
+	enemies[2].position = start + Vector2(295.0, 45.0)
+	bear.target = enemies[0]
+	bear.planned_action = claw
+	var first_hp: float = enemies[0].hp
+	bear.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(1.2).timeout
+	_check(absf(first_hp - enemies[0].hp - bear.attack_damage * 1.8 * (1.0 - enemies[0].armor)) < 1.0,
+		"暴怒双爪实际命中同一目标两次")
+	bear.planned_action = roar
+	bear.target = enemies[0]
+	var roar_position := bear.position
+	bear.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.7).timeout
+	_check(bear.position.is_equal_approx(roar_position), "怒吼原地站立释放")
+	_check(enemies[0].status_controller.has_status(&"slow") and not enemies[1].status_controller.has_status(&"slow"),
+		"怒吼只减速周围敌人")
+	_check(is_equal_approx(enemies[0].slow_factor, 0.5)
+		and enemies[0].status_controller.get_vfx(&"slow") != null,
+		"怒吼减速实际降低移速并显示圆圈")
+	bear.state_machine.transition_to(&"idle", true)
+	bear.mana = bear.max_mana
+	bear.planned_action = quake
+	bear.target = enemies[1]
+	bear.planned_point = (enemies[1].position + enemies[2].position) * 0.5
+	bear.planned_has_point = true
+	var quake_hp: float = enemies[1].hp
+	bear.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.65).timeout
+	_check(bear.position.distance_to(bear.planned_point) < 25.0 and enemies[1].hp < quake_hp
+		and enemies[1].status_controller.has_status(&"stun"), "天声震落落到敌群并造成伤害和眩晕")
+	var impact := battle.effects_root.get_node_or_null("GroundPoundFx") as GroundPoundFx
+	var floor_fx: Sprite3D = null
+	var air_fx: Sprite3D = null
+	if impact != null:
+		floor_fx = impact.get_node_or_null("ProjectedGround") as Sprite3D
+		air_fx = impact.get_node_or_null("Air") as Sprite3D
+	_check(impact != null and impact.global_position.is_equal_approx(bear.planned_point)
+		and floor_fx != null and air_fx != null and floor_fx.frame == air_fx.frame
+		and is_equal_approx(floor_fx.basis.x.length(), quake.effects[0].radius / GroundPoundFx.SHEET_RADIUS)
+		and is_equal_approx(floor_fx.basis.x.length(), floor_fx.basis.y.length())
+		and is_zero_approx(floor_fx.basis.y.y)
+		and air_fx.basis.y.is_equal_approx(battle.stage.camera.basis.y),
+		"震落的正圆冲击波对齐命中点与半径，飞石随镜头立起并同步播放")
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+	var lab = load("res://scenes/debug/hero_lab.tscn").instantiate()
+	add_child(lab)
+	await get_tree().process_frame
+	lab._select_definition(definition)
+	lab.hero.brain.enabled = false
+	lab._cast_action(claw)
+	await get_tree().create_timer(0.8).timeout
+	_check(lab.battle.training_damage() > 0.0, "试炼场暴怒双爪命中稻草人")
+	lab.queue_free()
+	await get_tree().process_frame
+
+
+func _test_new_passives_and_soldier() -> void:
+	print("\n[新被动与士兵] 光环、厚皮、跳劈、后撤射击、双武器")
+	var soldier_def := UnitCatalog.get_definition(&"soldier")
+	var jump: CombatActionDefinition = soldier_def.actions[2]
+	var backshot: CombatActionDefinition = soldier_def.actions[3]
+	_check(soldier_def.actions.size() == 4 and soldier_def.passive != null
+		and jump.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_ARMOR_ENEMY
+		and jump.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT
+		and backshot.movement_kind() == ActionMovementDefinition.Kind.RETREAT
+		and soldier_def.actions[1].animation == &"attack_03"
+		and backshot.animation == &"attack_03"
+		and soldier_def.actions[1].effects[0].trigger_frame == 7
+		and backshot.effects[0].trigger_frame == 7,
+		"士兵保留近远程普攻、跳劈和后撤射击，技能3留空")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight_templar")
+	GameState.set_slot(0, 1, &"knight_templar")
+	GameState.set_slot(0, 2, &"soldier")
+	GameState.set_slot(0, 3, &"werebear")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var templars: Array[Unit] = []
+	var soldier: Unit = null
+	var bear: Unit = null
+	var enemies: Array[Unit] = []
+	for fighter in battle.units:
+		fighter.brain.enabled = false
+		if fighter.team == 1:
+			enemies.append(fighter)
+		elif fighter.definition.unit_id == &"knight_templar":
+			templars.append(fighter)
+		elif fighter.definition.unit_id == &"werebear":
+			bear = fighter
+		else:
+			soldier = fighter
+	if templars.size() != 2 or soldier == null or bear == null or enemies.size() != 2:
+		_check(false, "被动和士兵测试单位生成成功")
+		GameState.reset_lineups()
+		battle.queue_free()
+		return
+	var muzzle_marker := soldier.visual.get_parent().get_node_or_null("Muzzle") as Marker2D
+	_check(muzzle_marker != null, "士兵视觉场景包含 Muzzle 出手锚点")
+	if muzzle_marker != null:
+		soldier.facing = 1
+		var right_muzzle := soldier.get_muzzle_point()
+		soldier.facing = -1
+		var left_muzzle := soldier.get_muzzle_point()
+		soldier.facing = 1
+		_check(right_muzzle.x > soldier.global_position.x + 1.0
+			and left_muzzle.x < soldier.global_position.x - 1.0,
+			"Muzzle 锚点随朝向镜像到身体两侧")
+		_check(absf(right_muzzle.y - (soldier.global_position.y + muzzle_marker.position.y)) < 0.01,
+			"Muzzle 锚点高度直接取自场景，不再由角色高度系数推算")
+	var origin := battle.field_min + Vector2(350.0, 300.0)
+	templars[0].position = origin
+	templars[1].position = origin + Vector2(15.0, 0.0)
+	soldier.position = origin + Vector2(45.0, 0.0)
+	bear.position = origin + Vector2(280.0, 100.0)
+	enemies[0].position = origin + Vector2(240.0, 0.0)
+	enemies[1].position = origin + Vector2(290.0, 65.0)
+	_check(is_equal_approx(soldier.current_armor(), soldier.armor + 0.04)
+		and is_equal_approx(templars[0].current_armor(), templars[0].armor + 0.04),
+		"两个同名圣殿光环不叠加，施放者自身也受益")
+	templars[0].position += Vector2(-400.0, 0.0)
+	templars[1].position += Vector2(-400.0, 0.0)
+	_check(is_equal_approx(soldier.current_armor(), soldier.armor), "离开 120 像素光环后护甲恢复")
+	bear.hp = bear.max_hp * 0.49
+	bear.sync_conditional_passives()
+	_check(is_equal_approx(bear.current_armor(), bear.armor + 0.06), "熊人低于半血时厚皮增加 6 个百分点护甲")
+	bear.hp = bear.max_hp * 0.5
+	bear.sync_conditional_passives()
+	_check(is_equal_approx(bear.current_armor(), bear.armor), "熊人回到半血时厚皮消失")
+	enemies[0].armor = 0.3
+	enemies[1].armor = 0.02
+	_check(soldier.brain._lowest_armor_enemy_in_range(jump, enemies) == enemies[1],
+		"跳劈锁定中距离内护甲最低的敌人")
+	var initial_hp := enemies[1].hp
+	soldier.target = enemies[1]
+	soldier.planned_action = jump
+	soldier.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(1.0).timeout
+	_check(soldier.position.distance_to(enemies[1].position) < 100.0
+		and absf(initial_hp - enemies[1].hp - soldier.attack_damage * (1.0 - enemies[1].armor)) < 0.5,
+		"跳劈落到目标身旁并造成 1.0 AD 单体伤害")
+	soldier.state_machine.transition_to(&"idle", true)
+	soldier.position = origin + Vector2(45.0, 0.0)
+	enemies[0].position = origin + Vector2(240.0, 0.0)
+	var before_retreat := soldier.position
+	var before_shot_hp := enemies[0].hp
+	soldier.target = enemies[0]
+	soldier.planned_action = backshot
+	soldier.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.18).timeout
+	_check(soldier.position.distance_to(before_retreat) > 35.0
+		and is_equal_approx(enemies[0].hp, before_shot_hp)
+		and soldier.current_animation() == &"attack_03", "后撤射击播放远程攻击动画，先位移再发箭")
+	await get_tree().create_timer(0.9).timeout
+	_check(absf(before_shot_hp - enemies[0].hp - soldier.attack_damage * 1.3 * (1.0 - enemies[0].armor)) < 0.5,
+		"后撤射出的直线箭造成 1.3 AD 单体伤害")
+	soldier.state_machine.transition_to(&"idle", true)
+	soldier.action_cooldowns[jump.action_id] = 99.0
+	soldier.action_cooldowns[backshot.action_id] = 99.0
+	soldier.brain._observe()
+	soldier.brain._judge()
+	var far_plan: ActionPlan = soldier.brain._select_action()
+	_check(far_plan != null and far_plan.action.action_id == &"soldier_ranged_basic",
+		"远距离自动使用弓箭普攻")
+	if far_plan != null:
+		var arrows_before := battle.projectiles_fired
+		soldier.target = far_plan.target
+		soldier.planned_action = far_plan.action
+		soldier.state_machine.transition_to(&"action", true)
+		await get_tree().process_frame
+		_check(soldier.current_animation() == &"attack_03", "弓箭普攻播放远程攻击动画")
+		await get_tree().create_timer(0.65).timeout
+		_check(battle.projectiles_fired > arrows_before, "弓箭普攻在攻击动画出手帧射箭")
+		soldier.state_machine.transition_to(&"idle", true)
+	soldier.position = enemies[0].position - Vector2(65.0, 0.0)
+	soldier.brain._observe()
+	soldier.brain._judge()
+	var near_plan: ActionPlan = soldier.brain._select_action()
+	_check(near_plan != null and near_plan.action.action_id == &"soldier_basic"
+		and is_equal_approx(near_plan.action.effects[0].damage_ratio, 1.2),
+		"近战距离自动使用 1.2 AD 挥剑普攻")
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
 func _test_orc_rider_tank() -> void:
 	print("\n[兽人骑兵] 抗线、冲撞与护盾")
 	var definition := UnitCatalog.get_definition(&"orc_rider")
@@ -770,13 +1958,13 @@ func _test_orc_rider_tank() -> void:
 	_check(basic.animation == &"attack_02" and definition.attack_animation == &"attack_02",
 		"attack02 是兽人骑兵普通攻击")
 	_check(ram.animation == &"attack_01" and ram.mana_cost == 0.0
-		and ram.advance_distance > 0.0 and ram.effects[0].knockback > 0.0,
+		and ram.movement_distance() > 0.0 and ram.effects[0].knockback > 0.0,
 		"attack01 是定距突进击退技能")
 	_check(block.animation == &"block" and block.effects[0].kind == ActionEffectDefinition.Kind.GUARD,
 		"block 动画对应格挡技能")
 	_check(cyclone.animation == &"attack_03" and cyclone.mana_cost >= definition.max_mana
-		and cyclone.effects[1].kind == ActionEffectDefinition.Kind.SHIELD,
-		"attack03 是满蓝环斩与护盾大招")
+		and cyclone.effects.size() == 1 and definition.passive.skill_hit_shield_ratio == 0.05,
+		"attack03 是满蓝环斩，技能命中触发被动护盾")
 
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
@@ -819,6 +2007,8 @@ func _test_orc_rider_tank() -> void:
 		"冲撞前进约 180 像素后停止")
 	_check(enemies[0].hp < before_hp and enemies[0].global_position.x > start.x + 270.0,
 		"冲撞命中目标并将其击退")
+	_check(absf(rider.shield - rider.max_hp * 0.05) < 1.0,
+		"冲撞技能命中触发 5% 最大生命护盾")
 
 	rider.hp = rider.max_hp * 0.5
 	rider.target = enemies[0]
@@ -833,6 +2023,8 @@ func _test_orc_rider_tank() -> void:
 	await get_tree().create_timer(1.3).timeout
 
 	rider.position = start
+	rider.shield = 0.0
+	rider.shield_time = 0.0
 	enemies[0].position = start + Vector2(90.0, 0.0)
 	enemies[1].position = start + Vector2(120.0, 60.0)
 	enemies[2].position = start + Vector2(280.0, 100.0)
@@ -845,14 +2037,14 @@ func _test_orc_rider_tank() -> void:
 	var hp_far: float = enemies[2].hp
 	rider.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(0.9).timeout
-	var two_target_shield: float = rider.max_hp * 0.24
+	var two_target_shield: float = rider.max_hp * 0.10
 	_check(enemies[0].hp < hp_near and is_equal_approx(enemies[2].hp, hp_far),
 		"环斩只命中周围范围内的敌人")
 	_check(absf(rider.shield - two_target_shield) < 1.0 and rider.shield_time > 0.0,
-		"命中两名敌人获得 24% 最大生命护盾")
+		"命中两名敌人获得 10% 最大生命护盾")
 	var hp_before_absorb: float = rider.hp
 	var shield_before_absorb: float = rider.shield
-	rider.take_damage(100.0, enemies[0])
+	rider.take_damage(20.0, enemies[0])
 	_check(is_equal_approx(rider.hp, hp_before_absorb) and rider.shield < shield_before_absorb,
 		"护盾先于生命吸收伤害")
 	_check(rider.health_bar.shield_ratio > 0.0 and rider.ai_snapshot().shield != "0",
@@ -864,15 +2056,18 @@ func _test_orc_rider_tank() -> void:
 	rider.action_cooldowns[cyclone.action_id] = 0.0
 	rider.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(0.9).timeout
-	_check(absf(rider.shield - rider.max_hp * 0.48) < 1.0,
-		"四目标叠加护盾不超过 48% 最大生命")
+	_check(absf(rider.shield - (shield_before_absorb - 20.0 * (1.0 - rider.armor) + rider.max_hp * 0.20)) < 1.0,
+		"四目标每次命中叠加 5% 最大生命护盾")
 	await get_tree().create_timer(6.1).timeout
 	_check(is_zero_approx(rider.shield) and is_zero_approx(rider.shield_time),
 		"护盾持续时间结束后消失")
+	rider.hp = rider.max_hp
 	rider.apply_shield(100.0, 3.0, rider.max_hp * 0.48)
 	var hp_before_overflow: float = rider.hp
+	var shield_before_overflow: float = rider.shield
 	rider.take_damage(200.0, enemies[0])
-	_check(is_zero_approx(rider.shield) and absf(rider.hp - (hp_before_overflow - 52.0)) < 0.1,
+	var overflow_damage := 200.0 * (1.0 - rider.armor) - shield_before_overflow
+	_check(is_zero_approx(rider.shield) and absf(rider.hp - (hp_before_overflow - overflow_damage)) < 0.1,
 		"破盾后的剩余伤害正确扣除生命")
 	GameState.reset_lineups()
 	battle.queue_free()
@@ -882,16 +2077,18 @@ func _test_orc_rider_tank() -> void:
 func _test_werewolf_combo() -> void:
 	print("\n[狼人] 血月连斩")
 	var definition := UnitCatalog.get_definition(&"werewolf")
-	var combo: CombatActionDefinition = definition.actions[1]
+	var combo: CombatActionDefinition = definition.actions[3]
 	_check(combo.display_name == "血月连斩" and combo.animation == &"attack_02"
-		and combo.teleport_to_target and combo.preferred_min_range >= 130.0
+		and combo.movement_kind() == ActionMovementDefinition.Kind.TELEPORT and combo.preferred_min_range >= 130.0
 		and combo.mana_cost >= definition.max_mana,
 		"血月连斩使用 attack02，满蓝闪现到目标身前")
-	_check(combo.effects.size() == 4 and combo.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
-		and combo.effects[3].status_kind == ActionEffectDefinition.StatusKind.BLEED
-		and combo.effects[3].requires_action_hit,
-		"三段单体伤害后仅对命中目标附加流血")
-	_check(definition.sprite_frames.get_frame_count(&"attack_02") > combo.effects[3].trigger_frame,
+	_check(combo.effects.size() == 6 and combo.effects[0].shape == ActionEffectDefinition.Shape.SINGLE
+		and is_equal_approx(combo.effects[0].damage_ratio, 0.6)
+		and combo.effects[5].status_kind == ActionEffectDefinition.StatusKind.BLEED
+		and combo.effects[5].requires_action_hit
+		and is_equal_approx(combo.effects[5].status_power_attack_ratio, 0.3),
+		"五段 0.6 AD 单体伤害后仅对命中目标附加流血")
+	_check(definition.sprite_frames.get_frame_count(&"attack_02") > combo.effects[5].trigger_frame,
 		"所有连斩结算帧都处于实际动画内")
 
 	GameState.clear_lineup(0)
@@ -912,13 +2109,14 @@ func _test_werewolf_combo() -> void:
 	enemies[0].position = start + Vector2(230.0, 0.0)
 	enemies[1].position = start + Vector2(70.0, 70.0)
 	enemies[2].position = start + Vector2(470.0, 0.0)
+	enemies[0].hp = 75.0
 	wolf.mana = 0.0
 	wolf.brain.force_think()
 	_check(wolf.planned_action != combo, "空蓝时不会选择血月连斩")
 	wolf.mana = wolf.max_mana
 	wolf.brain.force_think()
 	_check(wolf.planned_action == combo and wolf.target == enemies[0],
-		"满蓝时选择中距离敌人并释放血月连斩")
+		"满蓝时选择范围内当前血量最低敌人并释放血月连斩")
 	wolf.brain.enabled = false
 	wolf.target = enemies[0]
 	wolf.planned_action = combo
@@ -929,14 +2127,15 @@ func _test_werewolf_combo() -> void:
 		and wolf.global_position.x > start.x + 110.0,
 		"狼人立即闪现到目标身前的近战位置")
 	await get_tree().create_timer(0.9).timeout
-	_check(battle.action_hits == 3 and enemies[0].hp < target_hp - wolf.attack_damage * 2.5,
-		"血月连斩对单体连续命中三次并造成高额伤害")
+	var combo_damage := wolf.attack_damage * 5.0 * 0.6 * (1.0 - enemies[0].current_armor())
+	_check(battle.action_hits == 5 and enemies[0].hp <= target_hp - combo_damage + 0.5,
+		"血月连斩对单体连续命中五次")
 	_check(is_equal_approx(enemies[1].hp, other_hp), "附近其他敌人不受连斩伤害")
 	_check(enemies[0].bleed_time > 0.0 and is_zero_approx(enemies[1].bleed_time),
 		"只有被连斩命中的目标流血")
 	var after_direct: float = enemies[0].hp
 	await get_tree().create_timer(0.6).timeout
-	_check(enemies[0].hp < after_direct and battle.action_hits == 3,
+	_check(enemies[0].hp < after_direct and battle.action_hits == 5,
 		"流血持续跳伤且不重复计入连斩命中")
 
 	wolf.position = start
@@ -953,8 +2152,8 @@ func _test_werewolf_combo() -> void:
 	await get_tree().create_timer(0.9).timeout
 	_check(is_equal_approx(enemies[2].hp, missed_hp) and is_zero_approx(enemies[2].bleed_time),
 		"目标离开近战距离后，落空的连斩不会附加流血")
-	await get_tree().create_timer(2.8).timeout
-	_check(is_zero_approx(enemies[0].bleed_time), "流血在四秒后结束")
+	await get_tree().create_timer(4.0).timeout
+	_check(is_zero_approx(enemies[0].bleed_time), "流血在五秒后结束")
 	wolf.position = start
 	enemies[0].position = start + Vector2(500.0, 300.0)
 	enemies[1].position = start + Vector2(500.0, -250.0)
@@ -971,19 +2170,103 @@ func _test_werewolf_combo() -> void:
 	await get_tree().process_frame
 
 
+func _test_werewolf_new_skills() -> void:
+	print("\n[狼人] 猎影突袭、血痕爪与追猎")
+	var definition := UnitCatalog.get_definition(&"werewolf")
+	var hunt: CombatActionDefinition = definition.actions[1]
+	var claw: CombatActionDefinition = definition.actions[2]
+	_check(definition.passive != null and definition.passive.bonus_damage_target_status == &"bleed"
+		and is_equal_approx(definition.passive.bonus_damage_ratio, 0.12)
+		and definition.passive.detail_text().contains("12%"), "追猎被动已接入并显示 12% 流血增伤")
+	_check(hunt.cooldown == 8.0 and hunt.movement_kind() == ActionMovementDefinition.Kind.TELEPORT
+		and hunt.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_CURRENT_HP_ENEMY
+		and hunt.effects[0].trigger_frame == 0 and hunt.effects[0].damage_ratio == 1.0,
+		"猎影突袭闪现后立即造成一次普通攻击伤害")
+	_check(claw.cooldown == 10.0 and claw.effects.size() == 2
+		and is_equal_approx(claw.effects[0].damage_ratio, 0.9)
+		and claw.effects[1].status_duration == 2.0
+		and is_equal_approx(claw.effects[1].status_power_attack_ratio, 0.5),
+		"血痕爪造成 0.9 AD，流血每秒造成 0.5 AD")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"werewolf")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"werebear")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var wolf: Unit = battle.living_units(0)[0]
+	var enemies: Array[Unit] = battle.living_units(1)
+	for enemy in enemies:
+		enemy.brain.enabled = false
+	var start := battle.field_min + Vector2(260.0, 220.0)
+	wolf.position = start
+	enemies[0].position = start + Vector2(240.0, 0.0)
+	enemies[1].position = start + Vector2(150.0, 90.0)
+	enemies[0].hp = 80.0
+	_check(wolf.brain._lowest_current_hp_enemy_in_range(hunt, enemies) == enemies[0]
+		and wolf.brain._lowest_current_hp_enemy_in_range(definition.actions[3], enemies) == enemies[0],
+		"两次闪现都选 300 像素内当前生命值最低的敌人")
+	wolf.brain.enabled = false
+	wolf.target = enemies[0]
+	wolf.planned_action = hunt
+	var before_hunt := enemies[0].hp
+	wolf.state_machine.transition_to(&"action", true)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(wolf.position.distance_to(enemies[0].position) < 100.0
+		and absf(before_hunt - enemies[0].hp - wolf.attack_damage * (1.0 - enemies[0].current_armor())) < 0.5,
+		"猎影突袭闪到目标身前并立即命中一次")
+	wolf.state_machine.transition_to(&"idle", true)
+	wolf.position = enemies[1].position - Vector2(72.0, 0.0)
+	wolf.target = enemies[1]
+	wolf.planned_action = claw
+	var before_claw := enemies[1].hp
+	wolf.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.65).timeout
+	var claw_damage := wolf.attack_damage * 0.9 * (1.0 - enemies[1].current_armor())
+	_check(enemies[1].hp <= before_claw - claw_damage + 0.5
+		and enemies[1].status_controller.has_status(&"bleed")
+		and absf(enemies[1].status_controller.power(&"bleed") - wolf.attack_damage * 0.5) < 0.1,
+		"血痕爪命中后施加随 AD 变化的流血")
+	enemies[1].status_controller.remove_status(&"bleed")
+	var normal_hp := enemies[1].hp
+	enemies[1].take_damage(10.0, wolf)
+	var normal_damage := normal_hp - enemies[1].hp
+	enemies[1].status_controller.apply(StatusCatalog.get_definition(&"bleed"), wolf, {"power": 1.0})
+	var bleeding_hp := enemies[1].hp
+	enemies[1].take_damage(10.0, wolf)
+	var pursuit_damage := bleeding_hp - enemies[1].hp
+	_check(absf(normal_damage - 10.0 * (1.0 - enemies[1].current_armor())) < 0.1
+		and absf(pursuit_damage - normal_damage * 1.12) < 0.1,
+		"追猎仅在目标流血时提高实际伤害 12%")
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
 func _test_armored_skeleton_basic_and_ultimate() -> void:
-	print("\n[重甲骷髅] 普攻与大招")
+	print("\n[重甲骷髅] 普攻、反击风暴与大招")
 	var definition := UnitCatalog.get_definition(&"armored_skeleton")
-	_check(definition.actions.size() == 2, "重甲骷髅只配置普攻和满蓝大招")
-	if definition.actions.size() != 2:
+	_check(definition.actions.size() == 3, "重甲骷髅配置普攻、反击风暴和满蓝大招")
+	if definition.actions.size() != 3:
 		return
 	var basic: CombatActionDefinition = definition.actions[0]
-	var ultimate: CombatActionDefinition = definition.actions[1]
+	var counterstorm: CombatActionDefinition = definition.actions[1]
+	var ultimate: CombatActionDefinition = definition.actions[2]
 	_check(basic.animation == &"attack_01" and basic.category == CombatActionDefinition.Category.BASIC
 		and basic.mana_cost == 0.0 and basic.effects[0].trigger_frame < definition.sprite_frames.get_frame_count(&"attack_01"),
 		"attack1 普攻无需蓝量且伤害帧有效")
+	_check(counterstorm.action_id == &"armored_skeleton_counterstorm"
+		and counterstorm.animation == &"attack_02"
+		and counterstorm.mana_cost == 0.0
+		and not counterstorm.effects.is_empty()
+		and counterstorm.effects[0].kind == ActionEffectDefinition.Kind.GUARD
+		and is_equal_approx(counterstorm.effects[0].duration, 2.0)
+		and is_equal_approx(counterstorm.action_duration, 2.0),
+		"反击风暴使用 attack_02，持续 2 秒格挡所有攻击")
 	_check(ultimate.animation == &"attack_02" and ultimate.mana_cost >= definition.max_mana,
-		"attack2 只作为满蓝大招")
+		"attack2 大招仍需满蓝")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"armored_skeleton")
@@ -997,7 +2280,7 @@ func _test_armored_skeleton_basic_and_ultimate() -> void:
 	enemy.position = skeleton.position + Vector2(75.0, 0.0)
 	enemy.brain.enabled = false
 	skeleton.brain.force_think()
-	_check(skeleton.planned_action == basic, "开场空蓝时决策层选择 attack1 普攻")
+	_check(skeleton.planned_action == basic, "满血开场时决策层选择 attack1 普攻")
 	skeleton.brain.enabled = false
 	skeleton.target = enemy
 	skeleton.planned_action = basic
@@ -1007,6 +2290,25 @@ func _test_armored_skeleton_basic_and_ultimate() -> void:
 	await get_tree().create_timer(0.7).timeout
 	_check(enemy.hp < hp_before_basic and battle.action_hits == 1,
 		"attack1 普攻实际命中目标一次")
+
+	skeleton.hp = skeleton.max_hp * 0.5
+	skeleton.brain.enabled = true
+	skeleton.brain.force_think()
+	_check(skeleton.planned_action == counterstorm, "低血量时决策层优先施放反击风暴")
+	skeleton.brain.enabled = false
+	skeleton.planned_action = counterstorm
+	skeleton.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.15).timeout
+	_check(skeleton.current_animation() == &"attack_02" and skeleton.is_guarding(),
+		"反击风暴期间播放 attack2 并进入格挡状态")
+	var hp_before_guard: float = skeleton.hp
+	skeleton.take_damage(40.0, enemy, skeleton.get_hit_point())
+	_check(is_equal_approx(skeleton.hp, hp_before_guard), "格挡期间免疫攻击伤害")
+	await get_tree().create_timer(0.6).timeout
+	_check(skeleton.is_guarding(), "格挡在技能持续期间保持")
+	await get_tree().create_timer(1.6).timeout
+	_check(not skeleton.is_guarding(), "技能结束后格挡消失")
+
 	skeleton.mana = skeleton.max_mana
 	skeleton.brain.enabled = true
 	skeleton.brain.force_think()
@@ -1019,6 +2321,7 @@ func _test_armored_skeleton_basic_and_ultimate() -> void:
 	_check(enemy.hp < hp_before_ultimate and enemy.stun_time > 0.0,
 		"attack2 大招造成范围伤害与眩晕")
 	_check(skeleton.mana < skeleton.max_mana, "attack2 大招消耗满蓝")
+	await get_tree().create_timer(0.8).timeout
 	skeleton.brain.enabled = true
 	skeleton.brain.force_think()
 	_check(skeleton.planned_action == basic, "大招后继续使用 attack1 普攻")
@@ -1033,23 +2336,41 @@ func _test_axeman_skills() -> void:
 	var axeman_definition := UnitCatalog.get_definition(&"armored_axeman")
 	var spin: CombatActionDefinition = null
 	var heavy: CombatActionDefinition = null
+	var armor_guard: CombatActionDefinition = null
+	var basic: CombatActionDefinition = null
 	for action in axeman_definition.actions:
 		if action.action_id == &"armored_axeman_spin":
 			spin = action
 		elif action.action_id == &"armored_axeman_heavy":
 			heavy = action
+		elif action.action_id == &"armored_axeman_armor_guard":
+			armor_guard = action
+		elif action.action_id == &"armored_axeman_basic":
+			basic = action
 	_check(spin != null, "重甲斧兵拥有旋风斩 Action")
 	_check(heavy != null, "重甲斧兵拥有重击 Action")
-	if spin == null or heavy == null:
+	_check(armor_guard != null, "重甲斧兵拥有盔甲护身 Action")
+	_check(basic != null, "重甲斧兵拥有普攻 Action")
+	if spin == null or heavy == null or armor_guard == null or basic == null:
 		return
 	_check(spin.animation == &"attack_02" and spin.target_mode == CombatActionDefinition.TargetMode.DIRECTION,
 		"旋风斩使用 attack_02 并选择方向")
-	_check(spin.effects.size() == 5 and spin.advance_speed > 0.0 and spin.min_targets <= 1,
+	_check(spin.effects.size() == 5 and spin.movement_kind() == ActionMovementDefinition.Kind.ADVANCE and spin.movement_speed() > 0.0 and spin.min_targets <= 1,
 		"旋风斩包含 5 个伤害帧并边转边移动")
 	_check(heavy.animation == &"attack_03" and not heavy.effects.is_empty()
 		and is_equal_approx(heavy.effects[0].damage_ratio, 2.0), "重击使用 attack_03 且为 2 倍单体伤害")
 	_check(spin.mana_cost >= axeman_definition.max_mana, "旋风斩需要满蓝释放")
 	_check(is_equal_approx(heavy.mana_cost, 0.0), "重击不消耗蓝量")
+	_check(armor_guard.target_mode == CombatActionDefinition.TargetMode.SELF
+		and not armor_guard.effects.is_empty()
+		and armor_guard.effects[0].kind == ActionEffectDefinition.Kind.STATUS
+		and armor_guard.effects[0].status_id == &"armored_axeman_armor_guard"
+		and is_equal_approx(armor_guard.effects[0].status_duration, 6.0),
+		"盔甲护身对自身施加 6 秒护甲状态")
+	_check(axeman_definition.passive != null and axeman_definition.passive.on_hit_status != null
+		and is_equal_approx(axeman_definition.passive.on_hit_status.base_power, -0.10)
+		and is_equal_approx(axeman_definition.passive.on_hit_status.duration, 4.0),
+		"战栗被动在命中时降低目标 10 个百分点护甲")
 
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
@@ -1073,6 +2394,36 @@ func _test_axeman_skills() -> void:
 		battle.queue_free()
 		await get_tree().process_frame
 		return
+
+	axeman.brain.force_think()
+	_check(axeman.brain.intent == UnitBrain.Intent.ADVANCE and axeman.planned_action == null
+		and axeman.is_action_ready(armor_guard),
+		"敌人离得远时斧兵先推进并保留盔甲护身")
+
+	axeman.mana = axeman.max_mana
+	axeman.status_controller.apply(StatusCatalog.get_definition(&"taunt"), enemies[0])
+	axeman.brain.force_think()
+	_check(axeman.status_controller.forced_target() == enemies[0]
+		and axeman.brain.intent == UnitBrain.Intent.ADVANCE and axeman.planned_action == null
+		and axeman.is_action_ready(spin),
+		"满蓝且被远处敌人嘲讽时，斧兵推进而不会空放旋风斩")
+	axeman.status_controller.remove_status(&"taunt")
+
+	var edge := Vector2(battle.field_max.x, (battle.field_min.y + battle.field_max.y) * 0.5)
+	axeman.position = edge
+	enemies[0].position = edge + Vector2(0.0, 92.0)
+	enemies[1].position = edge + Vector2(-500.0, 200.0)
+	enemies[2].position = edge + Vector2(-600.0, -190.0)
+	_check(not ActionActivation.reason(axeman, spin, enemies[0], Vector2.RIGHT).is_empty(),
+		"场边无法推进的方向不能起手旋风斩")
+	axeman.brain.force_think()
+	_check(axeman.planned_action == spin and axeman.planned_direction.dot(Vector2.DOWN) > 0.9,
+		"场边选择能推进且朝向敌人的旋风斩路线")
+	enemies[0].position = edge + Vector2(-460.0, 0.0)
+	axeman.state_machine.transition_to(&"action", true)
+	_check(axeman.state_machine.current_name == &"idle" and axeman.current_cast == null
+		and is_equal_approx(axeman.mana, axeman.max_mana) and axeman.is_action_ready(spin),
+		"目标在计划后离开时取消起手，保留蓝量与冷却")
 
 	axeman.position = Vector2(700, 650)
 	enemies[0].position = Vector2(780, 650)
@@ -1122,9 +2473,10 @@ func _test_axeman_skills() -> void:
 	_check(battle.action_hits >= 5, "旋风斩产生五次碰撞伤害")
 	_check(axeman.global_position.x > start_x + 20.0, "旋风斩边旋转边向攻击方向移动")
 
-	# 重击：单目标 2 倍伤害。
+	# 重击：单目标 2 倍伤害，并触发战栗破甲。
 	if enemies[0].alive:
 		enemies[0].position = axeman.global_position + Vector2(70, 0)
+		enemies[0].status_controller.remove_status(&"armored_axeman_dread")
 		axeman.target = enemies[0]
 		var heavy_before: float = enemies[0].hp
 		var hits_before: int = battle.action_hits
@@ -1134,8 +2486,189 @@ func _test_axeman_skills() -> void:
 		await get_tree().create_timer(0.8).timeout
 		_check(enemies[0].hp < heavy_before, "重击对单体造成伤害")
 		_check(battle.action_hits == hits_before + 1, "重击只结算一次伤害")
+		_check(enemies[0].status_controller.has_status(&"armored_axeman_dread")
+			and absf(enemies[0].current_armor() - maxf(0.0, enemies[0].armor - 0.10)) < 0.001,
+			"技能命中同样施加战栗并降低 10 个百分点护甲")
+
+	# 敌人在近处且输出动作冷却中，AI 可以选到防御技能。
+	axeman.state_machine.transition_to(&"idle", true)
+	var cooldowns_before_guard := axeman.action_cooldowns.duplicate()
+	for action in axeman.actions:
+		axeman.action_cooldowns[action.action_id] = 0.0 if action == armor_guard else 4.0
+	axeman.brain.think()
+	_check(axeman.planned_action == armor_guard, "接敌且输出技能冷却时，AI 可以选择盔甲护身")
+	axeman.action_cooldowns = cooldowns_before_guard
+
+	# 盔甲护身：自身护甲 +20 个百分点，持续 6 秒。
+	var armor_before: float = axeman.current_armor()
+	axeman.action_cooldowns[armor_guard.action_id] = 0.0
+	axeman.planned_action = armor_guard
+	var body_material := axeman.visual.material
+	axeman.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.2).timeout
+	_check(axeman.status_controller.has_status(&"armored_axeman_armor_guard")
+		and absf(axeman.current_armor() - minf(armor_before + 0.20, 0.8)) < 0.001,
+		"盔甲护身立即提高 20 个百分点护甲")
+	_check(axeman.status_controller.remaining(&"armored_axeman_armor_guard") > 5.5,
+		"盔甲护身持续 6 秒")
+	var guard_vfx := axeman.status_controller.get_vfx(&"armored_axeman_armor_guard") as ArmorGuardFx
+	_check(guard_vfx != null and guard_vfx.is_playing() and axeman.visual.material == body_material,
+		"盔甲护身播放独立的像素特效，不修改身体材质")
+	await get_tree().create_timer(0.8).timeout
+	_check(is_instance_valid(guard_vfx) and guard_vfx.current_frame() >= ArmorGuardFx.INTRO_FRAMES,
+		"盔甲护身扣合后进入循环")
+
+	# 普攻命中同样触发战栗：先移除重击施加的破甲，确认普攻会重新施加。
+	if enemies[0].alive:
+		enemies[0].status_controller.remove_status(&"armored_axeman_dread")
+		enemies[0].position = axeman.global_position + Vector2(70, 0)
+		axeman.target = enemies[0]
+		var basic_hp: float = enemies[0].hp
+		var basic_armor: float = enemies[0].current_armor()
+		axeman.planned_action = basic
+		axeman.state_machine.transition_to(&"action", true)
+		await get_tree().create_timer(0.9).timeout
+		_check(enemies[0].hp < basic_hp, "普攻命中正常结算伤害")
+		_check(enemies[0].status_controller.has_status(&"armored_axeman_dread")
+			and absf(enemies[0].current_armor() - maxf(0.0, basic_armor - 0.10)) < 0.001,
+			"普攻命中同样施加战栗并降低 10 个百分点护甲")
 
 	await get_tree().create_timer(2.1).timeout
+	axeman.status_controller.remove_status(&"armored_axeman_armor_guard")
+	_check(axeman.status_controller.get_vfx(&"armored_axeman_armor_guard") == null
+		and is_instance_valid(guard_vfx) and not guard_vfx.is_playing() and not guard_vfx.visible
+		and axeman.visual.material == body_material, "盔甲护身结束后立即停止并隐藏特效")
+	await get_tree().process_frame
+	_check(not is_instance_valid(guard_vfx), "盔甲护身结束后释放特效节点")
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_action_framework() -> void:
+	print("\n[技能框架] 友军目标、地点目标与施放实例")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"priest")
+	GameState.set_slot(0, 1, &"soldier")
+	GameState.set_slot(1, 0, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var priest: Unit = null
+	var patient: Unit = null
+	var enemy: Unit = null
+	var ally_action: CombatActionDefinition
+	for unit in battle.units:
+		unit.brain.enabled = false
+		if unit.team == 1:
+			enemy = unit
+		elif unit.definition.unit_id == &"priest":
+			priest = unit
+		else:
+			patient = unit
+	_check(priest != null and patient != null and enemy != null, "目标规则测试生成双方单位")
+	if priest != null and patient != null and enemy != null:
+		patient.hp = patient.max_hp * 0.5
+		var heal_effect := ActionEffectDefinition.new()
+		heal_effect.kind = ActionEffectDefinition.Kind.HEAL
+		heal_effect.shape = ActionEffectDefinition.Shape.SINGLE
+		heal_effect.trigger_frame = 0
+		heal_effect.heal_amount = 20.0
+		ally_action = CombatActionDefinition.new()
+		ally_action.action_id = &"test_ally_heal"
+		ally_action.display_name = "定向治疗测试"
+		ally_action.category = CombatActionDefinition.Category.SUPPORT
+		ally_action.target_mode = CombatActionDefinition.TargetMode.ALLY
+		ally_action.animation = &"heal"
+		ally_action.action_range = 1000.0
+		ally_action.priority = 50
+		ally_action.requires_wounded_ally = true
+		ally_action.effects = [heal_effect]
+		priest.actions = [ally_action]
+		priest.brain.enabled = true
+		priest.brain.force_think()
+		priest.brain.enabled = false
+		priest.brain.intent = UnitBrain.Intent.IDLE
+		_check(priest.planned_action == ally_action and priest.planned_target == patient,
+			"AI 将友军治疗指向受伤队友")
+		_check(ActionActivation.reason(priest, ally_action, enemy).contains("阵营")
+			and ActionActivation.reason(priest, ally_action, patient).is_empty(),
+			"统一施放检查拒绝敌方目标并接受友军目标")
+		var before_heal := patient.hp
+		priest.state_machine.transition_to(&"action", true)
+		await get_tree().create_timer(0.3).timeout
+		_check(patient.hp > before_heal and priest.current_cast != null and priest.current_cast.target == patient,
+			"友军治疗实际命中计划目标，并创建独立施放实例")
+		await get_tree().create_timer(0.7).timeout
+		_check(priest.current_cast == null, "动作结束后释放施放实例")
+
+		var damage_effect := ActionEffectDefinition.new()
+		damage_effect.kind = ActionEffectDefinition.Kind.DAMAGE
+		damage_effect.shape = ActionEffectDefinition.Shape.CIRCLE
+		damage_effect.trigger_frame = 0
+		damage_effect.radius = 45.0
+		damage_effect.damage_ratio = 1.0
+		var point_action := CombatActionDefinition.new()
+		point_action.action_id = &"test_point_blast"
+		point_action.display_name = "地点范围测试"
+		point_action.category = CombatActionDefinition.Category.SKILL
+		point_action.target_mode = CombatActionDefinition.TargetMode.POINT
+		point_action.animation = &"attack_01"
+		point_action.action_range = 1000.0
+		point_action.effects = [damage_effect]
+		priest.actions = [point_action]
+		priest.brain.enabled = true
+		priest.brain.force_think()
+		priest.brain.enabled = false
+		priest.brain.intent = UnitBrain.Intent.IDLE
+		_check(priest.planned_action == point_action and priest.planned_has_point and priest.planned_point.distance_to(enemy.global_position) < 0.1,
+			"AI 为地点范围技能选中敌人位置")
+		priest.target = enemy
+		priest.planned_action = point_action
+		priest.planned_point = enemy.global_position
+		priest.planned_has_point = true
+		var expected := ActionTargetQuery.enemies(priest, damage_effect, enemy, Vector2.ZERO, priest.planned_point, true)
+		_check(expected.has(enemy) and ActionActivation.reason(priest, point_action, enemy, Vector2.ZERO, priest.planned_point, true).is_empty(),
+			"地点目标查询与施放检查都接受所选敌人位置")
+		_check(ActionActivation.reason(priest, point_action, enemy) == "缺少施放地点",
+			"未选施放地点时不会误用坐标原点")
+		_check(ActionActivation.reason(priest, point_action, enemy, Vector2.ZERO, priest.global_position + Vector2(2000.0, 0.0), true) == "地点超出范围",
+			"地点目标超出技能范围时被拒绝")
+		var before_damage := enemy.hp
+		priest.state_machine.transition_to(&"action", true)
+		await get_tree().create_timer(0.3).timeout
+		_check(enemy.hp < before_damage, "地点范围伤害实际命中查询到的目标")
+		await get_tree().create_timer(0.7).timeout
+		var self_effect := ActionEffectDefinition.new()
+		self_effect.kind = ActionEffectDefinition.Kind.STATUS
+		self_effect.shape = ActionEffectDefinition.Shape.SELF
+		self_effect.status_id = &"slow"
+		self_effect.status_duration = 1.0
+		self_effect.status_power = 0.6
+		var self_action := CombatActionDefinition.new()
+		self_action.action_id = &"test_self_status"
+		self_action.target_mode = CombatActionDefinition.TargetMode.SELF
+		self_action.animation = &"heal"
+		self_action.effects = [self_effect]
+		priest.planned_action = self_action
+		priest.state_machine.transition_to(&"action", true)
+		await get_tree().create_timer(0.2).timeout
+		_check(priest.status_controller.has_status(&"slow") and not enemy.status_controller.has_status(&"slow"),
+			"自身形状状态只施加给施法者")
+	await get_tree().create_timer(1.0).timeout
+	if priest != null and ally_action != null:
+		var stale_target := Unit.new()
+		priest.actions = [ally_action]
+		priest.planned_action = ally_action
+		priest.planned_target = stale_target
+		battle.hud.set_selected_unit(priest)
+		stale_target.free()
+		var stale_reason := ActionActivation.reason(priest, ally_action, stale_target)
+		battle.hud._update_inspector()
+		_check(stale_reason == "目标无效" and not priest.can_execute_planned_action()
+			and battle.hud.skill_status.text.contains("目标无效"),
+			"目标释放后 HUD 与施放检查安全返回目标无效")
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
@@ -1179,6 +2712,7 @@ func _test_skill_effects() -> void:
 			var before_hp: float = patient.hp
 			priest.target = enemy
 			priest.planned_action = heal_action
+			priest.planned_target = patient
 			priest.state_machine.transition_to(&"action", true)
 			await get_tree().create_timer(1.0).timeout
 			_check(patient.hp > before_hp, "圣光普照治疗队友")
@@ -1247,7 +2781,7 @@ func _test_skill_effects() -> void:
 	if orc != null and bear != null and far_enemy != null:
 		for unit in cc_battle.units:
 			unit.brain.enabled = false
-		# 目标太远时，贯甲突刺不应参与决策（它是自身圆形 AOE）。
+		# 目标太远时，贯甲突刺不应参与决策（它是朝向目标的直线 AOE）。
 		orc.position = Vector2(700, 650)
 		bear.position = Vector2(700, 300)
 		far_enemy.position = Vector2(1200, 300)
@@ -1277,23 +2811,168 @@ func _test_skill_effects() -> void:
 				"贯甲突刺造成伤害与击退")
 			_check(bear.stun_time <= 0.0, "贯甲突刺不再造成眩晕")
 			_check(far_enemy.stun_time <= 0.0 and is_equal_approx(far_enemy.hp, far_hp),
-				"贯甲突刺不命中圆形范围外敌人")
+				"贯甲突刺不命中直线范围外敌人")
 
 		# 暂停时 HUD 应继续处理点击选人。
 		get_tree().paused = true
 		if cc_battle.hud != null and bear != null:
-			var world_point := bear.global_position + Vector2(0, -30)
-			var screen_point: Vector2 = cc_battle.get_global_transform_with_canvas() * world_point
 			var click := InputEventMouseButton.new()
 			click.button_index = MOUSE_BUTTON_LEFT
 			click.pressed = true
-			click.position = screen_point
+			click.position = cc_battle.unit_screen_position(bear)
 			cc_battle.hud._unhandled_input(click)
 			_check(cc_battle.selected_unit == bear, "暂停时仍可通过 HUD 点击切换观察镜")
 		get_tree().paused = false
 	await get_tree().create_timer(2.6).timeout
 	GameState.reset_lineups()
 	cc_battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_armored_orc_kit() -> void:
+	print("\n[重甲兽人] 直线贯甲/护盾格挡/被动再生")
+	var definition := UnitCatalog.get_definition(&"armored_orc")
+	var bash: CombatActionDefinition = null
+	var block: CombatActionDefinition = null
+	var quakeslam: CombatActionDefinition = null
+	for action in definition.actions:
+		if action.action_id == &"armored_orc_bash":
+			bash = action
+		elif action.action_id == &"armored_orc_block":
+			block = action
+		elif action.action_id == &"armored_orc_quakeslam":
+			quakeslam = action
+	_check(bash != null and block != null and quakeslam != null, "重甲兽人技能数据齐全")
+	var bash_damage: ActionEffectDefinition = null
+	var bash_displace: ActionEffectDefinition = null
+	if bash != null:
+		for effect in bash.effects:
+			if effect.kind == ActionEffectDefinition.Kind.DAMAGE:
+				bash_damage = effect
+			elif effect.kind == ActionEffectDefinition.Kind.DISPLACE:
+				bash_displace = effect
+	_check(bash_damage != null and bash_damage.shape == ActionEffectDefinition.Shape.RECT
+		and bash_damage.length > 0.0 and bash_damage.width > 0.0
+		and bash_damage.ignore_shield,
+		"贯甲突刺是矩形直线伤害并忽略护盾")
+	_check(bash != null and bash.target_mode == CombatActionDefinition.TargetMode.ENEMY
+		and bash_damage != null and is_equal_approx(bash.action_range, bash_damage.length),
+		"贯甲突刺以敌人为方向目标，释放距离与直线长度一致")
+	_check(bash_displace != null
+		and bash_displace.shape == ActionEffectDefinition.Shape.RECT
+		and bash_damage != null
+		and is_equal_approx(bash_displace.length, bash_damage.length)
+		and is_equal_approx(bash_displace.width, bash_damage.width),
+		"贯甲突刺的击退范围与伤害直线一致")
+	var block_effect: ActionEffectDefinition = block.effects[0] if block != null and not block.effects.is_empty() else null
+	_check(block_effect != null and block_effect.kind == ActionEffectDefinition.Kind.SHIELD
+		and is_equal_approx(block_effect.shield_self_ratio, 0.2)
+		and block_effect.duration > 0.0,
+		"格挡改为立即获得 20% 最大生命护盾")
+	_check(block_effect != null and block_effect.kind != ActionEffectDefinition.Kind.GUARD,
+		"格挡不再使用免伤 GUARD 效果")
+	var quake_damage: ActionEffectDefinition = null
+	var quake_stun: ActionEffectDefinition = null
+	if quakeslam != null:
+		for effect in quakeslam.effects:
+			if effect.kind == ActionEffectDefinition.Kind.DAMAGE:
+				quake_damage = effect
+			elif effect.kind == ActionEffectDefinition.Kind.STATUS:
+				quake_stun = effect
+	_check(quake_damage != null and quake_damage.shape == ActionEffectDefinition.Shape.CIRCLE
+		and quake_damage.center_on_self and is_equal_approx(quake_damage.radius, 150.0)
+		and quake_stun != null and is_equal_approx(quake_stun.status_duration, 1.0),
+		"裂地盾击保持自身圆形 1.8 AD 与 1 秒眩晕")
+	var passive := definition.passive
+	_check(passive != null and is_equal_approx(passive.hp_regen_ratio_per_second, 0.02),
+		"重甲兽人被动每秒回复 2% 最大生命")
+	_check(definition.skill_description_text().contains("最大生命 20% 的护盾")
+		and definition.skill_description_text().contains("每秒回复 2% 最大生命"),
+		"技能详情显示护盾格挡与被动回复数值")
+
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"armored_orc")
+	GameState.set_slot(1, 0, &"werebear")
+	GameState.set_slot(1, 1, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var orc: Unit = null
+	var bear: Unit = null
+	var soldier: Unit = null
+	for unit in battle.units:
+		unit.brain.enabled = false
+		if unit.team == 0:
+			orc = unit
+		elif unit.definition.unit_id == &"werebear":
+			bear = unit
+		else:
+			soldier = unit
+	_check(orc != null and bear != null and soldier != null, "重甲兽人测试生成双方单位")
+	if orc == null or bear == null or soldier == null or bash == null or block == null:
+		GameState.reset_lineups()
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	orc.position = Vector2(700, 650)
+	bear.position = Vector2(790, 650)
+	soldier.position = Vector2(700, 820)
+
+	# 格挡：低血量时立即获得护盾，并且不再进入免伤状态。
+	orc.hp = orc.max_hp * 0.5
+	orc.health_bar.set_ratio(0.5)
+	orc.target = bear
+	orc.planned_action = block
+	orc.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.2).timeout
+	_check(orc.guard_time <= 0.0, "格挡期间不再进入无敌免伤")
+	_check(is_equal_approx(orc.shield, orc.max_hp * 0.2) and orc.shield_time > 0.0,
+		"格挡立即获得 20% 最大生命护盾")
+	var hp_with_shield := orc.hp
+	var shield_before_hit := orc.shield
+	orc.take_damage(10.0, bear)
+	_check(is_equal_approx(orc.hp, hp_with_shield) and orc.shield < shield_before_hit,
+		"护盾先于生命吸收伤害")
+
+	# 被动：每秒按最大生命 2% 回复。
+	orc.hp = orc.max_hp * 0.5
+	orc.health_bar.set_ratio(0.5)
+	var hp_before_regen := orc.hp
+	orc._physics_process(1.0)
+	_check(is_equal_approx(orc.hp, hp_before_regen + orc.max_hp * 0.02),
+		"被动每秒回复 2% 最大生命")
+	# 等格挡动作结束，避免与同状态的贯甲突刺冲突。
+	await get_tree().create_timer(1.1).timeout
+
+	# 贯甲突刺：直线命中并击退，护盾不吸收伤害，直线外敌人不受影响。
+	orc.hp = orc.max_hp
+	orc.health_bar.set_ratio(1.0)
+	orc.shield = 0.0
+	orc.shield_time = 0.0
+	bear.shield = 20.0
+	bear.shield_time = 10.0
+	bear.health_bar.set_shield_ratio(20.0 / bear.max_hp)
+	soldier.shield = 20.0
+	soldier.shield_time = 10.0
+	var bear_hp := bear.hp
+	var bear_shield := bear.shield
+	var soldier_hp := soldier.hp
+	var soldier_shield := soldier.shield
+	var bear_x := bear.global_position.x
+	orc.target = bear
+	orc.planned_action = bash
+	orc.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.7).timeout
+	_check(bear.hp < bear_hp, "贯甲突刺对直线上的敌人造成伤害")
+	_check(is_equal_approx(bear.shield, bear_shield), "贯甲突刺无视并保留目标护盾")
+	_check(bear.global_position.x > bear_x, "贯甲突刺击退直线上的敌人")
+	_check(is_equal_approx(soldier.hp, soldier_hp) and is_equal_approx(soldier.shield, soldier_shield),
+		"贯甲突刺不命中直线外的敌人")
+
+	await get_tree().create_timer(1.5).timeout
+	GameState.reset_lineups()
+	battle.queue_free()
 	await get_tree().process_frame
 
 
@@ -1420,10 +3099,11 @@ func _test_status_framework() -> void:
 	print("\n[状态] 定义/叠加/中毒爆发/图标")
 	var stun_def := StatusCatalog.get_definition(&"stun")
 	var slow_def := StatusCatalog.get_definition(&"slow")
+	var haste_def := StatusCatalog.get_definition(&"haste")
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 5, "状态目录包含 5 种状态")
+	_check(StatusCatalog.count() == 22, "状态目录包含 22 种状态（含通用属性增益与减益）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,
@@ -1479,6 +3159,12 @@ func _test_status_framework() -> void:
 	await get_tree().process_frame
 	_check(battle.hud.status_row.visible and battle.hud.status_row.get_child_count() > 0,
 		"观察镜显示状态图标")
+	var status_icon := battle.hud.status_row.get_child(0) as Control
+	var initial_tooltip := status_icon.tooltip_text
+	await get_tree().create_timer(0.22, true, true).timeout
+	_check(is_instance_valid(status_icon) and battle.hud.status_row.get_child(0) == status_icon
+		and status_icon.tooltip_text != initial_tooltip,
+		"状态倒计时刷新时复用图标，悬停不会因重建中断")
 	victim.status_controller.clear_all()
 	await get_tree().process_frame
 
@@ -1500,12 +3186,58 @@ func _test_status_framework() -> void:
 	victim.status_controller.clear_all()
 
 	# 减速：0.5 比 0.7 更强，0.8 不会覆盖 0.5。
-	victim.status_controller.apply(slow_def, source, {"duration": 2.0, "power": 0.7})
-	victim.status_controller.apply(slow_def, source, {"duration": 2.0, "power": 0.5})
-	victim.status_controller.apply(slow_def, source, {"duration": 2.0, "power": 0.8})
+	victim.status_controller.apply(slow_def, source, {"duration": 0.55, "power": 0.7})
+	var slow_fx := victim.status_controller.get_vfx(&"slow")
+	victim.status_controller.apply(slow_def, source, {"duration": 0.55, "power": 0.5})
+	victim.status_controller.apply(slow_def, source, {"duration": 0.55, "power": 0.8})
 	_check(is_equal_approx(victim.status_controller.modify_stat(&"move_speed", 1.0), 0.5),
 		"减速只保留最强倍率")
+	_check(is_instance_valid(slow_fx) and victim.status_controller.get_vfx(&"slow") == slow_fx,
+		"减速来源变化时继续使用同一个特效实例")
+	victim.position += Vector2(18, -12)
+	await get_tree().create_timer(0.16, true, true).timeout
+	var chevrons := slow_fx.get_node("Chevrons") as Sprite2D if is_instance_valid(slow_fx) else null
+	_check(is_instance_valid(chevrons) and chevrons.frame > 0
+		and slow_fx.global_position.is_equal_approx(victim.global_position),
+		"减速箭纹播放时跟随目标脚底移动")
+	await get_tree().create_timer(0.45, true, true).timeout
+	await get_tree().process_frame
+	_check(not is_instance_valid(slow_fx) and not victim.status_controller.has_status(&"slow")
+		and is_equal_approx(victim.status_controller.modify_stat(&"move_speed", 1.0), 1.0),
+		"减速自然到期时移除特效并恢复移速")
+	victim.status_controller.apply(slow_def, source, {"duration": 1.0})
+	var cleared_fx := victim.status_controller.get_vfx(&"slow")
 	victim.status_controller.clear_all()
+	await get_tree().process_frame
+	_check(not is_instance_valid(cleared_fx) and not victim.status_controller.has_status(&"slow"),
+		"提前清除减速会同步移除特效")
+
+	var haste_effect := ActionEffectDefinition.new()
+	haste_effect.status_id = &"haste"
+	haste_effect.status_duration = 0.55
+	victim.apply_status(haste_effect, victim)
+	var haste_fx := victim.status_controller.get_vfx(&"haste")
+	_check(haste_def != null and haste_def.icon != null and is_instance_valid(haste_fx)
+		and is_equal_approx(victim.status_controller.power(&"haste"), 1.2),
+		"通用加速通过技能状态生效，默认提供 20% 移速和图标")
+	victim.status_controller.apply(haste_def, source, {"duration": 0.55, "power": 1.5})
+	victim.status_controller.apply(haste_def, victim, {"duration": 0.55, "power": 1.3})
+	var movement_start := victim.position
+	victim.move_step(Vector2.RIGHT, 0.1)
+	_check(is_equal_approx(victim.position.x - movement_start.x, victim.move_speed * 0.15)
+		and victim.status_controller.get_vfx(&"haste") == haste_fx
+		and haste_fx.global_position.is_equal_approx(victim.global_position),
+		"加速取最高倍率，实战步进变快并沿用随身特效")
+	victim.status_controller.apply(slow_def, source, {"duration": 1.0, "power": 0.5})
+	_check(is_equal_approx(victim.status_controller.modify_stat(&"move_speed", 1.0), 0.75),
+		"加速与减速共存时相乘")
+	await get_tree().create_timer(0.62, true, true).timeout
+	await get_tree().process_frame
+	_check(not is_instance_valid(haste_fx) and not victim.status_controller.has_status(&"haste")
+		and is_equal_approx(victim.status_controller.modify_stat(&"move_speed", 1.0), 0.5),
+		"加速结束时移除金色特效，剩余减速继续生效")
+	victim.status_controller.clear_all()
+	_test_attribute_badges(victim, source)
 
 	# 中毒：叠到 5 层立即结算剩余 DoT 并移除。
 	victim.hp = victim.max_hp
@@ -1529,8 +3261,41 @@ func _test_status_framework() -> void:
 	await get_tree().process_frame
 
 
-func _test_basic_no_interrupt() -> void:
-	print("\n[7] 普攻不打断/不击退")
+func _test_attribute_badges(victim: Unit, source: Unit) -> void:
+	var controller := victim.status_controller
+	var badges := victim.get_node("StatusVisuals/AttributeBadges") as UnitAttributeBadges
+	for id: StringName in [&"attack_up", &"attack_down", &"attack_speed_up", &"attack_speed_down",
+			&"armor_up", &"armor_down", &"haste", &"slow", &"stun"]:
+		controller.apply(StatusCatalog.get_definition(id), source)
+	_check(badges.visible and badges.directions == PackedInt32Array([3, 3, 3, 3])
+		and badges.position.y > 0.0,
+		"四项属性各显示一枚徽记，同时保留同一属性的增益和减益")
+	_check(not controller.get_vfx(&"slow").visible and not controller.get_vfx(&"haste").visible
+		and controller.get_vfx(&"stun").visible,
+		"相反的移速特效共存时只保留双箭头，眩晕表现仍可见")
+
+	controller.remove_status(&"haste")
+	_check(badges.directions[3] == UnitAttributeBadges.DOWN and controller.get_vfx(&"slow").visible,
+		"一侧移速变化消失时恢复剩余的脚环和单向徽记")
+	var weaken := ActionEffectDefinition.new()
+	weaken.status_id = &"armor_down"
+	weaken.status_power = -0.25
+	controller.remove_status(&"armor_down")
+	victim.apply_status(weaken, source)
+	_check(is_equal_approx(controller.power(&"armor_down"), -0.25)
+		and is_equal_approx(controller.modify_stat(&"armor", 0.4), 0.25),
+		"护甲减益接受技能覆盖的负数，与护甲提升同时计算")
+	controller.clear_all()
+	controller.apply(StatusCatalog.get_definition(&"swordsman_zeal"), victim)
+	controller.apply(StatusCatalog.get_definition(&"swordsman_chase_haste"), victim)
+	_check(badges.directions == PackedInt32Array([0, UnitAttributeBadges.UP, 0, 0]),
+		"既有热诚和追击步自动合并成一枚攻速增益徽记")
+	controller.clear_all()
+	_check(not badges.visible, "清除状态后单位下方没有残留徽记")
+
+
+func _test_damage_no_interrupt() -> void:
+	print("\n[7] 普通伤害不打断动作")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"soldier")
@@ -1548,29 +3313,83 @@ func _test_basic_no_interrupt() -> void:
 	if attacker != null and target != null:
 		attacker.brain.enabled = false
 		target.brain.enabled = false
-		target._flinch_cooldown = 0.0
-		target.state_machine.transition_to(&"idle", true)
+		attacker.position = battle.field_min + Vector2(220.0, 180.0)
+		target.position = attacker.position + Vector2(55.0, 0.0)
+		target.target = attacker
+		target.planned_action = target.actions[0]
+		target.state_machine.transition_to(&"action", true)
+		_check(target.state_machine.current_name == &"action", "受击前目标正在执行普攻")
+		var cast := target.current_cast
 		var start_position := target.global_position
-		target.take_damage(target.max_hp * 0.2, attacker, null, false)
-		_check(target.state_machine.current_name != &"hurt", "普通攻击不进入受击硬直")
+		target.take_damage(target.max_hp * 0.2, attacker)
+		_check(target.state_machine.current_name == &"action" and target.current_cast == cast,
+			"普通伤害不中断正在执行的动作")
 		_check(target.global_position.distance_to(start_position) < 0.01, "普通攻击不产生击退")
-		target.hp = target.max_hp
-		target._flinch_cooldown = 0.0
-		target.state_machine.transition_to(&"idle", true)
-		target.take_damage(target.max_hp * 0.2, attacker, null, true)
-		_check(target.state_machine.current_name == &"hurt", "技能伤害仍然可以造成受击硬直")
+		var skill: CombatActionDefinition = attacker.actions[1]
+		target.take_damage(attacker.attack_damage * skill.effects[0].damage_ratio, attacker)
+		_check(target.state_machine.current_name == &"action" and target.current_cast == cast,
+			"技能伤害也不中断正在执行的动作")
 	await get_tree().create_timer(3.2).timeout
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
 
 
+func _test_knight_swordsman_skills_no_cc() -> void:
+	print("\n[骑士/剑士] 指定技能命中时不打断、不击退")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight")
+	GameState.set_slot(0, 1, &"swordsman")
+	GameState.set_slot(1, 0, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+
+	var target: Unit = battle.living_units(1)[0]
+	target.brain.enabled = false
+	target.position = battle.field_min + Vector2(330.0, 180.0)
+	var tested := 0
+	for attacker: Unit in battle.living_units(0):
+		attacker.brain.enabled = false
+		attacker.position = target.position - Vector2(55.0, 0.0)
+		attacker.target = target
+		for action: CombatActionDefinition in attacker.actions:
+			if action.action_id not in [&"knight_cleave", &"knight_flame_slash", &"swordsman_triple", &"swordsman_flurry"]:
+				continue
+			tested += 1
+			target.hp = target.max_hp
+			target.target = attacker
+			target.planned_action = target.actions[0]
+			target.action_cooldowns.clear()
+			target.state_machine.transition_to(&"action", true)
+			var target_cast := target.current_cast
+			var start_position := target.global_position
+			attacker.mana = attacker.max_mana
+			attacker.planned_action = action
+			attacker.planned_direction = Vector2.RIGHT
+			attacker.state_machine.transition_to(&"action", true)
+			for effect in action.effects:
+				attacker.resolve_action_effect(action, effect)
+			_check(target.hp < target.max_hp, "%s 对目标造成实际伤害" % action.display_name)
+			_check(target_cast != null and target.current_cast == target_cast
+				and target.state_machine.current_name == &"action", "%s 未打断目标动作" % action.display_name)
+			_check(target.global_position.distance_to(start_position) < 0.01, "%s 未击退目标" % action.display_name)
+			attacker.state_machine.transition_to(&"idle", true)
+			target.state_machine.transition_to(&"idle", true)
+	_check(tested == 4, "骑士与剑士各验证两个指定技能")
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
 func _test_necromancer() -> void:
-	print("\n[8] 死灵法师镰刀/鬼火/召唤")
+	print("\n[8] 死灵法师镰刀/幽火/召唤/暗影触手")
 	var necro_definition := UnitCatalog.get_definition(&"necromancer")
 	var scythe: CombatActionDefinition = null
 	var ghostfire: CombatActionDefinition = null
 	var summon: CombatActionDefinition = null
+	var tendrils: CombatActionDefinition = null
 	for action in necro_definition.actions:
 		if action.action_id == &"necromancer_basic":
 			scythe = action
@@ -1578,55 +3397,96 @@ func _test_necromancer() -> void:
 			ghostfire = action
 		elif action.action_id == &"necromancer_summon":
 			summon = action
-	_check(scythe != null and ghostfire != null and summon != null, "死灵法师拥有镰刀/鬼火/召唤三个 Action")
-	if scythe == null or ghostfire == null or summon == null:
+		elif action.action_id == &"necromancer_shadow_tendrils":
+			tendrils = action
+	_check(scythe != null and ghostfire != null and summon != null and tendrils != null, "死灵法师拥有四个指定动作")
+	if scythe == null or ghostfire == null or summon == null or tendrils == null:
 		return
 	_check(scythe.animation == &"attack_01" and scythe.action_range <= 80.0
-		and not scythe.effects.is_empty() and scythe.effects[0].kind == ActionEffectDefinition.Kind.DAMAGE,
-		"近战使用 attack01 镰刀")
-	_check(ghostfire.animation == &"attack_02" and ghostfire.min_range >= 100.0
+		and not scythe.effects.is_empty() and scythe.effects[0].shape == ActionEffectDefinition.Shape.CONE
+		and is_equal_approx(scythe.effects[0].damage_ratio, 1.0),
+		"attack01 小扇形造成 1.0 AD")
+	_check(is_equal_approx(necro_definition.attack_range, scythe.action_range)
+		and not necro_definition.is_ranged() and is_equal_approx(ghostfire.action_range, 525.0),
+		"死灵法师按镰刀射程近战移动，幽火保留远程施法距离")
+	_check(ghostfire.animation == &"attack_02" and ghostfire.category == CombatActionDefinition.Category.SKILL
 		and not ghostfire.effects.is_empty() and ghostfire.effects[0].kind == ActionEffectDefinition.Kind.DAMAGE
-		and ghostfire.effects[0].effect_scene != null,
-		"远程使用 attack02 在目标位置生成鬼火")
-	_check(not summon.effects.is_empty() and summon.effects[0].kind == ActionEffectDefinition.Kind.SUMMON
+		and ghostfire.effects[0].shape == ActionEffectDefinition.Shape.CIRCLE
+		and is_equal_approx(ghostfire.effects[0].damage_ratio, 0.6) and ghostfire.effects[0].effect_scene != null,
+		"attack02 幽火圆形范围造成 0.6 AD")
+	_check(summon.animation == &"summon" and not summon.effects.is_empty() and summon.effects[0].kind == ActionEffectDefinition.Kind.SUMMON
 		and summon.effects[0].summon_count == 1 and summon.effects[0].effect_scene != null,
-		"大招召唤 1 只骷髅并带魔法阵特效")
+		"summon 动画召唤 1 只骷髅并带魔法阵特效")
+	_check(tendrils.animation == &"attack_02" and not tendrils.effects.is_empty()
+		and tendrils.effects[0].shape == ActionEffectDefinition.Shape.CIRCLE
+		and tendrils.effects[0].status_id == &"shadow_tendrils"
+		and is_equal_approx(tendrils.effects[0].status_duration, 3.0)
+		and is_equal_approx(tendrils.effects[0].status_power_attack_ratio, 1.2)
+		and tendrils.effects[0].effect_scene != null,
+		"attack02 暗影触手在圆形范围持续 3 秒，每秒 1.2 AD")
 
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"necromancer")
 	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"soldier")
 	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
 	add_child(battle)
 	await get_tree().process_frame
 	var necro: Unit = null
 	var target: Unit = null
+	var second_target: Unit = null
 	for unit in battle.units:
 		if unit.team == 0:
 			necro = unit
-		else:
+		elif target == null:
 			target = unit
+		else:
+			second_target = unit
 	if necro != null and target != null:
 		for unit in battle.units:
 			unit.brain.enabled = false
+		target.max_hp = 1000.0
+		target.hp = target.max_hp
+		if second_target != null:
+			second_target.max_hp = 1000.0
+			second_target.hp = second_target.max_hp
 		necro.target = target
 		necro.position = Vector2(700, 650)
 		target.position = necro.position + Vector2(60, 0)
-		_check(not necro.is_target_in_action_range(ghostfire, 0.0) and necro.is_target_in_action_range(scythe, 0.0),
-			"近距离鬼火不可用，镰刀可用")
+		_check(necro.is_target_in_action_range(ghostfire, 0.0) and necro.is_target_in_action_range(scythe, 0.0),
+			"近距离幽火和镰刀均可用")
 		target.position = necro.position + Vector2(160, 0)
 		_check(necro.is_target_in_action_range(ghostfire, 0.0) and not necro.is_target_in_action_range(scythe, 0.0),
-			"远距离鬼火可用，镰刀不可用")
+			"远距离幽火可用，镰刀不可用")
+		if second_target != null:
+			second_target.position = target.position + Vector2(35, 0)
+			var cone_targets := ActionTargetQuery.enemies(necro, scythe.effects[0], target, Vector2.RIGHT)
+			_check(cone_targets.is_empty(), "镰刀扇形不命中远处敌人")
 
 		# 鬼火实际发射并命中。
 		var hp_before := target.hp
+		var second_hp_before := second_target.hp if second_target != null else 0.0
 		var projectiles_before := battle.projectiles_fired
+		necro.mana = necro.max_mana
 		necro.target = target
 		necro.planned_action = ghostfire
 		necro.state_machine.transition_to(&"action", true)
 		await get_tree().create_timer(0.9).timeout
 		_check(battle.projectiles_fired == projectiles_before and target.hp < hp_before,
-			"鬼火直接在目标位置生成并命中，不发射飞行物")
+			"幽火直接在目标位置生成并命中，不发射飞行物")
+		_check(second_target != null and second_target.hp < second_hp_before,
+			"幽火命中圆形范围内的第二个敌人")
+
+		necro.mana = necro.max_mana
+		necro.planned_action = tendrils
+		necro.state_machine.transition_to(&"action", true)
+		await get_tree().create_timer(0.9).timeout
+		_check(target.status_controller.has_tag(&"shadow") and second_target.status_controller.has_tag(&"shadow"),
+			"暗影触手给圆形范围内所有敌人施加持续伤害")
+		var dot_hp_before := target.hp
+		await get_tree().create_timer(0.6).timeout
+		_check(target.hp < dot_hp_before, "暗影触手持续扣血")
 
 		# 召唤完整流程：魔法阵 + 骷髅 summon 动画 + 正常行动。
 		necro.mana = necro.max_mana
@@ -1643,6 +3503,28 @@ func _test_necromancer() -> void:
 		_check(summoned != null and not summoned.brain.enabled, "召唤骷髅先播放 summon 动画")
 		await get_tree().create_timer(1.1).timeout
 		_check(summoned != null and summoned.brain.enabled, "召唤动画结束后骷髅恢复行动")
+		if summoned != null:
+			summoned.brain.enabled = false
+			summoned.position = Vector2(250, 800)
+		# 所有法术冷却时，AI 必须主动走近并用 attack01 普攻。
+		for spell in [ghostfire, summon, tendrils]:
+			necro.action_cooldowns[spell.action_id] = 99.0
+		necro.action_cooldowns[scythe.action_id] = 0.0
+		necro.mana = 0.0
+		var arena_y := (battle.field_min.y + battle.field_max.y) * 0.5
+		necro.position = Vector2(700, arena_y)
+		target.position = Vector2(950, arena_y)
+		target.status_controller.clear_all()
+		target.hp = target.max_hp
+		if second_target != null:
+			second_target.position = Vector2(1250, arena_y + 100.0)
+		var distance_before := necro.global_position.distance_to(target.global_position)
+		var melee_hp_before := target.hp
+		necro.brain.enabled = true
+		await get_tree().create_timer(3.6).timeout
+		_check(necro.global_position.distance_to(target.global_position) < distance_before - 100.0,
+			"法术冷却时死灵法师主动接近敌人")
+		_check(target.hp < melee_hp_before, "接近后以镰刀普攻命中敌人")
 	await get_tree().create_timer(3.2).timeout
 	GameState.reset_lineups()
 	battle.queue_free()
@@ -1690,6 +3572,199 @@ func _test_stat_editor() -> void:
 	await get_tree().process_frame
 
 
+func _test_tactical_movement() -> void:
+	print("\n[战术走位] 接敌、换位与场边撤退")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"soldier")
+	GameState.set_slot(0, 1, &"soldier")
+	GameState.set_slot(0, 2, &"lancer")
+	GameState.set_slot(0, 3, &"archer")
+	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	var allies := battle.living_units(0)
+	var enemies := battle.living_units(1)
+	var first := allies[0]
+	var second := allies[1]
+	var lancer := allies[2]
+	var archer := allies[3]
+	var enemy := enemies[0]
+	var alternative := enemies[1]
+	for unit in battle.units:
+		unit.brain.enabled = false
+	var center := (battle.field_min + battle.field_max) * 0.5
+	enemy.position = center
+	alternative.position = center + Vector2(0.0, 205.0)
+	first.position = center + Vector2(-270.0, 0.0)
+	second.position = center + Vector2(-270.0, -34.0)
+	lancer.position = center + Vector2(-315.0, 175.0)
+	archer.position = center + Vector2(-470.0, 160.0)
+	first.target = enemy
+	second.target = enemy
+	var first_goal := first.movement_goal()
+	first.brain.intent = UnitBrain.Intent.ADVANCE
+	first.brain.movement_target = enemy
+	first.brain.movement_destination = first_goal
+	var second_goal := second.movement_goal()
+	_check(first_goal.distance_to(second_goal) > 65.0
+		and first_goal.distance_to(center) < first.basic_target_reach()
+		and second_goal.distance_to(center) < second.basic_target_reach(),
+		"同一目标预留不同接敌角度，两处都在近战有效射程内")
+
+	lancer.brain._observe()
+	lancer.brain._judge()
+	_check(lancer.brain.target == alternative, "已有两名队友接敌时，另一名近战优先找空位更多的目标")
+	alternative.position = center + Vector2(420.0, 200.0)
+	second.position = center + Vector2(-51.0, -23.0)
+	first.position = center + Vector2(-105.0, 28.0)
+	for action in second.actions:
+		second.action_cooldowns[action.action_id] = 3.0
+	second.brain.think()
+	var start_position := second.position
+	battle.battle_active = true
+	for index in 10:
+		await get_tree().physics_frame
+	_check(second.brain.intent == UnitBrain.Intent.REPOSITION and second.position.distance_to(start_position) > 5.0,
+		"近战已在射程内时会利用冷却调整受挤的站位")
+	battle.battle_active = false
+
+	lancer.position = center + Vector2(-220.0, -160.0)
+	lancer.target = enemy
+	var lance_goal := lancer.movement_goal()
+	_check(lance_goal.distance_to(center) > first_goal.distance_to(center) + 24.0,
+		"枪兵以更长的普攻距离接敌")
+
+	archer.position = Vector2(battle.field_min.x + 4.0, center.y)
+	enemy.position = archer.position + Vector2(90.0, 0.0)
+	alternative.position = center + Vector2(450.0, 195.0)
+	for action in archer.actions:
+		if action.category != CombatActionDefinition.Category.BASIC:
+			archer.action_cooldowns[action.action_id] = 3.0
+	archer.brain.think()
+	var retreat := archer.brain.movement_destination
+	_check(archer.brain.intent == UnitBrain.Intent.KITE and archer.brain.movement_target == enemy
+		and absf(retreat.y - archer.position.y) > 60.0
+		and retreat.distance_to(enemy.position) > archer.position.distance_to(enemy.position) + 20.0,
+		"远程被逼到场边时选择有空间的斜撤路线")
+	enemy.position = archer.position + Vector2(405.0, 0.0)
+	archer.brain.think()
+	_check(archer.brain.intent == UnitBrain.Intent.ACTION and archer.planned_action != null
+		and archer.planned_action.category == CombatActionDefinition.Category.BASIC,
+		"拉开到安全距离后恢复普攻")
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _check_arena_projection(battle: Battle) -> void:
+	var stage := battle.stage
+	var view_size := battle.get_viewport_rect().size
+	var span := (battle.field_max - battle.field_min) / (view_size / Battle.BASE_SIZE)
+	var training_span := Battle.TRAINING_FIELD_MAX - Battle.TRAINING_FIELD_MIN
+	var screen_min := stage.ground_transform * battle.field_min
+	var screen_max := stage.ground_transform * battle.field_max
+	var viewport := Rect2(Vector2.ZERO, view_size)
+	_check(is_equal_approx(span.x * span.y, 2.0 * training_span.x * training_span.y)
+		and viewport.has_point(screen_min) and viewport.has_point(screen_max),
+		"实战竞技场面积为训练场地的两倍，正交相机覆盖全部边界")
+	var floor_mesh := stage.get_node("Floor") as MeshInstance3D
+	var floor_half_depth := Vector3.BACK * floor_mesh.scale.z * 0.5
+	var floor_top := stage.camera.unproject_position(floor_mesh.position - floor_half_depth)
+	var floor_bottom := stage.camera.unproject_position(floor_mesh.position + floor_half_depth)
+	_check(floor_top.y <= 0.0 and floor_bottom.y >= view_size.y, "竞技场铺地投影覆盖视口的上下边缘")
+	var unit := battle.units[0]
+	var point := unit.global_position
+	var screen := stage.ground_transform * point
+	_check(stage.camera == battle.get_viewport().get_camera_3d()
+		and stage.camera.projection == Camera3D.PROJECTION_ORTHOGONAL,
+		"战斗使用 3D 场景的正交相机")
+	_check(screen.distance_to(stage.camera.unproject_position(stage.ground_to_world(point))) < 0.01
+		and stage.screen_to_ground(screen).distance_to(point) < 0.01
+		and unit.get_global_transform_with_canvas().origin.distance_to(screen) < 0.01,
+		"角色脚点、地面特效与相机投影对齐，屏幕坐标可还原为地面坐标")
+	var east := stage.ground_transform * (point + Vector2(140.0, 0.0))
+	var south := stage.ground_transform * (point + Vector2(0.0, 140.0))
+	_check(is_equal_approx(screen.distance_to(east), 140.0 * view_size.y / stage.camera.size)
+		and screen.distance_to(south) < screen.distance_to(east),
+		"地面同半径的圆随相机投影呈椭圆")
+	var body := stage.actors.get_child(0) as Sprite3D
+	_check(stage.actors.get_child_count() == battle.units.size() and is_instance_valid(body)
+		and body.texture != null and not unit.visual.visible
+		and body.texture_filter == BaseMaterial3D.TEXTURE_FILTER_NEAREST,
+		"每名角色由 3D 像素贴图显示")
+	var ground := body.get_node("GroundVisuals") as UnitGroundVisual3D
+	var shadow := ground.get_node("Shadow") as Sprite3D
+	var ring := ground.get_node("Rings") as MeshInstance3D
+	var shadow_scale := unit.shadow.scale
+	var expected_tint := Color(unit.team_ring.ring_color.darkened(0.57), unit.shadow.self_modulate.a)
+	_check(unit.shadow.texture != null and shadow.texture == unit.shadow.texture
+		and shadow.texture_filter == BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		and shadow.modulate.is_equal_approx(expected_tint)
+		and not shadow.modulate.is_equal_approx(unit.shadow.self_modulate),
+		"角色场景预览和战斗共用影子贴图，战斗换为队伍色")
+	unit.shadow.scale = Vector2(0.6, 0.35)
+	unit.set_selected(true)
+	unit.set_range_overlay_visible(true)
+	ground.sync()
+	_check(not unit.shadow.visible and unit.team_ring.draw_in_3d and unit.selection_ring.draw_in_3d
+		and shadow.render_priority < ring.material_override.render_priority
+		and ring.material_override.render_priority < body.render_priority,
+		"影子和选中圆环都在立绘下方的 3D 地面绘制")
+	var ring_material := ring.material_override as ShaderMaterial
+	_check(is_equal_approx(shadow.global_transform.basis.x.length(), 0.6)
+		and is_equal_approx(shadow.global_transform.basis.y.length(), 0.35)
+		and is_equal_approx(float(ring_material.get_shader_parameter("selection_radius")), unit.selection_ring.radius)
+		and is_equal_approx(float(ring_material.get_shader_parameter("attack_radius")), unit.selection_ring.attack_range),
+		"影子沿用角色场景 Scale，选中圈和调试射程保留实际半径")
+	unit.shadow.scale = shadow_scale
+	unit.set_selected(false)
+	unit.set_range_overlay_visible(false)
+	ground.sync()
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = battle.unit_screen_position(unit)
+	battle._unhandled_input(click)
+	_check(battle.selected_unit == unit, "点击投影后的角色可以选中")
+	battle._select_at(Vector2.ZERO)
+	var left := battle.hud.roster_columns[0]
+	var right := battle.hud.roster_columns[1]
+	_check((screen_min + screen_max).distance_to(view_size) < 0.01
+		and screen_min.x > left.get_global_rect().end.x and screen_max.x < right.global_position.x,
+		"竞技场居中，战斗区域完整落在双方英雄栏之间")
+	_check(not stage.get_node("Sky").visible and not stage.get_node("Walls").visible,
+		"正式对战隐藏上方背景和城墙")
+	_check(left.get_child_count() == battle.team_sizes[0] and right.get_child_count() == battle.team_sizes[1],
+		"双方各显示真实上阵英雄的状态卡")
+	var card := left.get_child(0) as BattleRosterCard
+	var skill := card._skills[0]
+	var before := card.unit.action_cooldown(skill)
+	card.unit.action_cooldowns[skill.action_id] = 4.21
+	card.refresh(false)
+	var portrait := card._portrait.texture as AtlasTexture
+	_check(portrait != null and portrait.atlas == card.unit.definition.portrait
+		and card._skill_timers[0].text == "4.2 s",
+		"英雄卡读取真实头像与技能剩余冷却")
+	_check(card.get_child(0).get_combined_minimum_size().y <= card.size.y,
+		"技能冷却与状态都显示在英雄卡内")
+	card.unit.action_cooldowns[skill.action_id] = before
+	card.pressed.emit()
+	_check(battle.selected_unit == card.unit and battle.hud.inspector.visible,
+		"点击英雄卡可以选中场上对应单位并查看详情")
+	card.pressed.emit()
+	var impact := unit.get_effect_point()
+	battle.spawn_damage_number(impact, 128.0, Color.WHITE)
+	var number := battle.combat_text.get_child(0) as DamageNumber
+	var text_transform := number.get_global_transform_with_canvas()
+	_check(text_transform.origin.distance_to(battle.unit_screen_position(unit)) < 0.01
+		and is_equal_approx(text_transform.x.length(), text_transform.y.length()),
+		"伤害飘字以命中位置为锚点并在屏幕空间保持原比例")
+	number.queue_free()
+
+
+
 func _test_battle() -> void:
 	print("\n[8] 默认阵容自动战斗")
 	_check(InputMap.has_action("range_toggle"), "范围开关已注册输入动作")
@@ -1715,14 +3790,15 @@ func _run_battle(label: String) -> void:
 		return
 	var battle: Battle = scene.instantiate()
 	add_child(battle)
-	var nonzero_units: Array[StringName] = []
+	var wrong_starting_mana: Array[StringName] = []
 	for unit in battle.units:
-		if not is_zero_approx(unit.mana):
-			nonzero_units.append(unit.definition.unit_id)
-	_check(nonzero_units.is_empty(), "%s: 双方英雄入场蓝量均为 0" % label)
+		if not is_equal_approx(unit.mana, unit.definition.starting_mana):
+			wrong_starting_mana.append(unit.definition.unit_id)
+	_check(wrong_starting_mana.is_empty(), "%s: 双方英雄按资源配置获得入场蓝量" % label)
 	await get_tree().process_frame
 
 	if label == "默认阵容":
+		_check_arena_projection(battle)
 		_check(not battle.show_combat_ranges, "范围环默认关闭")
 		battle.toggle_speed()
 		_check(is_equal_approx(Engine.time_scale, 2.0) and battle.hud.speed_button.text == "×2",
@@ -1740,15 +3816,6 @@ func _run_battle(label: String) -> void:
 
 	var states_seen := {}
 	var attack_units := {}
-	var lineup_has_ranged := false
-	for team in 2:
-		for unit_id in GameState.get_lineup(team):
-			if unit_id == null:
-				continue
-			var definition: UnitDefinition = UnitCatalog.get_definition(unit_id)
-			if definition != null and definition.is_ranged() \
-					and definition.projectile_kind != UnitDefinition.ProjectileKind.NONE:
-				lineup_has_ranged = true
 	for unit in battle.units:
 		var record := Callable(self, "_record_state").bind(unit, states_seen, attack_units)
 		unit.state_machine.state_changed.connect(record)
@@ -1768,11 +3835,7 @@ func _run_battle(label: String) -> void:
 	_check(states_seen.get("行动", 0) > 0, "%s: 状态机进入过行动状态" % label)
 	_check(states_seen.get("死亡", 0) > 0, "%s: 状态机进入过死亡状态" % label)
 	_check(states_seen.get("移动", 0) > 0, "%s: 状态机进入过移动状态" % label)
-	_check(states_seen.get("受击", 0) > 0, "%s: 状态机进入过受击状态" % label)
-	if lineup_has_ranged:
-		_check(battle.projectiles_fired > 0, "%s: 远程单位发射过投射物（%d 次）" % [label, battle.projectiles_fired])
-	else:
-		_check(true, "%s: 双方均无远程单位，跳过投射物检查" % label)
+	# 投射物在法师和士兵的固定场景中验证。预设或随机阵容的技能释放会随战况变化。
 	_check(battle.team_damage[0] > 0.0 and battle.team_damage[1] > 0.0, "%s: 双方都造成过伤害" % label)
 
 	var sample: Unit = null
@@ -1781,6 +3844,9 @@ func _run_battle(label: String) -> void:
 			sample = unit
 			break
 	if sample != null:
+		battle.hud.set_selected_unit(sample)
+		battle.hud._update_inspector()
+		_check(battle.hud.inspector.visible, "%s: 战斗结束后仍可安全查看存活单位技能" % label)
 		var snapshot: Dictionary = sample.ai_snapshot()
 		_check(str(snapshot["observe"]) != "尚未观察", "%s: OODA 观察文本已更新" % label)
 		_check(str(snapshot["decide"]) != "尚未决策", "%s: OODA 决策文本已更新" % label)

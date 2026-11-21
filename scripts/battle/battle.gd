@@ -11,11 +11,23 @@ const PROJECTILE_SCENE := preload("res://scenes/battle/projectile.tscn")
 const DAMAGE_NUMBER_SCENE := preload("res://scenes/battle/damage_number.tscn")
 const HIT_SPARK_SCENE := preload("res://scenes/battle/hit_spark.tscn")
 const SLASH_SCENE := preload("res://scenes/battle/slash_effect.tscn")
+const TRAINING_DUMMY_DEFINITION := preload("res://resources/training/training_dummy.tres")
 
 const SETUP_SCENE := "res://scenes/setup/setup_screen.tscn"
 const BASE_SIZE := Vector2(1600.0, 900.0)
-const BASE_FIELD_MIN := Vector2(190.0, 430.0)
-const BASE_FIELD_MAX := Vector2(1410.0, 860.0)
+const TRAINING_FIELD_MIN := Vector2(190.0, 430.0)
+const TRAINING_FIELD_MAX := Vector2(1410.0, 860.0)
+const FIELD_CENTER := (TRAINING_FIELD_MIN + TRAINING_FIELD_MAX) * 0.5
+# 相机保持原倍率，横向留出边距，新增面积主要分配到纵深。
+const ARENA_FIELD_SCALE := Vector2(1.17, 2.0 / 1.17)
+const ARENA_FIELD_HALF_SPAN := (TRAINING_FIELD_MAX - TRAINING_FIELD_MIN) * ARENA_FIELD_SCALE * 0.5
+const BASE_FIELD_MIN := FIELD_CENTER - ARENA_FIELD_HALF_SPAN
+const BASE_FIELD_MAX := FIELD_CENTER + ARENA_FIELD_HALF_SPAN
+const FORMATION_DEPTH_SCALE := 1.35
+
+## 训练模式的固定站位：英雄在左、稻草人在右，保持在中央可视区且避开底部技能栏。
+const TRAINING_HERO_SPOT := Vector2(650.0, 600.0)
+const TRAINING_DUMMY_SPOT := Vector2(980.0, 600.0)
 
 ## 5 个槽位在 1600x900 设计坐标里的位置。槽位即布阵面板中的从上到下 1~5。
 const BASE_FORMATIONS := [
@@ -47,6 +59,14 @@ var action_casts := 0
 var skill_casts := 0
 var action_hits := 0
 
+## 训练模式：不读 GameState 阵容，只生成指定英雄 + 一只不会死亡、不会移动的稻草人。
+## Hero Lab 在 add_child 之前设置 training_mode / training_definition。
+var training_mode := false
+var training_positioning := false
+var training_definition: UnitDefinition
+var training_hero: Unit
+var training_dummy: Unit
+
 var _mvp_name := "无"
 var _mvp_team := -1
 var _mvp_damage := 0.0
@@ -58,9 +78,12 @@ var _viewport_size := Vector2.ZERO
 var _rng := RandomNumberGenerator.new()
 
 @onready var hud: BattleHUD = $HUD
-@onready var units_root: Node2D = $UnitsRoot
-@onready var projectiles_root: Node2D = $Projectiles
-@onready var effects_root: Node2D = $Effects
+@onready var stage: ArenaStage3D = $Stage
+@onready var ground_presentation: CanvasLayer = $GroundPresentation
+@onready var units_root: Node2D = $GroundPresentation/UnitsRoot
+@onready var projectiles_root: Node2D = $GroundPresentation/Projectiles
+@onready var effects_root: Node2D = $GroundPresentation/Effects
+@onready var combat_text: CanvasLayer = $CombatText
 
 
 func _ready() -> void:
@@ -70,8 +93,24 @@ func _ready() -> void:
 	_refresh_layout()
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	hud.bind(self)
-	_spawn_lineups()
-	_run_countdown()
+	if training_mode:
+		hud.visible = false
+		hud.process_mode = Node.PROCESS_MODE_DISABLED
+		if training_definition == null:
+			var roster := UnitCatalog.all()
+			if not roster.is_empty():
+				training_definition = roster[0]
+		if training_definition != null:
+			start_training(training_definition)
+	else:
+		_spawn_lineups()
+		hud.set_roster(units)
+		if BattleTransition.is_loading():
+			var previous_process_mode := process_mode
+			process_mode = Node.PROCESS_MODE_DISABLED
+			await BattleTransition.finished
+			process_mode = previous_process_mode
+		_run_countdown()
 
 
 ## 逻辑视口变化时重新计算战场边界；单位按相同比例平移，保持相对站位。
@@ -82,6 +121,17 @@ func _on_viewport_resized() -> void:
 	var previous := _viewport_size
 	_viewport_size = next_size
 	_refresh_layout()
+	if training_mode:
+		var layout_scale := _viewport_size / BASE_SIZE
+		var next_dummy := TRAINING_DUMMY_SPOT * layout_scale
+		if is_instance_valid(training_hero):
+			if training_positioning and is_instance_valid(training_dummy):
+				training_hero.position = clamp_unit_position(training_hero.position + next_dummy - training_dummy.position)
+			else:
+				training_hero.position = TRAINING_HERO_SPOT * layout_scale
+		if is_instance_valid(training_dummy):
+			training_dummy.position = next_dummy
+		return
 	if previous.x <= 1.0 or previous.y <= 1.0:
 		return
 	var ratio := next_size / previous
@@ -94,12 +144,19 @@ func _refresh_layout() -> void:
 	if _viewport_size.x <= 1.0 or _viewport_size.y <= 1.0:
 		return
 	var layout_scale := _viewport_size / BASE_SIZE
-	field_min = BASE_FIELD_MIN * layout_scale
-	field_max = BASE_FIELD_MAX * layout_scale
+	field_min = (TRAINING_FIELD_MIN if training_mode else BASE_FIELD_MIN) * layout_scale
+	field_max = (TRAINING_FIELD_MAX if training_mode else BASE_FIELD_MAX) * layout_scale
+	stage.frame_field(_viewport_size, field_min, field_max, training_mode)
+	ground_presentation.transform = stage.ground_transform
+	for unit in units:
+		if is_instance_valid(unit):
+			unit.update_arena_projection(ground_presentation.scale.y / ground_presentation.scale.x)
 
 
 func _formation_position(team: int, slot: int) -> Vector2:
-	return BASE_FORMATIONS[team][slot] * (_viewport_size / BASE_SIZE)
+	var point: Vector2 = BASE_FORMATIONS[team][slot]
+	point.y = FIELD_CENTER.y + (point.y - FIELD_CENTER.y) * FORMATION_DEPTH_SCALE
+	return point * (_viewport_size / BASE_SIZE)
 
 
 func _exit_tree() -> void:
@@ -117,17 +174,92 @@ func _spawn_lineups() -> void:
 			var definition: UnitDefinition = UnitCatalog.get_definition(unit_id)
 			if definition == null:
 				continue
-			var unit_scene: PackedScene = definition.unit_scene if definition.unit_scene != null else UNIT_SCENE
-			var unit: Unit = unit_scene.instantiate()
-			units_root.add_child(unit)
-			unit.position = _formation_position(team, slot)
-			unit.setup(self, team, slot, definition)
-			unit.face_direction(1.0 if team == 0 else -1.0)
-			unit.set_range_overlay_visible(show_combat_ranges)
-			unit.died.connect(_on_unit_died)
-			units.append(unit)
-			team_sizes[team] += 1
-			team_max_hp_total[team] += unit.max_hp
+			_spawn_unit(definition, team, slot, _formation_position(team, slot))
+
+
+## 生成并登记一个单位。正常战斗与试炼场的训练模式共用这条路径。
+func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_position: Vector2) -> Unit:
+	var unit_scene: PackedScene = definition.unit_scene if definition.unit_scene != null else UNIT_SCENE
+	var unit: Unit = unit_scene.instantiate()
+	units_root.add_child(unit)
+	unit.position = spawn_position
+	unit.setup(self, team, slot, definition)
+	unit.face_direction(1.0 if team == 0 else -1.0)
+	var sprite := UnitSprite3D.new()
+	if training_mode:
+		sprite.process_mode = Node.PROCESS_MODE_ALWAYS
+	stage.actors.add_child(sprite)
+	sprite.setup(unit, stage)
+	unit.tree_exiting.connect(sprite.queue_free, CONNECT_ONE_SHOT)
+	unit.update_arena_projection(ground_presentation.scale.y / ground_presentation.scale.x)
+	unit.set_range_overlay_visible(show_combat_ranges)
+	unit.died.connect(_on_unit_died)
+	units.append(unit)
+	team_sizes[team] += 1
+	team_max_hp_total[team] += unit.max_hp
+	return unit
+
+
+## Hero Lab：清空战场并重新摆出「英雄 vs 稻草人」。切换英雄或重置演示时调用。
+func start_training(definition: UnitDefinition) -> void:
+	training_mode = true
+	training_definition = definition
+	_clear_battlefield()
+	finished = false
+	battle_active = true
+	winner = -1
+	elapsed = 0.0
+	speed_multiplier = 1.0
+	Engine.time_scale = 1.0
+	team_damage = [0.0, 0.0]
+	team_kills = [0, 0]
+	team_sizes = [0, 0]
+	team_max_hp_total = [0.0, 0.0]
+	unit_damage.clear()
+	projectiles_fired = 0
+	action_casts = 0
+	skill_casts = 0
+	action_hits = 0
+	_mvp_name = "无"
+	_mvp_team = -1
+	_mvp_damage = 0.0
+	selected_unit = null
+	training_hero = null
+	training_dummy = null
+	if definition == null:
+		return
+	var layout_scale := _viewport_size / BASE_SIZE
+	training_hero = _spawn_unit(definition, 0, 0, TRAINING_HERO_SPOT * layout_scale)
+	var dummy_definition := TRAINING_DUMMY_DEFINITION as UnitDefinition
+	training_dummy = _spawn_unit(dummy_definition, 1, 2, TRAINING_DUMMY_SPOT * layout_scale)
+	training_hero.face_direction(1.0)
+	training_dummy.face_direction(-1.0)
+	training_hero.on_battle_started()
+	training_hero.brain.enabled = not training_positioning
+	training_hero.brain.force_think()
+
+
+func _clear_battlefield() -> void:
+	for unit in units:
+		if not is_instance_valid(unit):
+			continue
+		unit.brain.enabled = false
+		unit.set_physics_process(false)
+		unit.set_process(false)
+		unit.queue_free()
+	units.clear()
+	for container in [projectiles_root, effects_root, combat_text]:
+		for child in container.get_children():
+			child.queue_free()
+
+
+func is_training_dummy(unit: Unit) -> bool:
+	return is_instance_valid(unit) and unit.definition != null and unit.definition.training_dummy
+
+
+func training_damage() -> float:
+	return team_damage[0] if team_damage.size() > 0 else 0.0
+
 
 
 func _run_countdown() -> void:
@@ -148,6 +280,7 @@ func _run_countdown() -> void:
 	hud.show_countdown("开战！")
 	for unit in units:
 		if is_instance_valid(unit) and unit.alive:
+			unit.on_battle_started()
 			unit.brain.force_think()
 	await get_tree().create_timer(0.55, false).timeout
 	if not is_inside_tree():
@@ -161,7 +294,7 @@ func _physics_process(delta: float) -> void:
 	if battle_active:
 		elapsed += delta
 	_resolve_separation()
-	if battle_active:
+	if battle_active and not training_mode:
 		_evaluate_victory()
 
 
@@ -174,6 +307,9 @@ func _resolve_separation() -> void:
 		for other_index in range(index + 1, living.size()):
 			var b: Unit = living[other_index]
 			if not is_instance_valid(b) or not b.alive:
+				continue
+			# 稻草人固定站位，不被分离推挤，也不推开英雄。
+			if is_training_dummy(a) or is_training_dummy(b):
 				continue
 			if a.is_charging() or b.is_charging():
 				continue
@@ -228,14 +364,17 @@ func team_alive(team: int) -> int:
 
 func _on_unit_died(unit: Unit, killer: Unit) -> void:
 	if is_instance_valid(unit):
-		spawn_death_burst(unit.get_hit_point(), unit.accent_color)
+		spawn_death_burst(unit.get_effect_point(), unit.accent_color)
 	if is_instance_valid(killer):
 		team_kills[killer.team] += 1
+	# 训练模式没有胜负：稻草人不会死亡，英雄也不应由靶子击杀。
+	if training_mode:
+		return
 	call_deferred("_evaluate_victory")
 
 
 func _evaluate_victory() -> void:
-	if finished:
+	if finished or training_mode:
 		return
 	var alive_blue := team_alive(0)
 	var alive_red := team_alive(1)
@@ -292,32 +431,30 @@ func on_damage_dealt(target: Unit, source: Unit, amount: float) -> void:
 			_mvp_name = source.definition.display_name
 			_mvp_team = source.team
 	var color: Color = source.accent_color if is_instance_valid(source) else Color.WHITE
-	var at: Vector2 = target.get_hit_point() + Vector2(_rng.randf_range(-14.0, 14.0), _rng.randf_range(-8.0, 4.0))
+	var at: Vector2 = target.get_effect_point() + Vector2(_rng.randf_range(-14.0, 14.0), _rng.randf_range(-8.0, 4.0))
 	spawn_damage_number(at, amount, color)
 
 
 func spawn_damage_number(at: Vector2, amount: float, color: Color) -> void:
-	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup(amount, color, at)
+	_spawn_combat_text(at, "-%d" % maxi(1, roundi(amount)), color)
 
 
 func spawn_block_text(at: Vector2) -> void:
-	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup_text("格挡", Color("#e7c46b"), at)
+	_spawn_combat_text(at, "格挡", Color("#e7c46b"))
 
 
 func spawn_heal_text(at: Vector2, amount: float) -> void:
-	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup_text("+%d" % roundi(amount), Color("#8fe3a8"), at)
+	_spawn_combat_text(at, "+%d" % roundi(amount), Color("#8fe3a8"))
 
 
 func spawn_shield_text(at: Vector2, amount: float) -> void:
+	_spawn_combat_text(at, "护盾 +%d" % roundi(amount), Color("#59d9ff"))
+
+
+func _spawn_combat_text(at: Vector2, text: String, color: Color) -> void:
 	var number: DamageNumber = DAMAGE_NUMBER_SCENE.instantiate()
-	effects_root.add_child(number)
-	number.setup_text("护盾 +%d" % roundi(amount), Color("#59d9ff"), at)
+	combat_text.add_child(number)
+	number.setup_text(text, color, stage.ground_transform * at)
 
 
 func spawn_summons(source: Unit, unit_id: StringName, count: int, effect_scene: PackedScene = null) -> void:
@@ -339,6 +476,8 @@ func spawn_summons(source: Unit, unit_id: StringName, count: int, effect_scene: 
 			if fx is Node2D:
 				fx.global_position = spawn_position
 		unit.setup(self, source.team, source.slot, definition)
+		if battle_active:
+			unit.on_battle_started()
 		unit.summoned = true
 		unit.face_direction(-1.0 if source.team == 0 else 1.0)
 		unit.set_range_overlay_visible(show_combat_ranges)
@@ -419,11 +558,11 @@ func spawn_action_effect(scene: PackedScene, source: Unit, effect: ActionEffectD
 		fx.setup_from_effect(source, effect)
 
 
-func spawn_projectile(source: Unit, target: Unit, damage: float, kind: int, color: Color, can_interrupt := true, effect: ActionEffectDefinition = null) -> void:
+func spawn_projectile(source: Unit, target: Unit, damage: float, kind: int, color: Color, effect: ActionEffectDefinition = null) -> void:
 	projectiles_fired += 1
 	var projectile: Projectile = PROJECTILE_SCENE.instantiate()
 	projectiles_root.add_child(projectile)
-	projectile.setup(source, target, damage, kind, color, can_interrupt, effect)
+	projectile.setup(source, target, damage, kind, color, effect)
 
 
 func spawn_slash(at: Vector2, color: Color, direction: float) -> void:
@@ -473,9 +612,7 @@ func toggle_range_overlay() -> void:
 
 
 func restart_battle() -> void:
-	Engine.time_scale = 1.0
-	get_tree().paused = false
-	get_tree().reload_current_scene()
+	BattleTransition.start()
 
 
 func back_to_setup() -> void:
@@ -485,28 +622,36 @@ func back_to_setup() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
+	if not training_mode and event is InputEventMouseButton:
 		var mouse := event as InputEventMouseButton
 		if mouse.button_index == MOUSE_BUTTON_LEFT and mouse.pressed:
-			_select_at(get_global_mouse_position())
+			_select_at(mouse.position)
+
+
+func unit_screen_position(unit: Unit) -> Vector2:
+	return stage.ground_transform * unit.get_effect_point()
 
 
 func _select_at(point: Vector2) -> void:
 	var best: Unit = null
 	var best_distance := INF
 	for unit in units:
-		if not is_instance_valid(unit):
+		if not is_instance_valid(unit) or not unit.alive:
 			continue
-		var center := unit.global_position + Vector2(0, -unit.character_height * unit.definition.visual_scale * 0.5)
+		var center := unit_screen_position(unit)
 		var distance := center.distance_to(point)
-		var threshold := maxf(46.0, unit.body_radius * 1.75)
+		var threshold := maxf(46.0, unit.body_radius * 1.75) * stage.ground_transform.x.length()
 		if distance <= threshold and distance < best_distance:
 			best = unit
 			best_distance = distance
 
+	select_unit(best)
+
+
+func select_unit(unit: Unit) -> void:
 	if is_instance_valid(selected_unit):
 		selected_unit.set_selected(false)
-	selected_unit = best
-	if best != null:
-		best.set_selected(true)
-	hud.set_selected_unit(best)
+	selected_unit = unit
+	if is_instance_valid(unit):
+		unit.set_selected(true)
+	hud.set_selected_unit(unit)

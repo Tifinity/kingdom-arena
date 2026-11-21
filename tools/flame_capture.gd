@@ -30,7 +30,7 @@ func _ready() -> void:
 		printerr("[flame] 骑士没有在限定时间内释放火焰斩击")
 		get_tree().quit(1)
 		return
-	battle._select_at(knight.global_position + Vector2(0, -50))
+	battle._select_at(battle.unit_screen_position(knight))
 	# attack_03 第 7 帧（16 FPS）约 0.44s；稍微多等一点让火焰帧完全显现。
 	await _wait(0.46)
 	await RenderingServer.frame_post_draw

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "骑盾余势"
+description = "技能每命中一名敌人，获得自身最大生命 5% 的护盾，持续 6 秒。"
+skill_hit_shield_ratio = 0.05
+skill_hit_shield_duration = 6.0

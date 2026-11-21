@@ -27,6 +27,6 @@ kite_stop_ratio = 0.72
 [resource]
 script = ExtResource("1")
 behavior_id = &"skeleton_archer_behavior"
-display_name = "骷髅弓手行为"
+display_name = "骷髅弓箭手行为"
 targeting = SubResource("targeting")
 movement = SubResource("movement")

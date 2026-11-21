@@ -7,6 +7,7 @@ const ARROW_TEXTURE := preload("res://assets/projectiles/arrow.png")
 const ORB_TEXTURE := preload("res://assets/projectiles/magic_orb.png")
 const ICE_TEXTURE := preload("res://assets/projectiles/wizard_ice.png")
 const FIREBALL_TEXTURE := preload("res://assets/projectiles/wizard_fireball.png")
+const HOLY_BOLT_TEXTURE := preload("res://assets/fx/pixelfx/holy_laser_bolt.png")
 const GHOSTFIRE_TEXTURE := preload("res://assets/magic/necromancer_attack02_effect.png")
 
 var source: Unit
@@ -15,8 +16,9 @@ var battle: Node
 var damage := 0.0
 var kind := 0
 var tint := Color.WHITE
-var can_interrupt := true
 var effect: ActionEffectDefinition
+var is_skill := false
+var straight_flight := false
 var speed := 900.0
 var life := 2.6
 
@@ -25,11 +27,18 @@ var _started := false
 var _fizzle := 0.0
 var _travel_elapsed := 0.0
 var _impact_elapsed := -1.0
+var _stage: ArenaStage3D
+var _sprite_3d: Sprite3D
+var _launch_point: Vector2
+var _launch_height := 0.0
+var _aim_point: Vector2
+var _aim_height := 0.0
+var _trail_offset := Vector2.ZERO
 
 @onready var sprite: Sprite2D = $Sprite
 
 
-func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color: Color, p_can_interrupt := true, p_effect: ActionEffectDefinition = null) -> void:
+func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color: Color, p_effect: ActionEffectDefinition = null) -> void:
 	source = p_source
 	target = p_target
 	battle = p_source.battle if p_source != null else null
@@ -40,11 +49,16 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 			Color("#8be38b") if p_kind == UnitDefinition.ProjectileKind.GHOSTFIRE else p_color
 		)
 	)
-	can_interrupt = p_can_interrupt
 	effect = p_effect
+	straight_flight = effect != null and effect.straight_projectile
+	is_skill = p_source.current_cast != null and p_source.current_cast.action.category == CombatActionDefinition.Category.SKILL
 	global_position = p_source.get_muzzle_point()
 
-	if kind == UnitDefinition.ProjectileKind.ICE or kind == UnitDefinition.ProjectileKind.FIREBALL:
+	if kind == UnitDefinition.ProjectileKind.HOLY_BOLT:
+		sprite.scale = Vector2(0.8, 0.8)
+		speed = 900.0
+		_set_effect_frame(0)
+	elif kind == UnitDefinition.ProjectileKind.ICE or kind == UnitDefinition.ProjectileKind.FIREBALL:
 		sprite.scale = Vector2(2.4, 2.4)
 		speed = 800.0
 		_set_effect_frame(7 if kind == UnitDefinition.ProjectileKind.ICE else 0)
@@ -70,6 +84,51 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 			_velocity = aim.normalized() * speed
 			rotation = _velocity.angle() if kind != UnitDefinition.ProjectileKind.MAGIC else 0.0
 	_started = true
+	if battle is Battle:
+		_stage = battle.stage
+		_launch_point = global_position
+		_launch_height = source.global_position.y - _launch_point.y
+		_aim_point = _launch_point + _velocity
+		_aim_height = _launch_height
+		_sprite_3d = Sprite3D.new()
+		_sprite_3d.pixel_size = 1.0
+		_sprite_3d.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		_sprite_3d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_stage.projectiles.add_child(_sprite_3d)
+		tree_exiting.connect(_sprite_3d.queue_free, CONNECT_ONE_SHOT)
+		sprite.hide()
+		_sync_presentation()
+	queue_redraw()
+
+
+func _process(_delta: float) -> void:
+	if _sprite_3d != null:
+		_sync_presentation()
+
+
+func _sync_presentation() -> void:
+	if _impact_elapsed < 0.0 and is_instance_valid(target) and target.alive:
+		_aim_point = target.get_hit_point()
+		_aim_height = target.global_position.y - _aim_point.y
+	var path := _aim_point - _launch_point
+	var progress := clampf((global_position - _launch_point).dot(path) / maxf(path.length_squared(), 1.0), 0.0, 1.0)
+	var height := lerpf(_launch_height, _aim_height, progress)
+	var ground := global_position + Vector2(0.0, height)
+	var offset := Vector2(0.0, -height)
+	var screen_scale := _stage.ground_transform.x.length()
+	var basis := _stage.camera.basis
+	var angle := rotation
+	if kind != UnitDefinition.ProjectileKind.MAGIC:
+		# 贴图朝向沿投影后的飞行线，保留始末高度的差。
+		var ground_path := path + Vector2(0.0, _aim_height - _launch_height)
+		var projected_path := _stage.ground_transform.basis_xform(ground_path) + Vector2(0.0, _launch_height - _aim_height) * screen_scale
+		if projected_path.length_squared() > 1.0:
+			angle = projected_path.angle()
+	_sprite_3d.global_transform = Transform3D(basis.rotated(basis.z, -angle), _stage.ground_to_world(ground, height / basis.y.y))
+	_sprite_3d.scale = Vector3(sprite.scale.x, sprite.scale.y, 1.0)
+	_sprite_3d.texture = sprite.texture
+	_sprite_3d.modulate = sprite.modulate
+	_trail_offset = to_local(_stage.elevated_canvas_point(ground, offset))
 	queue_redraw()
 
 
@@ -88,12 +147,27 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 	_travel_elapsed += delta
-	if kind == UnitDefinition.ProjectileKind.FIREBALL:
+	if kind == UnitDefinition.ProjectileKind.HOLY_BOLT:
+		_set_effect_frame(int(_travel_elapsed * 30.0) % 15)
+	elif kind == UnitDefinition.ProjectileKind.FIREBALL:
 		_set_effect_frame(int(_travel_elapsed * 16.0) % 4)
 	elif kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
 		_set_effect_frame(mini(2, int(_travel_elapsed * 12.0)))
 
 	if target != null and is_instance_valid(target) and target.alive:
+		if straight_flight:
+			var next_position := global_position + _velocity * delta
+			var segment := next_position - global_position
+			var aim := target.get_hit_point()
+			var progress := clampf((aim - global_position).dot(segment) / maxf(segment.length_squared(), 0.001), 0.0, 1.0)
+			var nearest := global_position + segment * progress
+			if aim.distance_to(nearest) <= target.body_radius * 0.6 + 10.0:
+				global_position = nearest
+				_hit()
+				return
+			global_position = next_position
+			queue_redraw()
+			return
 		var aim := target.get_hit_point()
 		var offset := aim - global_position
 		var step := speed * delta
@@ -120,19 +194,22 @@ func _hit() -> void:
 	if target != null and is_instance_valid(target) and target.alive:
 		var shooter: Unit = source if is_instance_valid(source) else null
 		var blocked := target.is_guarding()
-		target.take_damage(damage, shooter, global_position, can_interrupt)
-		if not blocked and target.alive and effect != null:
-			if effect.burn_duration > 0.0:
-				target.apply_burn(effect.burn_duration, shooter.attack_damage * effect.burn_dps_ratio if shooter != null else 0.0, shooter)
-			if effect.status_duration > 0.0:
-				target.apply_status(effect, shooter)
+		var pierces_shield := effect != null and effect.ignore_shield
+		var impact_point := target.get_effect_point() if _stage != null else global_position
+		target.take_damage(damage, shooter, impact_point, false, pierces_shield)
+		if is_instance_valid(shooter):
+			shooter.register_damage_hit(target, is_skill)
+		ActionImpact.apply_on_hit(effect, shooter, target, blocked)
 	if battle != null and is_instance_valid(battle):
 		var spark_color := Color("#87d9ff") if kind == UnitDefinition.ProjectileKind.ICE else (
 			Color("#ff9d42") if kind == UnitDefinition.ProjectileKind.FIREBALL else (
 				Color("#8be38b") if kind == UnitDefinition.ProjectileKind.GHOSTFIRE else tint
 			)
 		)
-		battle.spawn_hit_spark(global_position, spark_color, 1.35)
+		var impact_point := global_position
+		if _stage != null and is_instance_valid(target):
+			impact_point = target.get_effect_point()
+		battle.spawn_hit_spark(impact_point, spark_color, 1.35)
 	if kind == UnitDefinition.ProjectileKind.ICE or kind == UnitDefinition.ProjectileKind.FIREBALL or kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
 		_impact_elapsed = 0.0
 		_set_effect_frame(0 if kind == UnitDefinition.ProjectileKind.ICE else (3 if kind == UnitDefinition.ProjectileKind.GHOSTFIRE else 4))
@@ -142,6 +219,11 @@ func _hit() -> void:
 
 func _set_effect_frame(frame: int) -> void:
 	var atlas := AtlasTexture.new()
+	if kind == UnitDefinition.ProjectileKind.HOLY_BOLT:
+		atlas.atlas = HOLY_BOLT_TEXTURE
+		atlas.region = Rect2((frame % 2) * 128, int(frame / 2) * 32, 128, 32)
+		sprite.texture = atlas
+		return
 	if kind == UnitDefinition.ProjectileKind.ICE:
 		atlas.atlas = ICE_TEXTURE
 	elif kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
@@ -153,9 +235,9 @@ func _set_effect_frame(frame: int) -> void:
 
 
 func _draw() -> void:
-	var back := -_velocity.normalized() * 22.0
-	if kind == UnitDefinition.ProjectileKind.MAGIC:
-		draw_circle(Vector2.ZERO, 7.0, Color(tint, 0.16))
-		draw_line(back, Vector2.ZERO, Color(tint, 0.28), 5.0)
-	else:
-		draw_line(back, Vector2.ZERO, Color(1.0, 0.9, 0.7, 0.22), 2.0)
+	draw_set_transform(_trail_offset)
+	var back := -_velocity.normalized()
+	var magic := kind == UnitDefinition.ProjectileKind.MAGIC
+	var trace := tint if magic else Color("#f3d99e")
+	for index in range(1, 5):
+		PixelCombatDraw.dot(self, back * (index * 5.0), Color(trace, 0.39 - index * 0.07))

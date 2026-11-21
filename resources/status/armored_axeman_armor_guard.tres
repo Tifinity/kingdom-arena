@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="StatusDefinition" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/status/status_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/status/behaviors/stat_modifier_behavior.gd" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/fx/armor_guard.tscn" id="3"]
+[ext_resource type="Texture2D" path="res://assets/status/pixel_status.png" id="pixel_icons"]
+
+[sub_resource type="AtlasTexture" id="icon"]
+atlas = ExtResource("pixel_icons")
+region = Rect2(32, 0, 8, 8)
+filter_clip = true
+
+[sub_resource type="Resource" id="behavior"]
+script = ExtResource("2")
+stat = &"armor"
+mode = 1
+
+[resource]
+script = ExtResource("1")
+id = &"armored_axeman_armor_guard"
+display_name = "盔甲护身"
+description = "护甲提高 20 个百分点。"
+icon = SubResource("icon")
+tags = Array[StringName]([&"buff", &"armor"])
+duration = 6.0
+max_stacks = 1
+stack_policy = 0
+base_power = 0.2
+behavior = SubResource("behavior")
+vfx_scene = ExtResource("3")
+vfx_at_origin = true

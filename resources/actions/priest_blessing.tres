@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/effects/heal_effect_behavior.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/fx/priest_blessing.tscn" id="5"]
+
+[sub_resource type="Resource" id="targeting"]
+script = ExtResource("4")
+selection = 4
+
+[sub_resource type="Resource" id="behavior"]
+script = ExtResource("3")
+
+[sub_resource type="Resource" id="effect"]
+script = ExtResource("2")
+kind = 3
+shape = 0
+trigger_frame = 2
+heal_amount = 12.0
+heal_ratio = 0.6
+behavior = SubResource("behavior")
+effect_scene = ExtResource("5")
+
+[resource]
+script = ExtResource("1")
+action_id = &"priest_blessing"
+display_name = "祈福"
+description = "治疗血量最低的受伤友军 12 + 0.6 AD。"
+category = 4
+target_mode = 1
+animation = &"heal"
+action_range = 650.0
+cooldown = 10.0
+requires_wounded_ally = true
+priority = 8
+targeting = SubResource("targeting")
+effects = [SubResource("effect")]

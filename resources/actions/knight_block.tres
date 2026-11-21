@@ -24,11 +24,14 @@ summon_count = 1
 knockback = 0.0
 projectile_kind = 0
 duration = 1.00
+guard_reward_shield_ratio = 0.08
+guard_reward_shield_duration = 3.0
 
 [resource]
 script = ExtResource("1")
 action_id = &"knight_block"
 display_name = "格挡"
+description = "格挡 {guard_duration} 秒，成功挡下攻击后获得最大生命 {guard_reward_shield_percent}% 的护盾，持续 {guard_reward_shield_duration} 秒。"
 category = 2
 target_mode = 2
 animation = &"block"

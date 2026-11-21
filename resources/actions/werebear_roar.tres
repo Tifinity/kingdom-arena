@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/fx/simple_roar_ring.tscn" id="3"]
+
+[sub_resource type="Resource" id="slow"]
+script = ExtResource("2")
+kind = 5
+shape = 1
+trigger_frame = 0
+radius = 160.0
+center_on_self = true
+status_kind = 1
+status_duration = 2.0
+status_power = 0.5
+effect_scene = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+action_id = &"werebear_roar"
+display_name = "怒吼"
+description = "使周围 160 像素内敌人减速 50%，持续 2 秒。"
+category = 1
+target_mode = 2
+animation = &"idle"
+cooldown = 10.0
+min_targets = 1
+priority = 8
+effects = [SubResource("slow")]

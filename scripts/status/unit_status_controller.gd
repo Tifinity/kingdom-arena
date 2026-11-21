@@ -9,14 +9,23 @@ signal changed
 var unit: Unit
 var _instances: Array[StatusInstance] = []
 var _visuals: Node2D
+var _attribute_badges: UnitAttributeBadges
 var _next_instance_id := 1
+
+
+func _ready() -> void:
+	changed.connect(_refresh_attribute_visuals)
 
 
 func setup(p_unit: Unit) -> void:
 	unit = p_unit
 	if unit != null:
 		_visuals = unit.get_node_or_null("StatusVisuals") as Node2D
+		_attribute_badges = unit.get_node_or_null("StatusVisuals/AttributeBadges") as UnitAttributeBadges
+		if _attribute_badges != null:
+			_attribute_badges.position.y = ceilf((unit.body_radius + 10.0) / 3.0) + 8.0
 	clear_all(false)
+	_refresh_attribute_visuals()
 
 
 func apply(definition: StatusDefinition, source: Unit, options: Dictionary = {}) -> StatusInstance:
@@ -25,7 +34,7 @@ func apply(definition: StatusDefinition, source: Unit, options: Dictionary = {})
 	var duration: float = maxf(0.0, float(options.get("duration", definition.duration)))
 	var power: float = float(options.get("power", definition.base_power))
 	var requested_stacks: int = maxi(1, int(options.get("stacks", 1)))
-	if duration <= 0.0 and definition.tick_interval <= 0.0:
+	if duration <= 0.0 and definition.tick_interval <= 0.0 and not definition.persistent:
 		return null
 
 	var existing := _find_instance(definition, source)
@@ -67,9 +76,9 @@ func _create_instance(definition: StatusDefinition, source: Unit, duration: floa
 	instance.definition = definition
 	instance.target = unit
 	instance.source = source
-	instance.remaining = duration
+	instance.remaining = -1.0 if definition.persistent else duration
 	instance.stacks = mini(maxi(stacks, 1), definition.max_stacks)
-	instance.power = power if power > 0.0 else definition.base_power
+	instance.power = power if not is_zero_approx(power) else definition.base_power
 	instance.instance_id = _next_instance_id
 	_next_instance_id += 1
 	_instances.append(instance)
@@ -94,7 +103,7 @@ func _physics_process(delta: float) -> void:
 		return
 	for raw_instance in _instances.duplicate():
 		var instance: StatusInstance = raw_instance
-		if not _instances.has(instance):
+		if not _instances.has(instance) or instance.definition.persistent:
 			continue
 		var active := minf(delta, instance.remaining)
 		instance.remaining = maxf(0.0, instance.remaining - delta)
@@ -130,8 +139,11 @@ func _spawn_vfx(instance: StatusInstance) -> void:
 	var vfx := definition.vfx_scene.instantiate()
 	parent.add_child(vfx)
 	if vfx is Node2D:
-		var bar_y := unit.health_bar.position.y if unit.health_bar != null else -100.0
-		vfx.position = Vector2(0.0, bar_y) + definition.vfx_offset
+		if definition.vfx_at_origin:
+			vfx.position = Vector2.ZERO
+		else:
+			var bar_y := unit.health_bar.position.y if unit.health_bar != null else -100.0
+			vfx.position = Vector2(0.0, bar_y) + definition.vfx_offset
 		if vfx.has_method("play"):
 			vfx.play()
 	instance.vfx = vfx as Node2D
@@ -145,6 +157,27 @@ func _free_vfx(instance: StatusInstance) -> void:
 	if vfx.has_method("stop"):
 		vfx.stop()
 	vfx.queue_free()
+
+
+func _refresh_attribute_visuals() -> void:
+	if _attribute_badges == null:
+		return
+	var directions := PackedInt32Array()
+	directions.resize(UnitAttributeBadges.STATS.size())
+	for instance in _instances:
+		for index in UnitAttributeBadges.STATS.size():
+			# The same neutral input detects both additive and multiplicative changes,
+			# while keeping contributions from opposing states visible.
+			var value := instance.definition.behavior.modify_stat(instance, UnitAttributeBadges.STATS[index], 1.0)
+			if not is_equal_approx(value, 1.0):
+				directions[index] |= UnitAttributeBadges.UP if value > 1.0 else UnitAttributeBadges.DOWN
+	_attribute_badges.set_directions(directions)
+
+	var opposing_speed := directions[-1] == (UnitAttributeBadges.UP | UnitAttributeBadges.DOWN)
+	for id: StringName in [&"slow", &"haste"]:
+		var fx := get_vfx(id)
+		if is_instance_valid(fx):
+			fx.visible = not opposing_speed
 
 
 func clear_all(emit_change := true) -> void:
@@ -162,6 +195,23 @@ func has_status(status_id: StringName) -> bool:
 		if instance.definition.id == status_id:
 			return true
 	return false
+
+
+## 按状态 id 移除（例如低血量被动在生命回到阈值以上时撤销狂怒）。
+func remove_status(status_id: StringName, natural := false) -> void:
+	for raw_instance in _instances.duplicate():
+		var instance: StatusInstance = raw_instance
+		if instance.definition.id == status_id and _instances.has(instance):
+			_remove_instance(instance, natural)
+
+
+func forced_target() -> Unit:
+	for instance in _instances:
+		if not instance.definition.has_tag(&"taunt"):
+			continue
+		if is_instance_valid(instance.source) and instance.source.alive and instance.source != unit:
+			return instance.source
+	return null
 
 
 func remaining(status_id: StringName) -> float:
@@ -227,6 +277,22 @@ func modify_stat(stat: StringName, value: float) -> float:
 	return result
 
 
+## 动作伤害修正：例如满层热诚的固定额外伤害。
+func modify_damage(amount: float, is_basic: bool) -> float:
+	var result := amount
+	for instance in _instances:
+		result = instance.definition.behavior.modify_damage(instance, result, is_basic)
+	return result
+
+
+## 单位造成伤害后的吸血比例；多个来源相加。
+func modify_lifesteal(value: float) -> float:
+	var result := value
+	for instance in _instances:
+		result = instance.definition.behavior.modify_lifesteal(instance, result)
+	return result
+
+
 func get_vfx(status_id: StringName) -> Node2D:
 	for instance in _instances:
 		if instance.definition.id == status_id:
@@ -242,6 +308,7 @@ func snapshot() -> Array[Dictionary]:
 			"display_name": instance.definition.display_name,
 			"icon": instance.definition.icon,
 			"remaining": instance.remaining,
+			"persistent": instance.definition.persistent,
 			"stacks": instance.stacks,
 			"tags": instance.definition.tags,
 		})

@@ -19,10 +19,14 @@ var hp := 100.0
 var max_mana := 100.0
 var mana := 100.0
 var mana_regen := 8.0
+## 常驻生命回复比例：每秒回复最大生命 × 该比例（来自被动）。
+var hp_regen_ratio := 0.0
 var guard_time := 0.0
+var guard_blocked_hit := false
+var guard_reward_shield_ratio := 0.0
+var guard_reward_shield_duration := 0.0
 var shield := 0.0
 var shield_time := 0.0
-var _action_hit_targets: Dictionary = {}
 var summoned := false
 var last_heal_amount := 0.0
 ## 兼容旧测试/UI 的只读视图；真实状态数据在 StatusController 的 StatusInstance 里。
@@ -59,7 +63,11 @@ var alive := true
 var facing := 1
 var actions: Array[CombatActionDefinition] = []
 var planned_action: CombatActionDefinition
+var planned_target: Unit
 var planned_direction := Vector2.ZERO
+var planned_point := Vector2.ZERO
+var planned_has_point := false
+var current_cast: ActionCast
 var action_cooldowns: Dictionary = {}
 var is_selected := false
 var initialized := false
@@ -70,7 +78,6 @@ var intent_reason := ""
 var last_damage_source: Unit
 
 var _flash_left := 0.0
-var _flinch_cooldown := 0.0
 var _current_animation: StringName = &""
 
 var shadow: Sprite2D
@@ -78,6 +85,12 @@ var team_ring: UnitTeamRing
 var selection_ring: UnitSelectionRing
 var visual: AnimatedSprite2D
 var health_bar: UnitHealthBar
+## 视觉子场景根节点与其中的投射物出手锚点（场景里名为 Muzzle）。
+## 锚点缺失时回退到按体型推算的位置，旧视觉场景无需立刻迁移。
+var _visual_root: Node2D
+var _health_bar_anchor: Vector2
+var _health_bar_scale: Vector2
+var _muzzle_marker: Marker2D
 @onready var visual_host: Node2D = $VisualHost
 @onready var status_controller: UnitStatusController = $StatusController
 @onready var brain: UnitBrain = $Brain
@@ -100,10 +113,18 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	hp = max_hp
 	shield = 0.0
 	shield_time = 0.0
-	_action_hit_targets.clear()
+	guard_time = 0.0
+	guard_blocked_hit = false
+	guard_reward_shield_ratio = 0.0
+	guard_reward_shield_duration = 0.0
+	current_cast = null
+	planned_target = null
+	planned_point = Vector2.ZERO
+	planned_has_point = false
 	max_mana = p_definition.max_mana
 	mana = clampf(p_definition.starting_mana, 0.0, max_mana)
 	mana_regen = p_definition.mana_regen
+	hp_regen_ratio = p_definition.passive.hp_regen_ratio_per_second if p_definition.passive != null else 0.0
 	attack_damage = p_definition.attack_damage
 	attack_interval = p_definition.attack_interval()
 	attack_range = p_definition.attack_range
@@ -132,6 +153,10 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	team_ring = visual_root.get_node("TeamRing")
 	selection_ring = visual_root.get_node("SelectionRing")
 	health_bar = visual_root.get_node("HealthBar")
+	_health_bar_anchor = health_bar.position
+	_health_bar_scale = health_bar.scale
+	_visual_root = visual_root
+	_muzzle_marker = visual_root.get_node_or_null("Muzzle") as Marker2D
 
 	visual.flip_h = team == 1
 	visual.speed_scale = 1.0
@@ -147,7 +172,16 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	status_controller.setup(self)
 	brain.setup(self)
 	state_machine.setup(self)
+	if p_definition.training_dummy:
+		# 训练靶没有生命条和 AI；仍保留受击闪烁与状态表现，方便观察技能。
+		health_bar.hide()
+		team_ring.setup(Color("#d8b877"), p_definition.body_radius * 0.9)
+		brain.enabled = false
 	initialized = true
+
+
+func is_training_dummy() -> bool:
+	return definition != null and definition.training_dummy
 
 
 ## 调试用：不挂 Battle，只把一名英雄的资源和场景初始化好，停在 idle。
@@ -159,6 +193,65 @@ func setup_preview(p_definition: UnitDefinition) -> void:
 	state_machine.set_physics_process(false)
 	visual.speed_scale = 1.0
 	play_animation(&"idle", true)
+
+
+func on_battle_started() -> void:
+	if not alive or definition == null or definition.passive == null:
+		return
+	for status in definition.passive.battle_start_statuses:
+		if status != null:
+			status_controller.apply(status, self)
+
+
+func current_attack_damage() -> float:
+	return status_controller.modify_stat(&"attack_damage", attack_damage) if status_controller != null else attack_damage
+
+
+func current_armor() -> float:
+	var value := status_controller.modify_stat(&"armor", armor) if status_controller != null else armor
+	var aura_bonus := 0.0
+	if battle != null and alive:
+		for ally in battle.living_units(team):
+			if ally.definition == null or ally.definition.passive == null:
+				continue
+			var passive: PassiveDefinition = ally.definition.passive
+			if passive.armor_aura_radius > 0.0 and global_position.distance_to(ally.global_position) <= passive.armor_aura_radius:
+				aura_bonus = maxf(aura_bonus, passive.armor_aura_bonus)
+	return clampf(value + aura_bonus, 0.0, 0.8)
+
+
+## 攻速会受 buff/debuff 的 attack_speed 乘区影响；基础普攻冷却使用当前值。
+func current_attack_speed() -> float:
+	var speed := 1.0 / maxf(attack_interval, 0.001)
+	if status_controller != null:
+		speed = status_controller.modify_stat(&"attack_speed", speed)
+	return maxf(speed, 0.05)
+
+
+## 造成伤害后的吸血比例；狂怒等状态把 0 累加成 0.1。
+func current_lifesteal() -> float:
+	return status_controller.modify_lifesteal(0.0) if status_controller != null else 0.0
+
+
+## 生命跨过阈值时同步低血量被动（例如狂怒）。
+## hp 变化只走 heal/take_damage，因此在这里统一检查即可。
+func sync_conditional_passives() -> void:
+	if definition == null or definition.passive == null or status_controller == null:
+		return
+	var passive: PassiveDefinition = definition.passive
+	var status: StatusDefinition = passive.hp_threshold_status
+	if status == null:
+		return
+	var below_threshold := alive and hp > 0.0 and passive.hp_threshold > 0.0 and hp_ratio() < passive.hp_threshold
+	var active := status_controller.has_status(status.id)
+	if below_threshold and not active:
+		status_controller.apply(status, self)
+	elif not below_threshold and active:
+		status_controller.remove_status(status.id)
+
+
+func current_attack_interval() -> float:
+	return 1.0 / current_attack_speed()
 
 
 func play_preview_animation(animation: StringName) -> bool:
@@ -218,13 +311,23 @@ func _physics_process(delta: float) -> void:
 	for key in action_cooldowns.keys():
 		action_cooldowns[key] = maxf(0.0, float(action_cooldowns[key]) - delta)
 	mana = minf(max_mana, mana + mana_regen * delta)
-	guard_time = maxf(0.0, guard_time - delta)
+	if hp_regen_ratio > 0.0 and hp < max_hp:
+		hp = minf(max_hp, hp + max_hp * hp_regen_ratio * delta)
+		health_bar.set_ratio(hp / max_hp)
+		sync_conditional_passives()
+	if guard_time > 0.0:
+		guard_time = maxf(0.0, guard_time - delta)
+		if guard_time <= 0.0:
+			if guard_blocked_hit:
+				apply_shield(max_hp * guard_reward_shield_ratio, guard_reward_shield_duration, maxf(max_hp, shield))
+			guard_blocked_hit = false
+			guard_reward_shield_ratio = 0.0
+			guard_reward_shield_duration = 0.0
 	if shield_time > 0.0:
 		shield_time = maxf(0.0, shield_time - delta)
 		if shield_time <= 0.0:
 			shield = 0.0
 			health_bar.set_shield_ratio(0.0)
-	_flinch_cooldown = maxf(0.0, _flinch_cooldown - delta)
 
 
 func _measure_animation(animation: StringName, fallback: float) -> float:
@@ -281,14 +384,29 @@ func target_reach(extra := 0.0) -> float:
 	return attack_range + target_radius + body_radius * 0.35 + extra
 
 
+func basic_target_reach(extra := 0.0) -> float:
+	# 单一普攻为扇形/直线时，推进判定要与动作的实际命中范围一致。
+	var basic_action: CombatActionDefinition = null
+	for action in actions:
+		if action == null or action.category != CombatActionDefinition.Category.BASIC:
+			continue
+		if basic_action != null:
+			basic_action = null
+			break
+		basic_action = action
+	var aoe_reach := action_aoe_reach(basic_action)
+	if aoe_reach > 0.0:
+		var target_radius := target.body_radius if has_live_target() else 0.0
+		return (aoe_reach + target_radius + extra) * AOE_CAST_BUFFER
+	return target_reach(extra)
+
+
 func is_target_in_range(extra := 0.0) -> bool:
-	if not has_live_target():
-		return false
-	return distance_to_target() <= target_reach(extra)
+	return has_live_target() and distance_to_target() <= basic_target_reach(extra)
 
 
 func desired_stop_distance() -> float:
-	return maxf(target_reach(-12.0), 40.0)
+	return maxf(basic_target_reach(-12.0), 40.0)
 
 
 ## 每名英雄围绕目标占据不同的位置：同排英雄沿 Y 轴错开，
@@ -298,7 +416,7 @@ func desired_combat_position() -> Vector2:
 		return definition.behavior_profile.movement.desired_position(self)
 	if not has_live_target():
 		return global_position
-	var stop := maxf(target_reach(-18.0), 54.0)
+	var stop := maxf(basic_target_reach(-18.0), 54.0)
 	var lateral_span := minf(50.0, stop * 0.36)
 	var lateral := (2.0 - float(slot)) / 2.0 * lateral_span
 	var forward := sqrt(maxf(stop * stop - lateral * lateral, 0.0)) * 0.92
@@ -417,7 +535,10 @@ func action_cooldown(action: CombatActionDefinition) -> float:
 func start_action_cooldown(action: CombatActionDefinition) -> void:
 	if action == null:
 		return
-	action_cooldowns[action.action_id] = maxf(action.cooldown, 0.0)
+	var cooldown := action.cooldown
+	if action.category == CombatActionDefinition.Category.BASIC:
+		cooldown = current_attack_interval()
+	action_cooldowns[action.action_id] = maxf(cooldown, 0.0)
 
 
 func current_action_cooldown() -> float:
@@ -429,21 +550,20 @@ func current_action_cooldown() -> float:
 
 
 func can_execute_planned_action() -> bool:
-	if planned_action == null or not alive:
-		return false
-	# 动作结束后 planned_action 仍保留；必须重新检查冷却/蓝量，
-	# 否则 Idle 会拿冷却中的旧动作反复进入 Action，导致角色不普攻。
-	if not is_action_ready(planned_action) or not has_mana(planned_action):
-		return false
-	if planned_action.target_mode == CombatActionDefinition.TargetMode.SELF:
-		return true
-	if planned_action.target_mode == CombatActionDefinition.TargetMode.DIRECTION:
-		return planned_direction.length_squared() > 0.0001
-	if planned_action.charge_to_farthest:
-		return has_live_target()
-	if not has_live_target():
-		return false
-	return is_target_in_action_range(planned_action, 6.0)
+	var cast_target := action_target(planned_action)
+	return ActionActivation.reason(self, planned_action, cast_target, planned_direction, planned_point, planned_has_point).is_empty()
+
+
+## HUD 和动作入口统一取有效目标，避免把已释放的 Unit 传给类型化参数。
+func action_target(action: CombatActionDefinition) -> Unit:
+	if action == null:
+		return null
+	if action.target_mode == CombatActionDefinition.TargetMode.SELF:
+		return self
+	var candidate: Variant = planned_target if action.target_mode == CombatActionDefinition.TargetMode.ALLY else target
+	if not is_instance_valid(candidate) or not (candidate is Unit):
+		return null
+	return candidate as Unit
 
 
 func battle_active() -> bool:
@@ -451,7 +571,7 @@ func battle_active() -> bool:
 
 
 func move_step(direction: Vector2, delta: float) -> void:
-	if direction.length_squared() < 0.0001 or not can_move():
+	if direction.length_squared() < 0.0001 or not can_move() or is_training_dummy():
 		return
 	var speed := status_controller.modify_stat(&"move_speed", move_speed)
 	position += direction.normalized() * speed * delta
@@ -459,7 +579,7 @@ func move_step(direction: Vector2, delta: float) -> void:
 
 
 func advance_step(direction: Vector2, speed: float, delta: float) -> void:
-	if direction.length_squared() < 0.0001 or speed <= 0.0 or not can_move():
+	if direction.length_squared() < 0.0001 or speed <= 0.0 or not can_move() or is_training_dummy():
 		return
 	var factor := status_controller.modify_stat(&"move_speed", 1.0)
 	position += direction.normalized() * speed * factor * delta
@@ -496,27 +616,61 @@ func interrupt_current_action() -> void:
 func is_charging() -> bool:
 	return (state_machine != null and state_machine.current_name == &"action"
 		and planned_action != null
-		and (planned_action.charge_to_farthest or planned_action.advance_distance > 0.0))
+		and planned_action.movement_kind() in [ActionMovementDefinition.Kind.CHARGE, ActionMovementDefinition.Kind.ADVANCE, ActionMovementDefinition.Kind.DASH_TO_POINT])
 
 
 func begin_action_effects() -> void:
-	_action_hit_targets.clear()
+	if current_cast != null:
+		current_cast.hit_targets.clear()
+
+
+## 记录一次实际造成伤害的命中；技能命中会为“热诚决斗”类被动叠一层。
+## DoT 的周期伤害不经过这里，因此不会叠被动。
+func register_damage_hit(victim: Unit, is_skill := false) -> void:
+	if not alive or victim == null or not is_instance_valid(victim):
+		return
+	var passive: PassiveDefinition = definition.passive if definition != null else null
+	if passive == null:
+		return
+	if passive.on_hit_status != null and victim.team != team and victim.status_controller != null:
+		victim.status_controller.apply(passive.on_hit_status, self)
+	if not is_skill:
+		return
+	if passive.skill_hit_stacks_status != null and status_controller != null:
+		status_controller.apply(passive.skill_hit_stacks_status, self)
+	if passive.skill_hit_shield_ratio > 0.0:
+		apply_shield(max_hp * passive.skill_hit_shield_ratio,
+			passive.skill_hit_shield_duration, max_hp)
+
+
+## 对动作伤害应用状态提供的伤害修正（例如满层热诚的固定额外伤害）。
+func apply_status_damage_bonus(base_damage: float, is_basic := false) -> float:
+	if status_controller == null:
+		return base_damage
+	return status_controller.modify_damage(base_damage, is_basic)
 
 
 func _record_action_hit(victim: Unit) -> void:
-	_action_hit_targets[victim.get_instance_id()] = true
+	if current_cast != null:
+		current_cast.record_hit(victim)
 
 
 func heal(amount: float, healer: Unit = null) -> void:
 	if not alive or amount <= 0.0:
 		return
 	var before := hp
+	if healer != null and healer.definition != null and healer.definition.passive != null \
+			and healer.definition.passive.heal_below_hp_ratio > 0.0 \
+			and hp_ratio() < healer.definition.passive.heal_below_hp_ratio:
+		amount *= 1.0 + healer.definition.passive.heal_bonus_ratio
 	hp = minf(max_hp, hp + amount)
 	health_bar.set_ratio(hp / max_hp)
 	if hp > before:
-		battle.spawn_heal_text(get_hit_point(), hp - before)
+		if battle != null:
+			battle.spawn_heal_text(get_effect_point(), hp - before)
 		if healer != null:
 			healer.last_heal_amount += hp - before
+		sync_conditional_passives()
 
 
 func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
@@ -527,7 +681,9 @@ func apply_status(effect: ActionEffectDefinition, source: Unit) -> void:
 		push_warning("未找到状态定义: %s" % effect.status_id)
 		return
 	var duration := effect.status_duration if effect.status_duration > 0.0 else definition.duration
-	var power := effect.status_power if effect.status_power > 0.0 else definition.base_power
+	var power := effect.status_power if not is_zero_approx(effect.status_power) else definition.base_power
+	if effect.status_power_attack_ratio > 0.0 and source != null and is_instance_valid(source):
+		power = source.current_attack_damage() * effect.status_power_attack_ratio
 	status_controller.apply(definition, source, {
 		"duration": duration,
 		"power": power,
@@ -544,26 +700,24 @@ func apply_burn(duration: float, dps: float, source: Unit) -> void:
 	status_controller.apply(definition, source, {"duration": duration, "power": dps})
 
 
-func action_can_interrupt(action: CombatActionDefinition) -> bool:
-	return action != null and action.category != CombatActionDefinition.Category.BASIC and action.interrupts_target
-
-
-func hit_by_action(victim: Unit, action: CombatActionDefinition, effect: ActionEffectDefinition) -> void:
+func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 	if not is_instance_valid(victim) or not victim.alive:
 		return
-	var impact := victim.get_hit_point()
+	var impact := victim.get_effect_point()
 	var blocked := victim.is_guarding()
+	var is_skill := current_cast != null and current_cast.action.category == CombatActionDefinition.Category.SKILL
+	var damage := current_attack_damage() * maxf(effect.damage_ratio, 0.0)
+	damage = apply_status_damage_bonus(damage, not is_skill)
 	_record_action_hit(victim)
-	victim.take_damage(attack_damage * maxf(effect.damage_ratio, 0.0), self, impact,
-		action_can_interrupt(action))
-	if victim.alive and not blocked and effect.burn_duration > 0.0:
-		victim.apply_burn(effect.burn_duration, attack_damage * effect.burn_dps_ratio, self)
+	victim.take_damage(damage, self, impact, false, effect.ignore_shield)
+	register_damage_hit(victim, is_skill)
+	ActionImpact.apply_on_hit(effect, self, victim, blocked)
 	battle.spawn_hit_spark(impact, accent_color, 1.2)
 	battle.action_hits += 1
 
 
 func apply_knockback(origin: Vector2, distance: float) -> void:
-	if distance <= 0.0:
+	if distance <= 0.0 or is_training_dummy():
 		return
 	var dir := global_position - origin
 	if dir.length_squared() < 0.0001:
@@ -577,28 +731,47 @@ func apply_knockback(origin: Vector2, distance: float) -> void:
 func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectDefinition) -> void:
 	if effect == null:
 		return
-	var damage := attack_damage * maxf(effect.damage_ratio, 0.0)
+	var damage := current_attack_damage() * maxf(effect.damage_ratio, 0.0)
+	var cast_target: Unit = current_cast.target if current_cast != null else target
+	if effect.behavior != null:
+		effect.behavior.execute(self, current_cast, effect)
+	else:
+		_resolve_legacy_action_effect(action, effect, damage, cast_target)
+
+	if effect.effect_scene != null and effect.kind != ActionEffectDefinition.Kind.VISUAL:
+		_spawn_action_visual(effect)
+
+
+func _resolve_legacy_action_effect(action: CombatActionDefinition, effect: ActionEffectDefinition, damage: float, cast_target: Unit) -> void:
 	match effect.kind:
 		ActionEffectDefinition.Kind.DAMAGE:
 			_resolve_damage_effect(action, effect, damage)
 		ActionEffectDefinition.Kind.PROJECTILE:
-			if has_live_target() and is_target_in_action_range(action, 24.0, false):
-				battle.spawn_projectile(self, target, damage, effect.projectile_kind, accent_color,
-					action_can_interrupt(action), effect)
+			if cast_target != null and is_instance_valid(cast_target) and cast_target.alive \
+					and (action.movement_kind() == ActionMovementDefinition.Kind.RETREAT
+					or is_target_in_action_range(action, 24.0, false)):
+				damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
+				battle.spawn_projectile(self, cast_target, damage, effect.projectile_kind, accent_color, effect)
 		ActionEffectDefinition.Kind.VISUAL:
 			_spawn_action_visual(effect)
 		ActionEffectDefinition.Kind.GUARD:
-			apply_guard(effect.duration)
+			apply_guard(effect.duration, effect.guard_reward_shield_ratio, effect.guard_reward_shield_duration)
 		ActionEffectDefinition.Kind.SHIELD:
-			apply_shield(max_hp * effect.shield_per_target_ratio * _action_hit_targets.size(),
-				effect.duration, max_hp * effect.shield_max_ratio)
+			var hit_count := current_cast.hit_targets.size() if current_cast != null else 0
+			var shield_amount := max_hp * (effect.shield_self_ratio + effect.shield_per_target_ratio * hit_count)
+			var shield_cap := max_hp * effect.shield_max_ratio
+			if effect.shield_self_ratio > 0.0:
+				shield_cap = maxf(shield_cap, max_hp * effect.shield_self_ratio)
+			apply_shield(shield_amount, effect.duration, shield_cap)
 		ActionEffectDefinition.Kind.HEAL:
 			_resolve_heal_effect(effect)
 		ActionEffectDefinition.Kind.STATUS:
 			for victim in _effect_victims(effect):
-				if effect.requires_action_hit and not _action_hit_targets.has(victim.get_instance_id()):
+				if effect.requires_action_hit and (current_cast == null or not current_cast.has_hit(victim)):
 					continue
 				victim.apply_status(effect, self)
+				if victim.team != team:
+					_record_action_hit(victim)
 		ActionEffectDefinition.Kind.DISPLACE:
 			for victim in _effect_victims(effect):
 				victim.apply_knockback(global_position, effect.knockback)
@@ -608,74 +781,57 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 		_:
 			push_warning("ActionEffect kind %d 尚未实现" % effect.kind)
 
-	if effect.effect_scene != null and effect.kind != ActionEffectDefinition.Kind.VISUAL:
-		_spawn_action_visual(effect)
-
-
 func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffectDefinition, damage: float) -> void:
-	match effect.shape:
-		ActionEffectDefinition.Shape.SINGLE:
-			if not has_live_target() or not is_target_in_action_range(action, 24.0, false):
-				return
-			if (action.advance_distance > 0.0 or action.teleport_to_target) and distance_to_target() > target_reach(24.0):
-				return
-			var impact := target.get_hit_point()
-			battle.spawn_slash(impact, accent_color, signf(target.global_position.x - global_position.x))
-			_record_action_hit(target)
-			target.take_damage(damage, self, impact, action_can_interrupt(action))
-			if target.alive and effect.knockback > 0.0:
-				target.apply_knockback(global_position, effect.knockback)
-			battle.action_hits += 1
-		ActionEffectDefinition.Shape.CONE:
-			var cone_direction := planned_direction
-			if cone_direction.length_squared() < 0.0001:
-				cone_direction = Vector2(float(facing), 0.0)
-			var victims: Array = battle.units_in_cone(
-				self, cone_direction, effect.radius, effect.half_angle
-			)
-			for victim in victims:
-				_record_action_hit(victim)
-				victim.take_damage(damage, self, victim.get_hit_point(), action_can_interrupt(action))
-				battle.spawn_hit_spark(victim.get_hit_point(), Color(1.0, 0.55, 0.18), 1.4)
-				battle.action_hits += 1
-		ActionEffectDefinition.Shape.CIRCLE:
-			var center := global_position if effect.center_on_self else (target.global_position if has_live_target() else global_position)
-			for victim in battle.units_in_circle(self, center, effect.radius):
-				_record_action_hit(victim)
-				victim.take_damage(damage, self, victim.get_hit_point(), action_can_interrupt(action))
-				battle.action_hits += 1
-		ActionEffectDefinition.Shape.RECT:
-			var direction := planned_direction
-			if direction.length_squared() < 0.0001:
-				direction = Vector2(float(facing), 0.0)
-			for victim in battle.units_in_rect(self, direction, effect.length, effect.width):
-				_record_action_hit(victim)
-				victim.take_damage(damage, self, victim.get_hit_point(), action_can_interrupt(action))
-				battle.spawn_hit_spark(victim.get_hit_point(), accent_color, 1.2)
-				battle.action_hits += 1
-		_:
-			pass
+	var cast_target: Unit = current_cast.target if current_cast != null else target
+	if effect.shape == ActionEffectDefinition.Shape.SINGLE:
+		if cast_target == null or not is_instance_valid(cast_target) or not cast_target.alive or not is_target_in_action_range(action, 24.0, false):
+			return
+		if (action.movement_kind() == ActionMovementDefinition.Kind.ADVANCE or action.movement_kind() == ActionMovementDefinition.Kind.TELEPORT) and distance_to_target() > target_reach(24.0):
+			return
+	var direction := current_cast.direction if current_cast != null else planned_direction
+	var point := current_cast.point if current_cast != null else planned_point
+	var victims := ActionTargetQuery.enemies(self, effect, cast_target, direction, point,
+		current_cast != null and current_cast.has_point)
+	if not victims.is_empty():
+		damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
+	for victim in victims:
+		var impact := victim.get_effect_point()
+		if effect.shape == ActionEffectDefinition.Shape.SINGLE:
+			battle.spawn_slash(impact, accent_color, signf(victim.global_position.x - global_position.x))
+		elif effect.shape == ActionEffectDefinition.Shape.CONE:
+			battle.spawn_hit_spark(impact, Color(1.0, 0.55, 0.18), 1.4)
+		elif effect.shape == ActionEffectDefinition.Shape.RECT:
+			battle.spawn_hit_spark(impact, accent_color, 1.2)
+		_record_action_hit(victim)
+		var blocked := victim.is_guarding()
+		victim.take_damage(damage, self, impact, false, effect.ignore_shield)
+		register_damage_hit(victim, action.category == CombatActionDefinition.Category.SKILL)
+		ActionImpact.apply_on_hit(effect, self, victim, blocked)
+		if effect.shape == ActionEffectDefinition.Shape.SINGLE and victim.alive and effect.knockback > 0.0:
+			victim.apply_knockback(global_position, effect.knockback)
+		battle.action_hits += 1
 
 
 func _effect_victims(effect: ActionEffectDefinition) -> Array[Unit]:
-	var victims: Array[Unit] = []
-	if effect.shape == ActionEffectDefinition.Shape.CIRCLE:
-		var center := global_position if effect.center_on_self else (target.global_position if has_live_target() else global_position)
-		victims = battle.units_in_circle(self, center, effect.radius)
-	elif has_live_target():
-		victims.append(target)
-	return victims
+	var cast_target: Unit = current_cast.target if current_cast != null else target
+	var direction := current_cast.direction if current_cast != null else planned_direction
+	var point := current_cast.point if current_cast != null else planned_point
+	if effect.shape == ActionEffectDefinition.Shape.SELF or (current_cast != null and current_cast.action.target_mode == CombatActionDefinition.TargetMode.ALLY):
+		return ActionTargetQuery.allies(self, effect, cast_target, direction, point, current_cast.has_point)
+	return ActionTargetQuery.enemies(self, effect, cast_target, direction, point,
+		current_cast != null and current_cast.has_point)
 
 
 func _resolve_heal_effect(effect: ActionEffectDefinition) -> void:
 	if battle == null:
 		return
-	var amount := effect.heal_amount + attack_damage * effect.heal_ratio
-	for ally in battle.living_units():
-		if ally.team != team:
-			continue
-		if effect.radius <= 0.0 or ally.global_position.distance_to(global_position) <= effect.radius + ally.body_radius:
-			ally.heal(amount, self)
+	var amount := effect.heal_amount + current_attack_damage() * effect.heal_ratio
+	var cast_target: Unit = self if current_cast == null or current_cast.action.target_mode == CombatActionDefinition.TargetMode.SELF else current_cast.target
+	var point := current_cast.point if current_cast != null else planned_point
+	var direction := current_cast.direction if current_cast != null else planned_direction
+	for ally in ActionTargetQuery.allies(self, effect, cast_target, direction, point,
+		current_cast != null and current_cast.has_point):
+		ally.heal(amount, self)
 
 
 func _spawn_action_visual(effect: ActionEffectDefinition) -> void:
@@ -684,40 +840,66 @@ func _spawn_action_visual(effect: ActionEffectDefinition) -> void:
 	battle.spawn_action_effect(effect.effect_scene, self, effect)
 
 
-func apply_guard(duration: float) -> void:
+func apply_guard(duration: float, reward_shield_ratio := 0.0, reward_shield_duration := 0.0) -> void:
 	if not alive:
 		return
+	if guard_time <= 0.0:
+		guard_blocked_hit = false
 	guard_time = maxf(guard_time, duration)
+	guard_reward_shield_ratio = reward_shield_ratio
+	guard_reward_shield_duration = reward_shield_duration
 
 
 func apply_shield(amount: float, duration: float, cap: float) -> void:
 	if not alive or amount <= 0.0 or duration <= 0.0 or cap <= 0.0:
 		return
 	var before := shield
-	shield = minf(shield + amount, cap)
+	shield = minf(shield + amount, maxf(cap, shield))
 	shield_time = duration
 	health_bar.set_shield_ratio(shield / max_hp)
 	if battle != null and shield > before:
-		battle.spawn_shield_text(get_hit_point(), shield - before)
-		battle.spawn_hit_spark(get_hit_point(), Color("#59d9ff"), 1.8)
+		battle.spawn_shield_text(get_effect_point(), shield - before)
+		battle.spawn_hit_spark(get_effect_point(), Color("#59d9ff"), 1.8)
 
 
 func is_guarding() -> bool:
 	return guard_time > 0.0
 
 
-func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, can_interrupt := true, ignore_armor := false, ignore_shield := false) -> void:
+func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, ignore_armor := false, ignore_shield := false) -> void:
 	if not alive or raw_amount <= 0.0:
+		return
+	if source != null and is_instance_valid(source) and source != self and source.definition != null:
+		var source_passive: PassiveDefinition = source.definition.passive
+		if source_passive != null and source_passive.bonus_damage_ratio > 0.0 \
+				and source_passive.bonus_damage_target_status != &"" and status_controller != null \
+				and status_controller.has_status(source_passive.bonus_damage_target_status):
+			raw_amount *= 1.0 + source_passive.bonus_damage_ratio
+		if source_passive != null and source_passive.bonus_damage_min_distance > 0.0 \
+				and source_passive.bonus_damage_at_distance_ratio > 0.0 \
+				and source.global_position.distance_to(global_position) >= source_passive.bonus_damage_min_distance:
+			raw_amount *= 1.0 + source_passive.bonus_damage_at_distance_ratio
+	if is_training_dummy():
+		# 稻草人只记录伤害与飘字，不扣血、不进硬直、不死亡；护甲与格挡照常显示。
+		var recorded := raw_amount if ignore_armor else raw_amount * (1.0 - current_armor())
+		if recorded <= 0.0:
+			return
+		_flash_left = 0.09
+		visual.modulate = Color(1.0, 0.58, 0.58, 1.0)
+		if battle != null:
+			battle.on_damage_dealt(self, source, recorded)
+		_apply_lifesteal(recorded, source)
 		return
 	if guard_time > 0.0:
 		# 格挡期间完全免伤，也不进入受击硬直。
-		var block_at := get_hit_point() if hit_position == null else Vector2(hit_position)
+		guard_blocked_hit = true
+		var block_at := get_effect_point() if hit_position == null else Vector2(hit_position)
 		_flash_left = 0.09
 		visual.modulate = Color(1.0, 0.88, 0.52, 1.0)
 		battle.spawn_hit_spark(block_at, Color("#e7c46b"), 1.8)
 		battle.spawn_block_text(block_at)
 		return
-	var amount := raw_amount if ignore_armor else raw_amount * (1.0 - clampf(armor, 0.0, 0.8))
+	var amount := raw_amount if ignore_armor else raw_amount * (1.0 - current_armor())
 	if shield > 0.0 and not ignore_shield:
 		var absorbed := minf(shield, amount)
 		shield -= absorbed
@@ -726,7 +908,7 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 		if shield <= 0.0:
 			shield_time = 0.0
 		if amount <= 0.0:
-			battle.spawn_hit_spark(get_hit_point(), Color(0.35, 0.85, 1.0), 1.2)
+			battle.spawn_hit_spark(get_effect_point(), Color(0.35, 0.85, 1.0), 1.2)
 			return
 	hp = maxf(0.0, hp - amount)
 	last_damage_source = source
@@ -734,18 +916,25 @@ func take_damage(raw_amount: float, source: Unit, hit_position: Variant = null, 
 	_flash_left = 0.09
 	visual.modulate = Color(1.0, 0.58, 0.58, 1.0)
 	battle.on_damage_dealt(self, source, amount)
+	_apply_lifesteal(amount, source)
+	sync_conditional_passives()
 
 	if hp <= 0.0:
 		die(source)
 		return
 
-	if can_interrupt and _flinch_cooldown <= 0.0 and amount >= max_hp * 0.065:
-		_flinch_cooldown = 1.05
-		state_machine.transition_to(&"hurt", true)
+
+## 吸血：伤害结算后按攻击者的吸血比例回复其生命。
+func _apply_lifesteal(damage: float, source: Unit) -> void:
+	if damage <= 0.0 or source == null or source == self or not is_instance_valid(source) or not source.alive:
+		return
+	var ratio := source.current_lifesteal()
+	if ratio > 0.0:
+		source.heal(damage * ratio)
 
 
 func die(killer: Unit) -> void:
-	if not alive:
+	if not alive or is_training_dummy():
 		return
 	alive = false
 	hp = 0.0
@@ -756,6 +945,7 @@ func die(killer: Unit) -> void:
 	if status_controller != null:
 		status_controller.clear_all()
 	target = null
+	planned_target = null
 	brain.enabled = false
 	brain.last_observe_text = "生命归零，已失去感知"
 	brain.last_judge_text = "无法继续判断"
@@ -778,7 +968,27 @@ func get_hit_point() -> Vector2:
 	return global_position + Vector2(0.0, -visual_height * 0.52)
 
 
+## 投影后的旧特效层仍用 Vector2 接口。这个锚点表示角色身上的视觉高度。
+func get_effect_point() -> Vector2:
+	var hit_point := get_hit_point()
+	if battle is Battle:
+		return battle.stage.elevated_canvas_point(global_position, hit_point - global_position)
+	return hit_point
+
+
+func update_arena_projection(depth_scale: float) -> void:
+	health_bar.position = Vector2(_health_bar_anchor.x, _health_bar_anchor.y / depth_scale)
+	health_bar.scale = Vector2(_health_bar_scale.x, _health_bar_scale.y / depth_scale)
+	$StatusVisuals/AttributeBadges.scale.y = 1.0 / depth_scale
+
+
+## 投射物出生点：优先读取视觉场景里的 Muzzle 锚点，方便按角色在编辑器里拖拽调试。
+## 朝向翻转只作用于 Body 贴图（flip_h），锚点自身不会翻，因此水平坐标要按 facing 镜像。
+## 没有 Muzzle 锚点的视觉场景回退到按体型推算，新角色可以逐步迁移。
 func get_muzzle_point() -> Vector2:
+	if _muzzle_marker != null and _visual_root != null:
+		var local := _muzzle_marker.position
+		return _visual_root.to_global(Vector2(local.x * float(facing), local.y))
 	var visual_height := character_height * absf(visual.scale.y) if visual != null else character_height * definition.visual_scale
 	return global_position + Vector2(
 		float(facing) * body_radius * 0.72,

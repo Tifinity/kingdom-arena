@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/fx/priest_heal_fx.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/healing_ring.png" id="2"]
+
+[node name="priest_healing_ring" type="Sprite2D"]
+z_index = 4
+texture_filter = 1
+offset = Vector2(0, -36)
+scale = Vector2(4.3, 4.3)
+script = ExtResource("1")
+sheet = ExtResource("2")
+frame_size = Vector2i(256, 136)
+columns = 7
+frame_count = 88
+ground_ring = true

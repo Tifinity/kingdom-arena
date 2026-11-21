@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/fx/aegis_ring_fx.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/aegis_ring_ground.png" id="2"]
+
+[node name="AegisRingFx" type="Node2D"]
+script = ExtResource("1")
+
+[node name="Ground" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = ExtResource("2")
+hframes = 9
+vframes = 8
