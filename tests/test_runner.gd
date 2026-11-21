@@ -565,6 +565,46 @@ func _test_hero_lab() -> void:
 			lingering = true
 	_check(not lingering and is_equal_approx(lab.battle.training_damage(), rain_damage),
 		"箭雨在伤害帧前中断时取消落地和伤害")
+
+	lab.positioning_button.toggled.emit(true)
+	lab._select_definition(UnitCatalog.get_definition(&"soldier"))
+	var ranged_basic: CombatActionDefinition
+	for action: CombatActionDefinition in lab.hero.actions:
+		if action.action_id == &"soldier_ranged_basic":
+			ranged_basic = action
+			break
+	_check(ranged_basic != null and not lab.hero.brain.enabled and lab.range_readout.visible,
+		"手动站位在切换英雄后保持开启")
+	if ranged_basic != null:
+		var reach := ActionActivation.enemy_reach(lab.hero, ranged_basic, lab.dummy)
+		var outside: Vector2 = lab.dummy.position - Vector2(reach + 0.5, 0.0)
+		lab._set_paused(true)
+		var click := InputEventMouseButton.new()
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.pressed = true
+		click.position = lab.battle.stage.ground_transform * outside
+		lab._unhandled_input(click)
+		lab.basic_button.pressed.emit()
+		_check(lab.hero.position.is_equal_approx(outside) and lab.range_readout.text.contains("范围外")
+			and lab.battle.action_casts == 0 and get_tree().paused,
+			"暂停时可点击摆位，射程外的普攻不会施放")
+		var nudge := InputEventKey.new()
+		nudge.keycode = KEY_RIGHT
+		nudge.pressed = true
+		lab._unhandled_input(nudge)
+		var inside: Vector2 = lab.hero.position
+		_check(inside.is_equal_approx(outside + Vector2.RIGHT) and lab.range_readout.text.contains("范围内")
+			and is_equal_approx(lab.hero.selection_ring.attack_range, reach),
+			"方向键微调 1px 可跨过实际普攻边界，范围圈同步")
+		lab.basic_button.pressed.emit()
+		_check(lab.hero.current_cast != null and lab.hero.current_cast.action == ranged_basic,
+			"手动普攻在远距离使用士兵的弓箭普攻")
+		await get_tree().create_timer(1.3).timeout
+		_check(lab.hero.position.is_equal_approx(inside) and lab.battle.training_damage() > 0.0,
+			"手动普攻实际命中，英雄在攻击后保持站位")
+	lab.positioning_button.toggled.emit(false)
+	_check(lab.hero.brain.enabled and not lab.range_readout.visible and not lab.basic_button.visible,
+		"退出手动站位恢复默认的自动交战")
 	lab.queue_free()
 	await get_tree().process_frame
 	GameState.reset_lineups()

@@ -37,7 +37,7 @@ static func reason(unit: Unit, action: CombatActionDefinition, target: Variant =
 				if forced_target != null and live_target != forced_target:
 					return "被嘲讽，目标必须是嘲讽者"
 			if action.target_mode == CombatActionDefinition.TargetMode.ENEMY and action.movement_kind() != ActionMovementDefinition.Kind.CHARGE:
-				if not _in_range(unit, action, live_target):
+				if unit.global_position.distance_to(live_target.global_position) > enemy_reach(unit, action, live_target):
 					return "目标超出范围"
 			elif action.target_mode == CombatActionDefinition.TargetMode.ALLY and action.action_range > 0.0:
 				if unit.global_position.distance_to(live_target.global_position) > action.action_range + live_target.body_radius:
@@ -60,11 +60,11 @@ static func reason(unit: Unit, action: CombatActionDefinition, target: Variant =
 	return ""
 
 
-static func _in_range(unit: Unit, action: CombatActionDefinition, target: Unit) -> bool:
+static func enemy_reach(unit: Unit, action: CombatActionDefinition, target: Unit) -> float:
 	var aoe_reach := unit.action_aoe_reach(action)
 	if aoe_reach > 0.0:
-		return unit.global_position.distance_to(target.global_position) <= (aoe_reach + target.body_radius + 6.0) * unit.AOE_CAST_BUFFER
-	return unit.global_position.distance_to(target.global_position) <= action.action_range + target.body_radius + unit.body_radius * 0.35 + 6.0
+		return (aoe_reach + target.body_radius + 6.0) * unit.AOE_CAST_BUFFER
+	return action.action_range + target.body_radius + unit.body_radius * 0.35 + 6.0
 
 
 static func _has_wounded_ally(unit: Unit) -> bool:

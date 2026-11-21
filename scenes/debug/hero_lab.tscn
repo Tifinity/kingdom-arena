@@ -399,6 +399,12 @@ theme_override_font_sizes/font_size = 12
 text = "生命 — · 蓝量 —"
 autowrap_mode = 2
 
+[node name="RangeReadout" type="Label" parent="HUD/Root/RightPanel/VBox"]
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 2
+
 [node name="Buffs" type="Label" parent="HUD/Root/RightPanel/VBox"]
 custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
@@ -522,6 +528,22 @@ custom_minimum_size = Vector2(88, 30)
 layout_mode = 2
 text = "重置演示"
 
+[node name="PositioningButton" type="Button" parent="HUD/Root/SkillPanel/VBox/Controls"]
+custom_minimum_size = Vector2(88, 32)
+layout_mode = 2
+focus_mode = 0
+toggle_mode = true
+tooltip_text = "关掉英雄自动行动。点击场地摆位，方向键每次微调 1 px。"
+text = "手动站位"
+
+[node name="BasicButton" type="Button" parent="HUD/Root/SkillPanel/VBox/Controls"]
+visible = false
+custom_minimum_size = Vector2(88, 32)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "按当前位置和真实冷却尝试一次普攻。"
+text = "普攻一次"
+
 [node name="Spacer" type="Control" parent="HUD/Root/SkillPanel/VBox/Controls"]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -530,7 +552,7 @@ size_flags_horizontal = 3
 layout_mode = 2
 theme_override_colors/font_color = Color(0.4, 0.478, 0.569, 1)
 theme_override_font_sizes/font_size = 12
-text = "空格暂停 · F 加速 · 技能命中稻草人后记录伤害"
+text = "空格暂停 · F 加速"
 vertical_alignment = 1
 
 [node name="Toast" type="Label" parent="HUD/Root"]
