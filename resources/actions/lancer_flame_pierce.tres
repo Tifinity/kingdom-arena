@@ -35,6 +35,8 @@ kind = 3
 speed = 900.0
 distance = 0.0
 target_gap = 10.0
+charge_setup_distance = 220.0
+charge_pass_distance = 70.0
 
 [sub_resource type="Resource" id="targeting"]
 script = ExtResource("targeting_script")

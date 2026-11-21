@@ -234,6 +234,19 @@ func _should_kite() -> bool:
 	return unit.distance_to_target() < unit.attack_range * 0.42
 
 
+func _charge_setup_destination(action: CombatActionDefinition, charge_target: Unit) -> Vector2:
+	var position := unit.global_position
+	if action.movement_kind() != ActionMovementDefinition.Kind.CHARGE or not is_instance_valid(charge_target):
+		return position
+	var away := position - charge_target.global_position
+	var missing := action.movement.charge_setup_distance - away.length()
+	if missing <= 0.0:
+		return position
+	if away.length_squared() < 0.001:
+		away = Vector2(float(unit.facing), 0.0)
+	return unit.battle.clamp_unit_position(position + away.normalized() * missing)
+
+
 # --- D：决策 ------------------------------------------------------------
 
 func _decide() -> void:
@@ -274,8 +287,15 @@ func _decide() -> void:
 		planned_has_point = plan.has_point
 		if planned_action.target_mode in [CombatActionDefinition.TargetMode.ENEMY, CombatActionDefinition.TargetMode.POINT]:
 			target = plan.target
-		intent = Intent.ACTION
-		intent_reason = "使用 %s（%s，%s）" % [planned_action.display_name, planned_action.category_label(), plan_reason]
+		var setup_destination := _charge_setup_destination(planned_action, plan.target)
+		if unit.global_position.distance_squared_to(setup_destination) > 12.0 * 12.0:
+			movement_destination = setup_destination
+			movement_target = plan.target
+			intent = Intent.KITE
+			intent_reason = "为 %s 拉开冲锋距离" % planned_action.display_name
+		else:
+			intent = Intent.ACTION
+			intent_reason = "使用 %s（%s，%s）" % [planned_action.display_name, planned_action.category_label(), plan_reason]
 	elif can_retreat:
 		movement_destination = retreat
 		movement_target = threat
