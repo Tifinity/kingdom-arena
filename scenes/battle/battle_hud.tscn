@@ -211,15 +211,12 @@ vertical_alignment = 1
 [node name="Inspector" type="PanelContainer" parent="Root"]
 visible = false
 layout_mode = 1
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -238.0
-offset_top = -450.0
-offset_right = 238.0
-offset_bottom = -66.0
-grow_vertical = 0
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -402.0
+offset_top = 128.0
+offset_right = -18.0
+grow_horizontal = 0
 
 [node name="Margin" type="MarginContainer" parent="Root/Inspector"]
 layout_mode = 2

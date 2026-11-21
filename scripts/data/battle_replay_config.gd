@@ -14,6 +14,7 @@ const OVERRIDE_FIELDS := [
 var seed: int
 var lineups: Array
 var presets: Array
+var positions: Array = []
 var revision: String
 var engine_version: String
 var stat_overrides: Dictionary = {}
@@ -27,6 +28,12 @@ static func from_setup() -> BattleReplayConfig:
 	config.seed = randi()
 	config.lineups = GameState.lineups.duplicate(true)
 	config.presets = [GameState.selected_team_preset(0), GameState.selected_team_preset(1)]
+	for team in 2:
+		var slots: Array = []
+		for slot in GameState.TEAM_SIZE:
+			var point := GameState.deployment_position(team, slot, Vector2.INF)
+			slots.append([point.x, point.y] if point.is_finite() else null)
+		config.positions.append(slots)
 	config.revision = project_revision()
 	config.engine_version = _engine_build()
 	for definition in UnitCatalog.all():
@@ -37,7 +44,7 @@ static func from_setup() -> BattleReplayConfig:
 
 
 func to_dict() -> Dictionary:
-	return {
+	var data := {
 		"schema": SCHEMA,
 		"project_revision": revision,
 		"godot_version": engine_version,
@@ -47,6 +54,14 @@ func to_dict() -> Dictionary:
 		"presets": presets,
 		"stat_overrides": stat_overrides,
 	}
+	if not positions.is_empty():
+		data["positions"] = positions
+	return data
+
+
+func position_for_slot(team: int, slot: int, default_position: Vector2) -> Vector2:
+	var point: Variant = null if positions.is_empty() else positions[team][slot]
+	return default_position if point == null else Vector2(point[0], point[1])
 
 
 func unit_definition(unit_id: StringName) -> UnitDefinition:
@@ -80,6 +95,9 @@ static func read(path: String) -> Dictionary:
 	var roster_error := _validate_roster(data.get("lineups"), data.get("presets"))
 	if not roster_error.is_empty():
 		return {"error": roster_error}
+	var positions_error := _validate_positions(data.get("positions", []), data["lineups"])
+	if not positions_error.is_empty():
+		return {"error": positions_error}
 	var overrides_error := _validate_overrides(data.get("stat_overrides"))
 	if not overrides_error.is_empty():
 		return {"error": overrides_error}
@@ -93,6 +111,7 @@ static func read(path: String) -> Dictionary:
 	config.seed = int(data["seed"])
 	config.lineups = data["lineups"]
 	config.presets = [int(data["presets"][0]), int(data["presets"][1])]
+	config.positions = data.get("positions", [])
 	config.revision = current_revision
 	config.engine_version = current_engine
 	config.stat_overrides = data["stat_overrides"]
@@ -100,7 +119,8 @@ static func read(path: String) -> Dictionary:
 
 
 func save(path: String) -> Error:
-	if revision.is_empty() or not _validate_roster(lineups, presets).is_empty() or not _validate_overrides(stat_overrides).is_empty():
+	if revision.is_empty() or not _validate_roster(lineups, presets).is_empty() \
+			or not _validate_positions(positions, lineups).is_empty() or not _validate_overrides(stat_overrides).is_empty():
 		return ERR_INVALID_DATA
 	return write_json(path, to_dict())
 
@@ -146,6 +166,25 @@ static func _validate_roster(teams: Variant, team_presets: Variant) -> String:
 			populated = true
 		if not populated:
 			return "第 %d 队至少需要 1 名英雄" % (team + 1)
+	return ""
+
+
+static func _validate_positions(teams: Variant, lineups_by_team: Array) -> String:
+	if not teams is Array or teams.size() not in [0, 2]:
+		return "站位必须为空或包含两支队伍"
+	for team in teams.size():
+		var slots: Variant = teams[team]
+		if not slots is Array or slots.size() != GameState.TEAM_SIZE:
+			return "第 %d 队的站位槽位数量无效" % (team + 1)
+		for slot in slots.size():
+			var point: Variant = slots[slot]
+			if point == null:
+				continue
+			if lineups_by_team[team][slot] == null or not point is Array or point.size() != 2:
+				return "第 %d 队第 %d 位的站位无效" % [team + 1, slot + 1]
+			for coordinate: Variant in point:
+				if not (coordinate is int or coordinate is float) or not is_finite(coordinate):
+					return "站位坐标必须是有限数字"
 	return ""
 
 

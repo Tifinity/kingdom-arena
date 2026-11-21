@@ -23,7 +23,7 @@ func _ready() -> void:
 	pressed.connect(_on_pressed)
 
 
-## 从名册卡拖出一个英雄；实际部署由 LineupSlot 的 _drop_data 触发。
+## 名册卡可以拖到战场或阵容槽位。
 func _get_drag_data(_at_position: Vector2) -> Variant:
 	if definition == null:
 		return null
@@ -41,7 +41,7 @@ func setup(p_definition: UnitDefinition) -> void:
 	meta_label.add_theme_color_override("font_color", p_definition.accent_color)
 	hp_label.text = "生命 %d" % roundi(p_definition.max_hp)
 	atk_label.text = "攻击 %d" % roundi(p_definition.attack_damage)
-	tooltip_text = "%s · %s\n%s\n%s\n拖拽到左右槽位部署" % [
+	tooltip_text = "%s · %s\n%s\n%s\n拖到战场或阵容槽位部署" % [
 		p_definition.display_name, p_definition.title,
 		p_definition.description, p_definition.stat_line(),
 	]

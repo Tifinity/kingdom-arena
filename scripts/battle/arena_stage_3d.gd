@@ -4,7 +4,7 @@ extends Node3D
 ## 战斗仍以 Vector2 表示地面坐标。舞台以 X/Z 表示同一平面，Y 留给高度。
 const PITCH := deg_to_rad(50.0)
 const TRAINING_PITCH := deg_to_rad(38.0)
-const SIDE_GUTTER := 272.0
+const SIDE_GUTTER := 288.0
 const CAMERA_DISTANCE := 2450.0
 const SAMPLE_DISTANCE := 128.0
 const SKY_DISTANCE := 4300.0
@@ -17,6 +17,9 @@ const GROUND_MARKER_PRIORITY := -10
 
 var ground_transform := Transform2D.IDENTITY
 var _ground_inverse := Transform2D.IDENTITY
+var _camera_origin := Vector3.ZERO
+var _view_height := 900.0
+var _vertical_offset := 0.0
 
 @onready var _sky_viewport: SubViewport = $SkyViewport
 @onready var _sky: Sprite3D = $Sky
@@ -33,7 +36,9 @@ func frame_field(view_size: Vector2, field_min: Vector2, field_max: Vector2, tra
 	var field_width := maxf(view_size.x - SIDE_GUTTER * 2.0, view_size.x * 0.5)
 	camera.size = view_size.y if training_mode else view_size.y * maxf(1.0, span.x / field_width)
 	var screen_offset := view_size.y * 0.16 if training_mode else 0.0
-	camera.position = ground_to_world(center) + camera.basis.z * CAMERA_DISTANCE + camera.basis.y * screen_offset
+	_view_height = view_size.y
+	_camera_origin = ground_to_world(center) + camera.basis.z * CAMERA_DISTANCE + camera.basis.y * screen_offset
+	set_vertical_offset(_vertical_offset)
 
 	_sky.visible = training_mode
 	$Walls.visible = training_mode
@@ -42,26 +47,32 @@ func frame_field(view_size: Vector2, field_min: Vector2, field_max: Vector2, tra
 		_sky_viewport.size = Vector2i(view_size.ceil())
 		_sky.transform = Transform3D(camera.basis, camera.position - camera.basis.z * SKY_DISTANCE)
 
-	# 正交投影在固定地面上是仿射变换。让旧的地面绘制使用同一台相机的基向量。
+	$Floor.position = ground_to_world(center) + Vector3.DOWN
+	var floor_size := span + Vector2(420.0, 580.0)
+	if not training_mode:
+		# 名册打开时镜头会上移，铺地需要覆盖滑动前后的视口。
+		floor_size = Vector2(
+			view_size.x / ground_transform.x.length() + 300.0,
+			view_size.y / ground_transform.y.length() + 1200.0)
+	$Floor.scale = Vector3(floor_size.x, 1.0, floor_size.y)
+	var material := $Floor.material_override as ShaderMaterial
+	material.set_shader_parameter(&"field_min", field_min)
+	material.set_shader_parameter(&"field_max", field_max)
+	material.set_shader_parameter(&"training_mode", training_mode)
+
+	if training_mode:
+		_frame_training_walls(view_size, field_min, field_max, center, span)
+
+
+func set_vertical_offset(pixels: float) -> void:
+	_vertical_offset = pixels
+	camera.position = _camera_origin - camera.basis.y * (pixels * camera.size / _view_height)
+	# 地面、角色拾取和二维叠层共享正交相机的投影。
 	var origin := camera.unproject_position(Vector3.ZERO)
 	var right := camera.unproject_position(Vector3(SAMPLE_DISTANCE, 0.0, 0.0))
 	var down := camera.unproject_position(Vector3(0.0, 0.0, SAMPLE_DISTANCE))
 	ground_transform = Transform2D((right - origin) / SAMPLE_DISTANCE, (down - origin) / SAMPLE_DISTANCE, origin)
 	_ground_inverse = ground_transform.affine_inverse()
-
-	$Floor.position = ground_to_world(center) + Vector3.DOWN
-	var floor_size := span + Vector2(420.0, 580.0)
-	if not training_mode:
-		# 补齐镜头上下的铺地，边线仍标出单位实际可走的范围。
-		floor_size.x = span.x + 32.0
-		floor_size.y = maxf(span.y + 38.0, view_size.y / ground_transform.y.length() + 4.0)
-	$Floor.scale = Vector3(floor_size.x, 1.0, floor_size.y)
-	var material := $Floor.material_override as ShaderMaterial
-	material.set_shader_parameter(&"field_min", field_min)
-	material.set_shader_parameter(&"field_max", field_max)
-
-	if training_mode:
-		_frame_training_walls(view_size, field_min, field_max, center, span)
 
 
 func _frame_training_walls(view_size: Vector2, field_min: Vector2, field_max: Vector2, center: Vector2, span: Vector2) -> void:

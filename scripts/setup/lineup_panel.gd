@@ -7,6 +7,7 @@ signal slot_pressed(team: int, slot: int)
 signal remove_requested(team: int, slot: int)
 signal hero_dropped(team: int, slot: int, unit_id: StringName)
 signal slot_dropped(source_team: int, source_slot: int, target_team: int, target_slot: int)
+signal preset_changed
 
 @export var team := 0
 
@@ -58,11 +59,13 @@ func refresh() -> void:
 func _on_preset_selected(index: int) -> void:
 	GameState.select_team_preset(team, index)
 	refresh()
+	preset_changed.emit()
 
 
 func _on_restore_preset() -> void:
 	GameState.restore_team_preset(team)
 	refresh()
+	preset_changed.emit()
 
 
 func _on_slot_pressed(slot_team: int, slot_index: int) -> void:
