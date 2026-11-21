@@ -52,6 +52,14 @@ func get_definition(unit_id: StringName) -> UnitDefinition:
 	return _by_id.get(unit_id)
 
 
+## 从项目资源读取原始数值，避开当前进程应用过试炼场覆盖的缓存。
+func get_source_definition(unit_id: StringName) -> UnitDefinition:
+	var definition := get_definition(unit_id)
+	if definition == null:
+		return null
+	return ResourceLoader.load(definition.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE) as UnitDefinition
+
+
 func has_definition(unit_id: StringName) -> bool:
 	return _by_id.has(unit_id)
 

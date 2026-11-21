@@ -27,6 +27,8 @@ var cards: Array[UnitCard] = []
 @onready var random_button: Button = $Root/VBox/Header/HeaderRight/RandomButton
 @onready var clear_button: Button = $Root/VBox/Header/HeaderRight/ClearButton
 @onready var lab_button: Button = $Root/VBox/Header/HeaderRight/LabButton
+@onready var save_match_button: Button = $Root/VBox/Header/HeaderRight/SaveMatchButton
+@onready var save_match_dialog: FileDialog = $SaveMatchDialog
 @onready var start_button: Button = $Root/VBox/Header/HeaderRight/StartButton
 @onready var all_filter: Button = $Root/VBox/Content/Center/RosterHeader/Filters/AllFilter
 @onready var human_filter: Button = $Root/VBox/Content/Center/RosterHeader/Filters/HumanFilter
@@ -52,6 +54,8 @@ func _ready() -> void:
 	random_button.pressed.connect(_on_random_pressed)
 	clear_button.pressed.connect(_on_clear_pressed)
 	lab_button.pressed.connect(_on_lab_pressed)
+	save_match_button.pressed.connect(_on_save_match_pressed)
+	save_match_dialog.file_selected.connect(_save_match)
 	start_button.pressed.connect(_on_start_pressed)
 	all_filter.pressed.connect(_set_filter.bind(-1))
 	human_filter.pressed.connect(_set_filter.bind(UnitDefinition.Faction.HUMAN))
@@ -206,6 +210,20 @@ func _on_start_pressed() -> void:
 		_toast("双方至少各部署 1 名英雄")
 		return
 	BattleTransition.start()
+
+
+func _on_save_match_pressed() -> void:
+	if not GameState.lineup_ready():
+		_toast("双方至少各部署 1 名英雄")
+		return
+	save_match_dialog.current_file = "arena-match.json"
+	save_match_dialog.popup_centered_ratio(0.7)
+
+
+func _save_match(path: String) -> void:
+	var config := BattleReplayConfig.from_setup()
+	var error := config.save(path)
+	_toast("已保存对阵 · 种子 %d" % config.seed if error == OK else "保存对阵失败 · %s" % error_string(error))
 
 
 func _toast(message: String) -> void:

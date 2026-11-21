@@ -59,6 +59,12 @@ var action_casts := 0
 var skill_casts := 0
 var action_hits := 0
 
+## 复跑入口在添加战斗场景前设置；普通对战和试炼场维持原来的行为。
+var replay_config: BattleReplayConfig
+var replay_tick := 0
+var replay_events: Array[Dictionary] = []
+var replay_result: Dictionary = {}
+
 ## 训练模式：不读 GameState 阵容，只生成指定英雄 + 一只不会死亡、不会移动的稻草人。
 ## Hero Lab 在 add_child 之前设置 training_mode / training_definition。
 var training_mode := false
@@ -103,8 +109,12 @@ func _ready() -> void:
 		if training_definition != null:
 			start_training(training_definition)
 	else:
+		if replay_config != null:
+			_rng.seed = replay_config.seed
 		_spawn_lineups()
 		hud.set_roster(units)
+		if replay_config != null:
+			return
 		if BattleTransition.is_loading():
 			var previous_process_mode := process_mode
 			process_mode = Node.PROCESS_MODE_DISABLED
@@ -121,6 +131,8 @@ func _on_viewport_resized() -> void:
 	var previous := _viewport_size
 	_viewport_size = next_size
 	_refresh_layout()
+	if replay_config != null:
+		return
 	if training_mode:
 		var layout_scale := _viewport_size / BASE_SIZE
 		var next_dummy := TRAINING_DUMMY_SPOT * layout_scale
@@ -143,7 +155,7 @@ func _on_viewport_resized() -> void:
 func _refresh_layout() -> void:
 	if _viewport_size.x <= 1.0 or _viewport_size.y <= 1.0:
 		return
-	var layout_scale := _viewport_size / BASE_SIZE
+	var layout_scale := _viewport_size / BASE_SIZE if replay_config == null else Vector2.ONE
 	field_min = (TRAINING_FIELD_MIN if training_mode else BASE_FIELD_MIN) * layout_scale
 	field_max = (TRAINING_FIELD_MAX if training_mode else BASE_FIELD_MAX) * layout_scale
 	stage.frame_field(_viewport_size, field_min, field_max, training_mode)
@@ -156,7 +168,7 @@ func _refresh_layout() -> void:
 func _formation_position(team: int, slot: int) -> Vector2:
 	var point: Vector2 = BASE_FORMATIONS[team][slot]
 	point.y = FIELD_CENTER.y + (point.y - FIELD_CENTER.y) * FORMATION_DEPTH_SCALE
-	return point * (_viewport_size / BASE_SIZE)
+	return point if replay_config != null else point * (_viewport_size / BASE_SIZE)
 
 
 func _exit_tree() -> void:
@@ -166,15 +178,19 @@ func _exit_tree() -> void:
 
 func _spawn_lineups() -> void:
 	for team in 2:
-		var lineup: Array = GameState.get_lineup(team)
+		var lineup: Array = GameState.get_lineup(team) if replay_config == null else replay_config.lineups[team]
 		for slot in GameState.TEAM_SIZE:
 			var unit_id: Variant = lineup[slot]
 			if unit_id == null:
 				continue
-			var definition: UnitDefinition = UnitCatalog.get_definition(unit_id)
+			var definition := _lineup_definition(StringName(unit_id))
 			if definition == null:
 				continue
 			_spawn_unit(definition, team, slot, _formation_position(team, slot))
+
+
+func _lineup_definition(unit_id: StringName) -> UnitDefinition:
+	return UnitCatalog.get_definition(unit_id) if replay_config == null else replay_config.unit_definition(unit_id)
 
 
 ## 生成并登记一个单位。正常战斗与试炼场的训练模式共用这条路径。
@@ -184,6 +200,7 @@ func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_positio
 	units_root.add_child(unit)
 	unit.position = spawn_position
 	unit.setup(self, team, slot, definition)
+	_register_replay_unit(unit)
 	unit.face_direction(1.0 if team == 0 else -1.0)
 	var sprite := UnitSprite3D.new()
 	if training_mode:
@@ -276,25 +293,41 @@ func _run_countdown() -> void:
 	if not is_inside_tree():
 		return
 
-	battle_active = true
 	hud.show_countdown("开战！")
-	for unit in units:
-		if is_instance_valid(unit) and unit.alive:
-			unit.on_battle_started()
-			unit.brain.force_think()
+	_begin_battle()
 	await get_tree().create_timer(0.55, false).timeout
 	if not is_inside_tree():
 		return
 	hud.hide_countdown()
 
 
+func _begin_battle() -> void:
+	battle_active = true
+	for unit in living_units():
+		unit.on_battle_started()
+		unit.brain.force_think()
+
+
 func _physics_process(delta: float) -> void:
 	if finished:
 		return
-	if battle_active:
+	if replay_config != null:
+		if replay_tick == 0:
+			_begin_battle()
+		else:
+			# 在完整物理帧之间结算，避免渲染帧的延迟调用改变胜负。
+			_evaluate_victory()
+			if finished:
+				return
+			if replay_tick >= BattleReplayConfig.MAX_TICKS:
+				_finish(-1, "timeout")
+				return
+		replay_tick += 1
+		elapsed = float(replay_tick) / BattleReplayConfig.TICKS_PER_SECOND
+	elif battle_active:
 		elapsed += delta
 	_resolve_separation()
-	if battle_active and not training_mode:
+	if battle_active and not training_mode and replay_config == null:
 		_evaluate_victory()
 
 
@@ -368,6 +401,9 @@ func _on_unit_died(unit: Unit, killer: Unit) -> void:
 	if is_instance_valid(killer):
 		team_kills[killer.team] += 1
 	# 训练模式没有胜负：稻草人不会死亡，英雄也不应由靶子击杀。
+	if replay_config != null:
+		_record_replay_event("death", killer, unit)
+		return
 	if training_mode:
 		return
 	call_deferred("_evaluate_victory")
@@ -388,7 +424,7 @@ func _evaluate_victory() -> void:
 		_finish(1)
 
 
-func _finish(result_winner: int) -> void:
+func _finish(result_winner: int, reason := "elimination") -> void:
 	if finished:
 		return
 	finished = true
@@ -401,11 +437,28 @@ func _finish(result_winner: int) -> void:
 	speed_multiplier = 1.0
 	hud.refresh_controls()
 
+	if replay_config != null:
+		replay_result = {"tick": replay_tick, "reason": reason, "summary": _build_result()}
+		# 保留最后一击的动画与特效，同时停止战斗逻辑。
+		for unit in living_units():
+			unit.set_physics_process(false)
+			unit.state_machine.set_physics_process(false)
+			unit.status_controller.set_physics_process(false)
+		for projectile in projectiles_root.get_children():
+			projectile.set_physics_process(false)
+
 	await get_tree().create_timer(0.9, false).timeout
 	if not is_inside_tree():
 		return
 
-	var result := {
+	var result: Dictionary = replay_result["summary"] if replay_config != null else _build_result()
+	GameState.last_result = result
+	battle_finished.emit(winner)
+	hud.show_result(result)
+
+
+func _build_result() -> Dictionary:
+	return {
 		"winner": winner,
 		"elapsed": elapsed,
 		"alive": [team_alive(0), team_alive(1)],
@@ -414,9 +467,6 @@ func _finish(result_winner: int) -> void:
 		"kills": [team_kills[0], team_kills[1]],
 		"mvp": {"name": _mvp_name, "team": _mvp_team, "damage": _mvp_damage},
 	}
-	GameState.last_result = result
-	battle_finished.emit(winner)
-	hud.show_result(result)
 
 
 func on_damage_dealt(target: Unit, source: Unit, amount: float) -> void:
@@ -430,6 +480,8 @@ func on_damage_dealt(target: Unit, source: Unit, amount: float) -> void:
 			_mvp_damage = total
 			_mvp_name = source.definition.display_name
 			_mvp_team = source.team
+	if replay_config != null:
+		_record_replay_event("damage", source, target, {"amount": amount})
 	var color: Color = source.accent_color if is_instance_valid(source) else Color.WHITE
 	var at: Vector2 = target.get_effect_point() + Vector2(_rng.randf_range(-14.0, 14.0), _rng.randf_range(-8.0, 4.0))
 	spawn_damage_number(at, amount, color)
@@ -460,7 +512,7 @@ func _spawn_combat_text(at: Vector2, text: String, color: Color) -> void:
 func spawn_summons(source: Unit, unit_id: StringName, count: int, effect_scene: PackedScene = null) -> void:
 	if not is_instance_valid(source) or unit_id == &"":
 		return
-	var definition := UnitCatalog.get_definition(unit_id)
+	var definition := _lineup_definition(unit_id)
 	if definition == null:
 		return
 	for index in maxi(count, 1):
@@ -476,6 +528,7 @@ func spawn_summons(source: Unit, unit_id: StringName, count: int, effect_scene: 
 			if fx is Node2D:
 				fx.global_position = spawn_position
 		unit.setup(self, source.team, source.slot, definition)
+		_register_replay_unit(unit, source)
 		if battle_active:
 			unit.on_battle_started()
 		unit.summoned = true
@@ -494,6 +547,33 @@ func register_action_cast(source: Unit, action: CombatActionDefinition) -> void:
 	action_casts += 1
 	if action.category == CombatActionDefinition.Category.SKILL:
 		skill_casts += 1
+	if replay_config != null and action.category != CombatActionDefinition.Category.BASIC:
+		_record_replay_event("cast", source, source.current_cast.target, {"action": String(action.action_id)})
+
+
+func _register_replay_unit(unit: Unit, summoner: Unit = null) -> void:
+	if replay_config == null:
+		return
+	unit.replay_id = units.size()
+	unit.brain.set_random_seed(replay_config.seed + unit.replay_id * 2654435761)
+	_record_replay_event("spawn", summoner, unit, {
+		"unit": String(unit.definition.unit_id), "team": unit.team, "slot": unit.slot,
+		"position": [unit.position.x, unit.position.y],
+	})
+
+
+func _record_replay_event(kind: String, source: Unit, target: Unit, fields: Dictionary = {}) -> void:
+	fields["type"] = kind
+	fields["tick"] = replay_tick
+	fields["source"] = source.replay_id if is_instance_valid(source) else null
+	fields["target"] = target.replay_id if is_instance_valid(target) else null
+	replay_events.append(fields)
+
+
+func team_name(team: int) -> String:
+	if replay_config != null:
+		return GameState.TEAM_PRESETS[replay_config.presets[team]]["name"]
+	return GameState.team_name(team)
 
 
 ## 扇形 AOE：以 source 为圆心，direction 为朝向，收集敌方单位。
@@ -583,7 +663,7 @@ func spawn_death_burst(at: Vector2, color: Color) -> void:
 
 
 func toggle_speed() -> void:
-	if finished:
+	if finished or replay_config != null:
 		return
 	if speed_multiplier < 0.75:
 		speed_multiplier = 1.0
@@ -612,10 +692,13 @@ func toggle_range_overlay() -> void:
 
 
 func restart_battle() -> void:
-	BattleTransition.start()
+	if replay_config == null:
+		BattleTransition.start()
 
 
 func back_to_setup() -> void:
+	if replay_config != null:
+		return
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 	get_tree().change_scene_to_file(SETUP_SCENE)
