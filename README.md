@@ -134,6 +134,24 @@ macOS 如果 `godot` 不在 PATH：
 右下角有「倍速 / 暂停 / 范围 / 布阵」按钮。倍速依次循环 ×1 → ×2 → ×0.5 → ×1。「范围」或 `Tab` 开关选中单位的攻击和技能范围环，默认关闭。结算面板可以重赛或返回布阵。
 战斗顶栏显示双方名称、剩余人数与计时。竞技场铺地延伸至窗口上下边缘，铜纹边线标出单位可走的区域。
 
+### 保存并复跑对阵
+
+布阵后点击「保存对阵」，导出 JSON。配置保存双方五个槽位（空槽为 `null`）、队伍预设编号、随机种子、试炼场属性覆盖、项目内容指纹和 Godot 构建版本。也可以从命令行生成一份默认阵容的配置。全新检出时先在 Godot 编辑器打开项目，或运行 `godot --headless --path . --import`。
+
+```sh
+# 可选，生成默认对阵。也可以用布阵界面保存的 JSON。
+godot --headless --path . res://tools/replay_battle.tscn -- --create /tmp/arena-match.json
+
+# 每次从同一份配置重新模拟。
+godot --headless --path . --fixed-fps 60 res://tools/replay_battle.tscn -- --run /tmp/arena-match.json /tmp/arena-first.json
+godot --headless --path . --fixed-fps 60 res://tools/replay_battle.tscn -- --run /tmp/arena-match.json /tmp/arena-second.json
+cmp /tmp/arena-first.json /tmp/arena-second.json
+```
+
+复跑使用 1600×900 设计坐标和 60 Hz 物理步长。窗口尺寸只影响画面。出场事件位于第 0 帧，第一步战斗位于第 1 帧。结果 JSON 包含胜负（`0` 蓝方，`1` 红方，`-1` 平局或超时）、时长、统计，以及出场（包含召唤）、技能起手、伤害和阵亡序列。`source` 与 `target` 指向场内单位编号，对应出场事件中的 `target`。`tick / 60` 得到事件所属物理帧的秒数。
+
+可编辑配置里的英雄 ID、槽位和 `seed`，种子范围为 0 至 4294967295。复跑只应用配置中的属性覆盖。项目内容或 Godot 构建不匹配时会拒绝运行。180 秒到时仍未分出胜负时，结果标记为 `timeout`，命令返回 2。去掉 `--headless` 可在窗口中观看复跑。
+
 ### 在编辑器里嵌入运行
 
 Godot 的游戏嵌入功能需要项目使用 **Windowed** 模式。如需嵌入调试，可以在项目设置的

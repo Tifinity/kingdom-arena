@@ -13,6 +13,7 @@ var battle: Node
 var definition: UnitDefinition
 var team := 0
 var slot := 0
+var replay_id := -1
 
 var max_hp := 100.0
 var hp := 100.0
@@ -272,8 +273,11 @@ func play_summon_intro() -> void:
 	visual.speed_scale = 1.0
 	play_animation(&"summon", true)
 	var duration := _measure_animation(&"summon", 0.45)
-	await get_tree().create_timer(maxf(duration, 0.65) + 0.1, false).timeout
+	var replay := battle is Battle and battle.replay_config != null
+	await get_tree().create_timer(maxf(duration, 0.65) + 0.1, false, replay).timeout
 	if not alive or not is_inside_tree():
+		return
+	if replay and battle.finished:
 		return
 	state_machine.set_physics_process(true)
 	brain.enabled = true
