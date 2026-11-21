@@ -263,7 +263,7 @@ func _make_status_icon(data: Dictionary) -> HBoxContainer:
 	var texture: Texture2D = data.get("icon")
 	if texture != null:
 		var icon := TextureRect.new()
-		icon.custom_minimum_size = Vector2(22, 22)
+		icon.custom_minimum_size = Vector2(24, 24)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.texture = texture
@@ -271,7 +271,7 @@ func _make_status_icon(data: Dictionary) -> HBoxContainer:
 		box.add_child(icon)
 	else:
 		var fallback := Label.new()
-		fallback.custom_minimum_size = Vector2(22, 22)
+		fallback.custom_minimum_size = Vector2(24, 24)
 		fallback.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		fallback.text = str(data.get("display_name", "状态")).left(1)
 		fallback.add_theme_color_override("font_color", Color("#e7c46b"))
@@ -280,7 +280,7 @@ func _make_status_icon(data: Dictionary) -> HBoxContainer:
 	if stacks > 1:
 		var stack_label := Label.new()
 		stack_label.text = "×%d" % stacks
-		stack_label.add_theme_font_size_override("font_size", 11)
+		stack_label.add_theme_font_size_override("font_size", 12)
 		stack_label.add_theme_color_override("font_color", Color("#e7c46b"))
 		box.add_child(stack_label)
 	return box

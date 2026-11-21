@@ -236,9 +236,8 @@ func _set_effect_frame(frame: int) -> void:
 
 func _draw() -> void:
 	draw_set_transform(_trail_offset)
-	var back := -_velocity.normalized() * 22.0
-	if kind == UnitDefinition.ProjectileKind.MAGIC:
-		draw_circle(Vector2.ZERO, 7.0, Color(tint, 0.16))
-		draw_line(back, Vector2.ZERO, Color(tint, 0.28), 5.0)
-	else:
-		draw_line(back, Vector2.ZERO, Color(1.0, 0.9, 0.7, 0.22), 2.0)
+	var back := -_velocity.normalized()
+	var magic := kind == UnitDefinition.ProjectileKind.MAGIC
+	var trace := tint if magic else Color("#f3d99e")
+	for index in range(1, 5):
+		PixelCombatDraw.dot(self, back * (index * 5.0), Color(trace, 0.39 - index * 0.07))
