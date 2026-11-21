@@ -55,6 +55,7 @@ func _run_all() -> void:
 	await _test_stun_effect()
 	await _test_status_framework()
 	await _test_damage_no_interrupt()
+	await _test_knight_swordsman_skills_no_cc()
 	await _test_necromancer()
 	await _test_tactical_movement()
 	await _test_battle()
@@ -3329,6 +3330,54 @@ func _test_damage_no_interrupt() -> void:
 		_check(target.state_machine.current_name == &"action" and target.current_cast == cast,
 			"技能伤害也不中断正在执行的动作")
 	await get_tree().create_timer(3.2).timeout
+	GameState.reset_lineups()
+	battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_knight_swordsman_skills_no_cc() -> void:
+	print("\n[骑士/剑士] 指定技能命中时不打断、不击退")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"knight")
+	GameState.set_slot(0, 1, &"swordsman")
+	GameState.set_slot(1, 0, &"soldier")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+
+	var target: Unit = battle.living_units(1)[0]
+	target.brain.enabled = false
+	target.position = battle.field_min + Vector2(330.0, 180.0)
+	var tested := 0
+	for attacker: Unit in battle.living_units(0):
+		attacker.brain.enabled = false
+		attacker.position = target.position - Vector2(55.0, 0.0)
+		attacker.target = target
+		for action: CombatActionDefinition in attacker.actions:
+			if action.action_id not in [&"knight_cleave", &"knight_flame_slash", &"swordsman_triple", &"swordsman_flurry"]:
+				continue
+			tested += 1
+			target.hp = target.max_hp
+			target.target = attacker
+			target.planned_action = target.actions[0]
+			target.action_cooldowns.clear()
+			target.state_machine.transition_to(&"action", true)
+			var target_cast := target.current_cast
+			var start_position := target.global_position
+			attacker.mana = attacker.max_mana
+			attacker.planned_action = action
+			attacker.planned_direction = Vector2.RIGHT
+			attacker.state_machine.transition_to(&"action", true)
+			for effect in action.effects:
+				attacker.resolve_action_effect(action, effect)
+			_check(target.hp < target.max_hp, "%s 对目标造成实际伤害" % action.display_name)
+			_check(target_cast != null and target.current_cast == target_cast
+				and target.state_machine.current_name == &"action", "%s 未打断目标动作" % action.display_name)
+			_check(target.global_position.distance_to(start_position) < 0.01, "%s 未击退目标" % action.display_name)
+			attacker.state_machine.transition_to(&"idle", true)
+			target.state_machine.transition_to(&"idle", true)
+	_check(tested == 4, "骑士与剑士各验证两个指定技能")
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
