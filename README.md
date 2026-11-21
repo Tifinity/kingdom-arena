@@ -49,11 +49,8 @@
 
 ![重甲斧兵盔甲护身](artifacts/armored_axeman_armor_guard.png)
 
-重甲斧兵的防御技能：对自身提高 20 个百分点护甲，持续 6 秒。状态表现使用 Sprite Shader
-`shaders/armor_up_glow.gdshader`：对当前动作帧的 alpha 做多方向采样，在身体外侧生成
-金色轮廓、暖色光晕和绕身体旋转的高光；状态结束时恢复单位原材质。
-Shader 会随待机、移动、攻击动作自动变化，不需要额外精灵表。
-重新截取见 `tools/armor_up_glow_capture.tscn`。
+重甲斧兵的防御技能：对自身提高 20 个百分点护甲，持续 6 秒。施放时铜甲片向身侧扣合，迸出短促火星；随后小甲片在腰间环绕，状态结束时消失。
+特效使用 pixelfx 导出的前后两层序列帧，不替换角色材质。重新导出与截取见 [特效工作流](docs/VFX_WORKFLOW.md)。
 
 ### 格挡
 

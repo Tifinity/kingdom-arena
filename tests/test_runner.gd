@@ -2502,6 +2502,7 @@ func _test_axeman_skills() -> void:
 	var armor_before: float = axeman.current_armor()
 	axeman.action_cooldowns[armor_guard.action_id] = 0.0
 	axeman.planned_action = armor_guard
+	var body_material := axeman.visual.material
 	axeman.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(0.2).timeout
 	_check(axeman.status_controller.has_status(&"armored_axeman_armor_guard")
@@ -2509,11 +2510,12 @@ func _test_axeman_skills() -> void:
 		"盔甲护身立即提高 20 个百分点护甲")
 	_check(axeman.status_controller.remaining(&"armored_axeman_armor_guard") > 5.5,
 		"盔甲护身持续 6 秒")
-	var guard_vfx := axeman.status_controller.get_vfx(&"armored_axeman_armor_guard")
-	_check(guard_vfx is ArmorUpGlowFx and (guard_vfx as ArmorUpGlowFx).is_playing()
-		and axeman.visual.material is ShaderMaterial,
-		"盔甲护身使用金色轮廓 Sprite Shader")
+	var guard_vfx := axeman.status_controller.get_vfx(&"armored_axeman_armor_guard") as ArmorGuardFx
+	_check(guard_vfx != null and guard_vfx.is_playing() and axeman.visual.material == body_material,
+		"盔甲护身播放独立的像素特效，不修改身体材质")
 	await get_tree().create_timer(0.8).timeout
+	_check(is_instance_valid(guard_vfx) and guard_vfx.current_frame() >= ArmorGuardFx.INTRO_FRAMES,
+		"盔甲护身扣合后进入循环")
 
 	# 普攻命中同样触发战栗：先移除重击施加的破甲，确认普攻会重新施加。
 	if enemies[0].alive:
@@ -2532,7 +2534,11 @@ func _test_axeman_skills() -> void:
 
 	await get_tree().create_timer(2.1).timeout
 	axeman.status_controller.remove_status(&"armored_axeman_armor_guard")
-	_check(axeman.visual.material == null, "盔甲护身结束后恢复身体材质")
+	_check(axeman.status_controller.get_vfx(&"armored_axeman_armor_guard") == null
+		and is_instance_valid(guard_vfx) and not guard_vfx.is_playing() and not guard_vfx.visible
+		and axeman.visual.material == body_material, "盔甲护身结束后立即停止并隐藏特效")
+	await get_tree().process_frame
+	_check(not is_instance_valid(guard_vfx), "盔甲护身结束后释放特效节点")
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
