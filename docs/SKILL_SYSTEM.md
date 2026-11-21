@@ -25,7 +25,7 @@ pixelfx 法阵以正圆绘制，作为 `Sprite3D` 贴在战场地面，由同一
 
 骑士格挡使用通用 `GUARD` 效果；成功格挡后的奖励护盾由 `resources/actions/knight_block.tres` 的 `guard_reward_shield_ratio` 和 `guard_reward_shield_duration` 控制。其他单位可用不同奖励、格挡时长、触发条件与冷却形成差异，不需要在单位脚本中写分支。
 
-重甲斧兵「盔甲护身」位于 `resources/actions/armored_axeman_armor_guard.tres`：对自身施加 `STATUS` 效果，引用 `resources/status/armored_axeman_armor_guard.tres`（护甲 +0.20，即 20 个百分点，持续 6 秒）；状态表现 `scenes/fx/armor_up_glow.tscn` 使用 Sprite Shader `shaders/armor_up_glow.gdshader`：状态生效时给单位 Body 换上金色轮廓材质，状态结束时恢复原材质；Shader 直接采样当前动作帧的 alpha，因此光环会跟随动作、朝向与受击闪烁。动作 `priority = 5`，排在重击（8）和旋风斩（10）之后，自动战斗在最近敌人进入 160 地面单位内时才会考虑护身，优先使用可用的输出技能。试炼场的手动演示可以直接施放。
+重甲斧兵「盔甲护身」位于 `resources/actions/armored_axeman_armor_guard.tres`：对自身施加 `STATUS` 效果，引用 `resources/status/armored_axeman_armor_guard.tres`（护甲 +0.20，即 20 个百分点，持续 6 秒）。状态表现 `scenes/fx/armor_guard.tscn` 在角色脚底锚点同步播放 pixelfx 的前后两层：一次扣合、持续环绕，状态结束时停止播放，不修改角色材质。动作 `priority = 5`，排在重击（8）和旋风斩（10）之后，自动战斗在最近敌人进入 160 地面单位内时才会考虑护身，优先使用可用的输出技能。试炼场的手动演示可以直接施放。
 
 旋风斩和巨斧狂袭使用同一套方向技预判。AI 选择能推进并命中敌人的方向，起手时按当前站位、场地边界和伤害帧再次校验。被嘲讽时，这条路线必须能命中嘲讽者。
 

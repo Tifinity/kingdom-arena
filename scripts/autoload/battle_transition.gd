@@ -6,7 +6,6 @@ const BATTLE_SCENE := "res://scenes/battle/battle.tscn"
 const TAUNT_MARK_SCENE := preload("res://scenes/fx/taunt_mark.tscn")
 
 @onready var _loading_screen: ColorRect = $LoadingScreen
-@onready var _armor_glow_viewport: SubViewport = $ArmorGlowWarmup
 
 
 func is_loading() -> bool:
@@ -34,11 +33,10 @@ func start() -> void:
 
 func _warm_up_battle(tree: SceneTree) -> void:
 	if DisplayServer.get_name() != "headless":
-		# 在遮罩下提前绘制真实战场、嘲讽标记和盔甲护身材质。
+		# 在遮罩下提前绘制真实战场和嘲讽标记。
 		var taunt_mark := TAUNT_MARK_SCENE.instantiate() as Node2D
 		taunt_mark.position = _loading_screen.size * 0.5
 		add_child(taunt_mark)
-		_armor_glow_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 		await RenderingServer.frame_post_draw
 		taunt_mark.queue_free()
 	await tree.process_frame
