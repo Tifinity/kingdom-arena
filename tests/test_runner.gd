@@ -3091,11 +3091,11 @@ func _test_stun_effect() -> void:
 		add_child(stars)
 		await get_tree().process_frame
 		_check(stars.star_count() == 3, "眩晕特效由 3 颗星星组成")
-		var start_angle := stars._angle
+		var start_frame := stars.current_frame()
 		stars.play()
 		await get_tree().create_timer(0.22).timeout
 		_check(stars.visible and stars.is_playing(), "眩晕特效可以播放")
-		_check(not is_equal_approx(stars._angle, start_angle), "眩晕星星持续旋转")
+		_check(stars.current_frame() != start_frame, "眩晕序列帧持续播放")
 		stars.stop()
 		_check(not stars.visible, "眩晕特效可以停止")
 		stars.queue_free()

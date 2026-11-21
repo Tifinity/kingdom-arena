@@ -1,0 +1,111 @@
+{
+  "set": "high-pressure-water-gun",
+  "version": 1,
+  "effects": [
+    {
+      "id": "water/pressure-lance",
+      "name": "Pressure lance",
+      "nameZh": "贯穿",
+      "sheet": "pressure-lance.png",
+      "data": "pressure-lance.json",
+      "gif": "pressure-lance.gif",
+      "source": "src/pressure-lance.js",
+      "fps": 30,
+      "loop": false,
+      "frames": 35,
+      "frameSize": [
+        306,
+        104
+      ],
+      "columns": 4,
+      "pivot": [
+        22,
+        52
+      ]
+    },
+    {
+      "id": "water/pressure-blast",
+      "name": "Pressure blast",
+      "nameZh": "炮击",
+      "sheet": "pressure-blast.png",
+      "data": "pressure-blast.json",
+      "gif": "pressure-blast.gif",
+      "source": "src/pressure-blast.js",
+      "fps": 30,
+      "loop": false,
+      "frames": 39,
+      "frameSize": [
+        250,
+        150
+      ],
+      "columns": 5,
+      "pivot": [
+        33,
+        100
+      ]
+    },
+    {
+      "id": "water/fan-sweep",
+      "name": "Fan sweep",
+      "nameZh": "扇扫",
+      "sheet": "fan-sweep.png",
+      "data": "fan-sweep.json",
+      "gif": "fan-sweep.gif",
+      "source": "src/fan-sweep.js",
+      "fps": 30,
+      "loop": true,
+      "frames": 66,
+      "frameSize": [
+        300,
+        154
+      ],
+      "columns": 6,
+      "pivot": [
+        20,
+        82
+      ]
+    },
+    {
+      "id": "water/hydro-shock",
+      "name": "Hydro shock",
+      "nameZh": "爆裂",
+      "sheet": "hydro-shock.png",
+      "data": "hydro-shock.json",
+      "gif": "hydro-shock.gif",
+      "source": "src/hydro-shock.js",
+      "fps": 30,
+      "loop": false,
+      "frames": 36,
+      "frameSize": [
+        232,
+        188
+      ],
+      "columns": 6,
+      "pivot": [
+        116,
+        133
+      ]
+    },
+    {
+      "id": "water/pressure-volley",
+      "name": "Pressure volley",
+      "nameZh": "三连击",
+      "sheet": "pressure-volley.png",
+      "data": "pressure-volley.json",
+      "gif": "pressure-volley.gif",
+      "source": "src/pressure-volley.js",
+      "fps": 30,
+      "loop": false,
+      "frames": 46,
+      "frameSize": [
+        268,
+        126
+      ],
+      "columns": 5,
+      "pivot": [
+        26,
+        82
+      ]
+    }
+  ]
+}

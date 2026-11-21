@@ -1,0 +1,831 @@
+{
+ "frames": [
+  {
+   "filename": "hydro-shock 0",
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 1",
+   "frame": {
+    "x": 232,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 2",
+   "frame": {
+    "x": 464,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 3",
+   "frame": {
+    "x": 696,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 4",
+   "frame": {
+    "x": 928,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 5",
+   "frame": {
+    "x": 1160,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 6",
+   "frame": {
+    "x": 0,
+    "y": 188,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 7",
+   "frame": {
+    "x": 232,
+    "y": 188,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 8",
+   "frame": {
+    "x": 464,
+    "y": 188,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 9",
+   "frame": {
+    "x": 696,
+    "y": 188,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 10",
+   "frame": {
+    "x": 928,
+    "y": 188,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 11",
+   "frame": {
+    "x": 1160,
+    "y": 188,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 12",
+   "frame": {
+    "x": 0,
+    "y": 376,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 13",
+   "frame": {
+    "x": 232,
+    "y": 376,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 14",
+   "frame": {
+    "x": 464,
+    "y": 376,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 15",
+   "frame": {
+    "x": 696,
+    "y": 376,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 16",
+   "frame": {
+    "x": 928,
+    "y": 376,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 17",
+   "frame": {
+    "x": 1160,
+    "y": 376,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 18",
+   "frame": {
+    "x": 0,
+    "y": 564,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 19",
+   "frame": {
+    "x": 232,
+    "y": 564,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 20",
+   "frame": {
+    "x": 464,
+    "y": 564,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 21",
+   "frame": {
+    "x": 696,
+    "y": 564,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 22",
+   "frame": {
+    "x": 928,
+    "y": 564,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 23",
+   "frame": {
+    "x": 1160,
+    "y": 564,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 24",
+   "frame": {
+    "x": 0,
+    "y": 752,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 25",
+   "frame": {
+    "x": 232,
+    "y": 752,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 26",
+   "frame": {
+    "x": 464,
+    "y": 752,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 27",
+   "frame": {
+    "x": 696,
+    "y": 752,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 28",
+   "frame": {
+    "x": 928,
+    "y": 752,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 29",
+   "frame": {
+    "x": 1160,
+    "y": 752,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 30",
+   "frame": {
+    "x": 0,
+    "y": 940,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 31",
+   "frame": {
+    "x": 232,
+    "y": 940,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 32",
+   "frame": {
+    "x": 464,
+    "y": 940,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 33",
+   "frame": {
+    "x": 696,
+    "y": 940,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 34",
+   "frame": {
+    "x": 928,
+    "y": 940,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  },
+  {
+   "filename": "hydro-shock 35",
+   "frame": {
+    "x": 1160,
+    "y": 940,
+    "w": 232,
+    "h": 188
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 232,
+    "h": 188
+   },
+   "sourceSize": {
+    "w": 232,
+    "h": 188
+   },
+   "duration": 33
+  }
+ ],
+ "meta": {
+  "app": "https://github.com/patch-gg/pixelfx",
+  "version": "1",
+  "image": "hydro-shock.png",
+  "format": "RGBA8888",
+  "size": {
+   "w": 1392,
+   "h": 1128
+  },
+  "scale": "1",
+  "frameTags": [
+   {
+    "name": "hydro-shock",
+    "from": 0,
+    "to": 35,
+    "direction": "forward"
+   }
+  ],
+  "pixelfx": {
+   "id": "water/hydro-shock",
+   "name": "Hydro shock",
+   "fps": 30,
+   "loop": false,
+   "frames": 36,
+   "frameSize": [
+    232,
+    188
+   ],
+   "pivot": [
+    116,
+    133
+   ],
+   "columns": 6
+  }
+ }
+}

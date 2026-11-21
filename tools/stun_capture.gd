@@ -56,16 +56,8 @@ func _ready() -> void:
 	orc.target = enemies[0]
 	orc.planned_action = slam
 	orc.state_machine.transition_to(&"action", true)
-	# 第 6 帧约 0.375s 触发眩晕；再等一小段让星星完全淡入。
-	await _wait(0.7)
-	# 额外叠 2 层中毒，方便同时检查 HUD 的状态图标占位符。
-	var poison := StatusCatalog.get_definition(&"poison")
-	if poison != null:
-		enemies[0].status_controller.apply(poison, orc, {
-			"duration": 4.0, "power": 0.02, "stacks": 2,
-		})
-	battle._select_at(battle.unit_screen_position(enemies[0]))
-	await _wait(0.12)
+	# 等到裂地盾击触发眩晕，并给头顶序列帧留出一小段播放时间。
+	await _wait(0.82)
 	await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()
 	var path := ProjectSettings.globalize_path("res://artifacts/stun.png")

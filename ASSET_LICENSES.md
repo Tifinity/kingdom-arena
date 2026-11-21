@@ -78,3 +78,12 @@
 - 熊人的 `attack03.png` 仅从授权素材的 Aseprite 源文件导出 `body` 图层，落地特效由 pixelfx 播放。
 - `assets/fx/pixelfx/ground_pound_25d_ground.png` 和 `ground_pound_25d_air.png` 来自本地 pixelfx 的 `moves/ground-pound-perspective`，55 帧、30 FPS、每帧 196×204。
 - 在 pixelfx 运行 `node tools/render.mjs moves/ground-pound-perspective --sheet --no-actor`。地面层传入 `--opts '{"depth":1,"layer":"ground"}'`，空中层传入 `--opts '{"layer":"air"}'`。Godot 会用战场相机投影地面层。
+
+## Pixelfx 眩晕、重击与普攻命中特效
+
+- `assets/fx/pixelfx/stunned.png` 来自 pixelfx 的 `status/stunned`。图集为每帧 60×64 像素、8 列、30 FPS、60 帧循环。在 pixelfx 检出中运行 `node tools/render.mjs status/stunned --sheet`，将 `records/status/stunned/stunned.png` 复制到游戏资源目录。
+- 眩晕、重击和普攻命中特效的完整许可见 [Stunned](assets/status/STUNNED_LICENSE.md)、[Heavy cleave](assets/FX_HEAVY_CLEAVE_LICENSE.md) 和 [Hit spark](assets/HIT_SPARK_LICENSE.md)。
+
+## Pixelfx 高压水枪特效
+
+- `assets/fx/water/` 包含五套独立特效的图集、帧数据、预览和源码。使用方法、重新导出命令与署名见 [素材说明](assets/fx/water/README.md)。

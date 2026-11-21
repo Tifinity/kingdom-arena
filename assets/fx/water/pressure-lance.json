@@ -1,0 +1,809 @@
+{
+ "frames": [
+  {
+   "filename": "pressure-lance 0",
+   "frame": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 1",
+   "frame": {
+    "x": 306,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 2",
+   "frame": {
+    "x": 612,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 3",
+   "frame": {
+    "x": 918,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 4",
+   "frame": {
+    "x": 0,
+    "y": 104,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 5",
+   "frame": {
+    "x": 306,
+    "y": 104,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 6",
+   "frame": {
+    "x": 612,
+    "y": 104,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 7",
+   "frame": {
+    "x": 918,
+    "y": 104,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 8",
+   "frame": {
+    "x": 0,
+    "y": 208,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 9",
+   "frame": {
+    "x": 306,
+    "y": 208,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 10",
+   "frame": {
+    "x": 612,
+    "y": 208,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 11",
+   "frame": {
+    "x": 918,
+    "y": 208,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 12",
+   "frame": {
+    "x": 0,
+    "y": 312,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 13",
+   "frame": {
+    "x": 306,
+    "y": 312,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 14",
+   "frame": {
+    "x": 612,
+    "y": 312,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 15",
+   "frame": {
+    "x": 918,
+    "y": 312,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 16",
+   "frame": {
+    "x": 0,
+    "y": 416,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 17",
+   "frame": {
+    "x": 306,
+    "y": 416,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 18",
+   "frame": {
+    "x": 612,
+    "y": 416,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 19",
+   "frame": {
+    "x": 918,
+    "y": 416,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 20",
+   "frame": {
+    "x": 0,
+    "y": 520,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 21",
+   "frame": {
+    "x": 306,
+    "y": 520,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 22",
+   "frame": {
+    "x": 612,
+    "y": 520,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 23",
+   "frame": {
+    "x": 918,
+    "y": 520,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 24",
+   "frame": {
+    "x": 0,
+    "y": 624,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 25",
+   "frame": {
+    "x": 306,
+    "y": 624,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 26",
+   "frame": {
+    "x": 612,
+    "y": 624,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 27",
+   "frame": {
+    "x": 918,
+    "y": 624,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 28",
+   "frame": {
+    "x": 0,
+    "y": 728,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 29",
+   "frame": {
+    "x": 306,
+    "y": 728,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 30",
+   "frame": {
+    "x": 612,
+    "y": 728,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 31",
+   "frame": {
+    "x": 918,
+    "y": 728,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 32",
+   "frame": {
+    "x": 0,
+    "y": 832,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 33",
+   "frame": {
+    "x": 306,
+    "y": 832,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  },
+  {
+   "filename": "pressure-lance 34",
+   "frame": {
+    "x": 612,
+    "y": 832,
+    "w": 306,
+    "h": 104
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 306,
+    "h": 104
+   },
+   "sourceSize": {
+    "w": 306,
+    "h": 104
+   },
+   "duration": 33
+  }
+ ],
+ "meta": {
+  "app": "https://github.com/patch-gg/pixelfx",
+  "version": "1",
+  "image": "pressure-lance.png",
+  "format": "RGBA8888",
+  "size": {
+   "w": 1224,
+   "h": 936
+  },
+  "scale": "1",
+  "frameTags": [
+   {
+    "name": "pressure-lance",
+    "from": 0,
+    "to": 34,
+    "direction": "forward"
+   }
+  ],
+  "pixelfx": {
+   "id": "water/pressure-lance",
+   "name": "Pressure lance",
+   "fps": 30,
+   "loop": false,
+   "frames": 35,
+   "frameSize": [
+    306,
+    104
+   ],
+   "pivot": [
+    22,
+    52
+   ],
+   "columns": 4
+  }
+ }
+}
