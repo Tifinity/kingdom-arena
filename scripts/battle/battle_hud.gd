@@ -85,6 +85,8 @@ func bind(p_battle: Battle) -> void:
 
 
 func set_roster(units: Array[Unit]) -> void:
+	blue_name.text = GameState.team_name(0)
+	red_name.text = GameState.team_name(1)
 	for unit in units:
 		var card := BattleRosterCard.new()
 		roster_columns[unit.team].add_child(card)
@@ -92,6 +94,19 @@ func set_roster(units: Array[Unit]) -> void:
 		card.pressed.connect(_select_from_roster.bind(card))
 		_roster_cards.append(card)
 	_refresh()
+
+
+func reset_round() -> void:
+	for card in _roster_cards:
+		card.get_parent().remove_child(card)
+		card.queue_free()
+	_roster_cards.clear()
+	set_selected_unit(null)
+	debug_panel.hide()
+	result_root.hide()
+	hide_countdown()
+	_refresh_accum = 0.0
+	refresh_controls()
 
 
 func _select_from_roster(card: BattleRosterCard) -> void:
@@ -212,6 +227,7 @@ func hide_countdown() -> void:
 func set_selected_unit(unit: Unit) -> void:
 	selected_unit = unit
 	inspector.visible = unit != null
+	roster_columns[1].visible = unit == null
 	for card in _roster_cards:
 		card.refresh(is_instance_valid(unit) and card.unit == unit)
 	hint_label.visible = unit == null
@@ -450,6 +466,7 @@ func show_result(result: Dictionary) -> void:
 	result_root.visible = true
 	hint_label.visible = false
 	inspector.visible = false
+	roster_columns[1].show()
 	var winner: int = result.get("winner", -1)
 	if winner == 0 or winner == 1:
 		var color := GameState.team_color(winner)

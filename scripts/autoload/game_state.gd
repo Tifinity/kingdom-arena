@@ -1,7 +1,7 @@
 extends Node
 
 ## 跨场景的比赛配置：布阵界面写入，战斗场景读取。
-## 每个队伍固定 5 个槽位，槽位顺序 = 战场站位；空槽用 null 表示。
+## 每个队伍固定 5 个槽位，空槽用 null 表示。自定义站位使用设计分辨率下的地面坐标。
 
 const TEAM_SIZE := 5
 const TEAM_SHORT_NAMES := ["蓝方", "红方"]
@@ -19,6 +19,8 @@ var last_result: Dictionary = {}
 var _selected_presets: Array[int] = [0, 1]
 ## 每一边各自保留切换前编辑过的阵容。
 var _lineup_drafts: Array[Dictionary] = [{}, {}]
+var _deployment_positions: Array[Dictionary] = [{}, {}]
+var _deployment_drafts: Array[Dictionary] = [{}, {}]
 
 
 func _ready() -> void:
@@ -29,6 +31,7 @@ func reset_lineups() -> void:
 	lineups = [_empty_slots(), _empty_slots()]
 	_selected_presets = [0, 1]
 	_lineup_drafts = [{}, {}]
+	_deployment_drafts = [{}, {}]
 	for team in 2:
 		restore_team_preset(team)
 
@@ -41,8 +44,10 @@ func select_team_preset(team: int, preset: int) -> void:
 	if preset < 0 or preset >= TEAM_PRESETS.size() or preset == _selected_presets[team]:
 		return
 	_lineup_drafts[team][_selected_presets[team]] = lineups[team]
+	_deployment_drafts[team][_selected_presets[team]] = _deployment_positions[team]
 	_selected_presets[team] = preset
 	set_lineup(team, _lineup_drafts[team].get(preset, TEAM_PRESETS[preset]["units"]))
+	_deployment_positions[team] = _deployment_drafts[team].get(preset, {}).duplicate()
 
 
 func restore_team_preset(team: int) -> void:
@@ -50,7 +55,18 @@ func restore_team_preset(team: int) -> void:
 
 
 func is_team_preset_edited(team: int) -> bool:
-	return lineups[team] != TEAM_PRESETS[_selected_presets[team]]["units"]
+	return lineups[team] != TEAM_PRESETS[_selected_presets[team]]["units"] or not _deployment_positions[team].is_empty()
+
+
+func deployment_position(team: int, slot: int, default_position: Vector2) -> Vector2:
+	return _deployment_positions[team].get(slot, default_position)
+
+
+func set_deployment_position(team: int, slot: int, point: Vector2, default_position: Vector2) -> void:
+	if point.is_equal_approx(default_position):
+		_deployment_positions[team].erase(slot)
+	elif get_slot(team, slot) != null:
+		_deployment_positions[team][slot] = point
 
 
 func _empty_slots() -> Array:
@@ -75,6 +91,7 @@ func set_slot(team: int, slot: int, unit_id: Variant) -> bool:
 		return false
 	if unit_id == null:
 		lineups[team][slot] = null
+		_deployment_positions[team].erase(slot)
 		return true
 	if not UnitCatalog.has_definition(StringName(unit_id)):
 		return false
@@ -84,6 +101,7 @@ func set_slot(team: int, slot: int, unit_id: Variant) -> bool:
 
 func set_lineup(team: int, unit_ids: Array) -> void:
 	lineups[team] = _empty_slots()
+	_deployment_positions[team] = {}
 	for slot in mini(unit_ids.size(), TEAM_SIZE):
 		var unit_id: Variant = unit_ids[slot]
 		if unit_id != null and UnitCatalog.has_definition(StringName(unit_id)):
@@ -106,12 +124,12 @@ func add_unit(team: int, unit_id: StringName) -> int:
 
 
 func remove_slot(team: int, slot: int) -> void:
-	if slot >= 0 and slot < TEAM_SIZE:
-		lineups[team][slot] = null
+	set_slot(team, slot, null)
 
 
 func clear_lineup(team: int) -> void:
 	lineups[team] = _empty_slots()
+	_deployment_positions[team] = {}
 
 
 func unit_count(team: int) -> int:

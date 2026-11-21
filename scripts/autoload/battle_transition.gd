@@ -2,7 +2,7 @@ extends CanvasLayer
 
 signal finished
 
-const BATTLE_SCENE := "res://scenes/battle/battle.tscn"
+const ARENA_SCENE := "res://scenes/setup/setup_screen.tscn"
 const TAUNT_MARK_SCENE := preload("res://scenes/fx/taunt_mark.tscn")
 
 @onready var _loading_screen: ColorRect = $LoadingScreen
@@ -21,7 +21,7 @@ func start() -> void:
 
 	Engine.time_scale = 1.0
 	tree.paused = false
-	var error := tree.change_scene_to_file(BATTLE_SCENE)
+	var error := tree.change_scene_to_file(ARENA_SCENE)
 	if error == OK:
 		await tree.scene_changed
 		await _warm_up_battle(tree)

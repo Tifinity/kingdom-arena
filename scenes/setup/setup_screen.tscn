@@ -1,11 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/setup/setup_screen.gd" id="1"]
-[ext_resource type="PackedScene" path="res://scenes/battle/arena_background.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/battle/battle.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/setup/lineup_panel.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/ui/control_button.tscn" id="4"]
-
 [ext_resource type="Texture2D" path="res://assets/ui/arena_crest.png" id="5"]
+[ext_resource type="Script" path="res://scripts/setup/deployment_field.gd" id="6"]
 
 [sub_resource type="ButtonGroup" id="filter_group"]
 
@@ -16,44 +16,42 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 script = ExtResource("1")
 
-[node name="Background" parent="." instance=ExtResource("2")]
-modulate = Color(0.84, 0.78, 0.85, 1)
+[node name="Battle" parent="." instance=ExtResource("2")]
+deployment_enabled = true
 
-[node name="Dim" type="ColorRect" parent="."]
-layout_mode = 1
+[node name="UI" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="Root" type="Control" parent="UI"]
+layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 mouse_filter = 2
-color = Color(0.086, 0.078, 0.125, 0.27)
 
-[node name="Root" type="MarginContainer" parent="."]
+[node name="Field" type="Control" parent="UI/Root" node_paths=PackedStringArray("setup", "battle")]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/margin_left = 36
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 36
-theme_override_constants/margin_bottom = 16
+script = ExtResource("6")
+setup = NodePath("../../..")
+battle = NodePath("../../../Battle")
 
-[node name="VBox" type="VBoxContainer" parent="Root"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="Header" type="HBoxContainer" parent="Root/VBox"]
-custom_minimum_size = Vector2(0, 80)
-layout_mode = 2
+[node name="Header" type="HBoxContainer" parent="UI/Root"]
+layout_mode = 1
+anchor_right = 1.0
+offset_left = 18.0
+offset_top = 18.0
+offset_right = -18.0
+offset_bottom = 70.0
 theme_override_constants/separation = 12
 
-[node name="Crest" type="TextureRect" parent="Root/VBox/Header"]
-custom_minimum_size = Vector2(52, 52)
+[node name="Crest" type="TextureRect" parent="UI/Root/Header"]
+custom_minimum_size = Vector2(42, 42)
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
@@ -62,38 +60,30 @@ texture = ExtResource("5")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Brand" type="VBoxContainer" parent="Root/VBox/Header"]
+[node name="Brand" type="VBoxContainer" parent="UI/Root/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 0
 alignment = 1
 
-[node name="Title" type="Label" parent="Root/VBox/Header/Brand"]
+[node name="Title" type="Label" parent="UI/Root/Header/Brand"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.79, 0.51, 1)
 theme_override_colors/font_outline_color = Color(0.086, 0.078, 0.125, 0.95)
 theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 48
+theme_override_font_sizes/font_size = 32
 text = "王国竞技场"
 
-[node name="HeaderRight" type="HBoxContainer" parent="Root/VBox/Header"]
+[node name="HeaderRight" type="HBoxContainer" parent="UI/Root/Header"]
 layout_mode = 2
 theme_override_constants/separation = 10
 alignment = 2
 
-[node name="RandomButton" parent="Root/VBox/Header/HeaderRight" instance=ExtResource("4")]
-layout_mode = 2
-text = "随机阵容"
-
-[node name="ClearButton" parent="Root/VBox/Header/HeaderRight" instance=ExtResource("4")]
-layout_mode = 2
-text = "清空"
-
-[node name="LabButton" parent="Root/VBox/Header/HeaderRight" instance=ExtResource("4")]
+[node name="LabButton" parent="UI/Root/Header/HeaderRight" instance=ExtResource("4")]
 layout_mode = 2
 text = "试炼场"
 
-[node name="StartButton" parent="Root/VBox/Header/HeaderRight" instance=ExtResource("4")]
+[node name="StartButton" parent="UI/Root/Header/HeaderRight" instance=ExtResource("4")]
 theme_type_variation = &"PixelPrimary"
 custom_minimum_size = Vector2(124, 40)
 layout_mode = 2
@@ -102,59 +92,76 @@ theme_override_colors/font_hover_color = Color(1, 0.94, 0.78, 1)
 theme_override_colors/font_pressed_color = Color(0.94, 0.79, 0.51, 1)
 text = "开始战斗"
 
-[node name="Divider" type="ColorRect" parent="Root/VBox"]
-custom_minimum_size = Vector2(0, 4)
-layout_mode = 2
-color = Color(0.45, 0.32, 0.34, 1)
+[node name="BluePanel" parent="UI/Root" instance=ExtResource("3")]
+layout_mode = 1
+offset_left = 16.0
+offset_top = 76.0
+offset_right = 260.0
+offset_bottom = 524.0
 
-[node name="TopSpacer" type="Control" parent="Root/VBox"]
-layout_mode = 2
-size_flags_vertical = 3
+[node name="RedPanel" parent="UI/Root" instance=ExtResource("3")]
+layout_mode = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -260.0
+offset_top = 76.0
+offset_right = -16.0
+offset_bottom = 524.0
+grow_horizontal = 0
+team = 1
 
-[node name="Content" type="HBoxContainer" parent="Root/VBox"]
-custom_minimum_size = Vector2(0, 732)
-layout_mode = 2
-theme_override_constants/separation = 14
+[node name="Drawer" type="Control" parent="UI/Root"]
+layout_mode = 1
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -351.0
+offset_right = -16.0
+offset_bottom = -60.0
+mouse_filter = 2
 
-[node name="BottomSpacer" type="Control" parent="Root/VBox"]
-layout_mode = 2
-size_flags_vertical = 3
+[node name="Panel" type="PanelContainer" parent="UI/Root/Drawer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 
-[node name="BluePanel" parent="Root/VBox/Content" instance=ExtResource("3")]
+[node name="Split" type="HBoxContainer" parent="UI/Root/Drawer/Panel"]
 layout_mode = 2
-team = 0
+theme_override_constants/separation = 16
 
-[node name="Center" type="VBoxContainer" parent="Root/VBox/Content"]
+[node name="Roster" type="VBoxContainer" parent="UI/Root/Drawer/Panel/Split"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 8
+theme_override_constants/separation = 5
 
-[node name="RosterHeader" type="HBoxContainer" parent="Root/VBox/Content/Center"]
+[node name="RosterHeader" type="HBoxContainer" parent="UI/Root/Drawer/Panel/Split/Roster"]
 custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="RosterTitle" type="Label" parent="Root/VBox/Content/Center/RosterHeader"]
+[node name="RosterTitle" type="Label" parent="UI/Root/Drawer/Panel/Split/Roster/RosterHeader"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.895, 0.823, 1)
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 20
 text = "英雄名册"
 
-[node name="RosterCount" type="Label" parent="Root/VBox/Content/Center/RosterHeader"]
+[node name="RosterCount" type="Label" parent="UI/Root/Drawer/Panel/Split/Roster/RosterHeader"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.494, 0.573, 0.663, 1)
 theme_override_font_sizes/font_size = 12
 text = "22 名"
 
-[node name="Spacer" type="Control" parent="Root/VBox/Content/Center/RosterHeader"]
+[node name="Spacer" type="Control" parent="UI/Root/Drawer/Panel/Split/Roster/RosterHeader"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Filters" type="HBoxContainer" parent="Root/VBox/Content/Center/RosterHeader"]
+[node name="Filters" type="HBoxContainer" parent="UI/Root/Drawer/Panel/Split/Roster/RosterHeader"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="AllFilter" type="Button" parent="Root/VBox/Content/Center/RosterHeader/Filters"]
+[node name="AllFilter" type="Button" parent="UI/Root/Drawer/Panel/Split/Roster/RosterHeader/Filters"]
 custom_minimum_size = Vector2(70, 30)
 layout_mode = 2
 toggle_mode = true
@@ -163,7 +170,7 @@ button_group = SubResource("filter_group")
 theme_override_font_sizes/font_size = 12
 text = "全部"
 
-[node name="HumanFilter" type="Button" parent="Root/VBox/Content/Center/RosterHeader/Filters"]
+[node name="HumanFilter" type="Button" parent="UI/Root/Drawer/Panel/Split/Roster/RosterHeader/Filters"]
 custom_minimum_size = Vector2(70, 30)
 layout_mode = 2
 toggle_mode = true
@@ -171,7 +178,7 @@ button_group = SubResource("filter_group")
 theme_override_font_sizes/font_size = 12
 text = "人类"
 
-[node name="WildernessFilter" type="Button" parent="Root/VBox/Content/Center/RosterHeader/Filters"]
+[node name="WildernessFilter" type="Button" parent="UI/Root/Drawer/Panel/Split/Roster/RosterHeader/Filters"]
 custom_minimum_size = Vector2(70, 30)
 layout_mode = 2
 toggle_mode = true
@@ -179,7 +186,7 @@ button_group = SubResource("filter_group")
 theme_override_font_sizes/font_size = 12
 text = "荒野"
 
-[node name="MonsterFilter" type="Button" parent="Root/VBox/Content/Center/RosterHeader/Filters"]
+[node name="MonsterFilter" type="Button" parent="UI/Root/Drawer/Panel/Split/Roster/RosterHeader/Filters"]
 custom_minimum_size = Vector2(70, 30)
 layout_mode = 2
 toggle_mode = true
@@ -187,216 +194,275 @@ button_group = SubResource("filter_group")
 theme_override_font_sizes/font_size = 12
 text = "怪物"
 
-[node name="RosterScroll" type="ScrollContainer" parent="Root/VBox/Content/Center"]
+[node name="RosterScroll" type="ScrollContainer" parent="UI/Root/Drawer/Panel/Split/Roster"]
 layout_mode = 2
 size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 222)
 horizontal_scroll_mode = 0
 
-[node name="RosterGrid" type="GridContainer" parent="Root/VBox/Content/Center/RosterScroll"]
+[node name="RosterGrid" type="GridContainer" parent="UI/Root/Drawer/Panel/Split/Roster/RosterScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/h_separation = 6
 theme_override_constants/v_separation = 6
 columns = 6
 
-[node name="DetailPanel" type="PanelContainer" parent="Root/VBox/Content/Center"]
-custom_minimum_size = Vector2(0, 126)
-layout_mode = 2
-
-[node name="Margin" type="MarginContainer" parent="Root/VBox/Content/Center/DetailPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 10
-
-[node name="HBox" type="HBoxContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin"]
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="PortraitFrame" type="PanelContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox"]
+[node name="DetailPanel" type="PanelContainer" parent="UI/Root/Drawer/Panel/Split"]
 theme_type_variation = &"PixelInset"
-custom_minimum_size = Vector2(96, 96)
+custom_minimum_size = Vector2(418, 0)
 layout_mode = 2
 
-[node name="Portrait" type="TextureRect" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/PortraitFrame"]
+[node name="Empty" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.67, 0.68, 1)
+theme_override_font_sizes/font_size = 16
+text = "选择英雄查看属性与技能"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Margin" type="MarginContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 9
+theme_override_constants/margin_top = 2
+theme_override_constants/margin_right = 9
+theme_override_constants/margin_bottom = 3
+
+[node name="Details" type="VBoxContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Header" type="HBoxContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Portrait" type="TextureRect" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Header"]
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 texture_filter = 1
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Info" type="VBoxContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox"]
-custom_minimum_size = Vector2(250, 0)
+[node name="Identity" type="VBoxContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 2
+theme_override_constants/separation = 1
 
-[node name="NameRow" type="HBoxContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Info"]
+[node name="Name" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Header/Identity"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_font_sizes/font_size = 19
 
-[node name="Name" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Info/NameRow"]
+[node name="Title" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Header/Identity"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.949, 0.961, 0.98, 1)
-theme_override_font_sizes/font_size = 24
-text = "选择一名英雄"
-
-[node name="Title" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Info/NameRow"]
-layout_mode = 2
-size_flags_vertical = 8
 theme_override_colors/font_color = Color(0.94, 0.79, 0.51, 1)
 theme_override_font_sizes/font_size = 12
-text = ""
 
-[node name="Meta" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Info"]
+[node name="Meta" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Header/Identity"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.592, 0.678, 0.776, 1)
 theme_override_font_sizes/font_size = 12
-text = "—"
 
-[node name="Desc" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Info"]
+[node name="Close" type="Button" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Header"]
 layout_mode = 2
-size_flags_vertical = 3
-theme_override_colors/font_color = Color(0.686, 0.761, 0.847, 1)
-theme_override_font_sizes/font_size = 12
-text = ""
-autowrap_mode = 2
+size_flags_vertical = 0
+focus_mode = 0
+text = "关闭"
 
-[node name="Stats" type="HBoxContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox"]
+[node name="Stats" type="GridContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details"]
 layout_mode = 2
-theme_override_constants/separation = 14
-alignment = 2
+columns = 6
+theme_override_constants/h_separation = 6
 
-[node name="HpCell" type="VBoxContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats"]
+[node name="HpCell" type="VBoxContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="Value" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/HpCell"]
+[node name="Value" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/HpCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.545, 0.804, 0.624, 1)
 theme_override_font_sizes/font_size = 16
 text = "—"
 horizontal_alignment = 1
 
-[node name="Caption" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/HpCell"]
+[node name="Caption" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/HpCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.72, 0.64, 0.68, 1)
 theme_override_font_sizes/font_size = 12
 text = "生命"
 horizontal_alignment = 1
 
-[node name="AtkCell" type="VBoxContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats"]
+[node name="AtkCell" type="VBoxContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="Value" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/AtkCell"]
+[node name="Value" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/AtkCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.749, 0.49, 1)
 theme_override_font_sizes/font_size = 16
 text = "—"
 horizontal_alignment = 1
 
-[node name="Caption" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/AtkCell"]
+[node name="Caption" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/AtkCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.72, 0.64, 0.68, 1)
 theme_override_font_sizes/font_size = 12
 text = "攻击"
 horizontal_alignment = 1
 
-[node name="AspdCell" type="VBoxContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats"]
+[node name="AspdCell" type="VBoxContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="Value" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/AspdCell"]
+[node name="Value" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/AspdCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.895, 0.823, 1)
 theme_override_font_sizes/font_size = 16
 text = "—"
 horizontal_alignment = 1
 
-[node name="Caption" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/AspdCell"]
+[node name="Caption" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/AspdCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.72, 0.64, 0.68, 1)
 theme_override_font_sizes/font_size = 12
 text = "攻速/秒"
 horizontal_alignment = 1
 
-[node name="RangeCell" type="VBoxContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats"]
+[node name="RangeCell" type="VBoxContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="Value" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/RangeCell"]
+[node name="Value" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/RangeCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.895, 0.823, 1)
 theme_override_font_sizes/font_size = 16
 text = "—"
 horizontal_alignment = 1
 
-[node name="Caption" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/RangeCell"]
+[node name="Caption" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/RangeCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.72, 0.64, 0.68, 1)
 theme_override_font_sizes/font_size = 12
 text = "射程"
 horizontal_alignment = 1
 
-[node name="ArmorCell" type="VBoxContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats"]
+[node name="ArmorCell" type="VBoxContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="Value" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/ArmorCell"]
+[node name="Value" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/ArmorCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.895, 0.823, 1)
 theme_override_font_sizes/font_size = 16
 text = "—"
 horizontal_alignment = 1
 
-[node name="Caption" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/ArmorCell"]
+[node name="Caption" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/ArmorCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.72, 0.64, 0.68, 1)
 theme_override_font_sizes/font_size = 12
 text = "护甲"
 horizontal_alignment = 1
 
-[node name="MoveCell" type="VBoxContainer" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats"]
+[node name="MoveCell" type="VBoxContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats"]
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="Value" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/MoveCell"]
+[node name="Value" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/MoveCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.94, 0.895, 0.823, 1)
 theme_override_font_sizes/font_size = 16
 text = "—"
 horizontal_alignment = 1
 
-[node name="Caption" type="Label" parent="Root/VBox/Content/Center/DetailPanel/Margin/HBox/Stats/MoveCell"]
+[node name="Caption" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/MoveCell"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.72, 0.64, 0.68, 1)
 theme_override_font_sizes/font_size = 12
 text = "移速"
 horizontal_alignment = 1
 
-[node name="RedPanel" parent="Root/VBox/Content" instance=ExtResource("3")]
+[node name="Scroll" type="ScrollContainer" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details"]
 layout_mode = 2
-team = 1
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
 
-[node name="ToastBox" type="PanelContainer" parent="."]
+[node name="Desc" type="Label" parent="UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.82, 0.86, 0.91, 1)
+theme_override_font_sizes/font_size = 14
+autowrap_mode = 3
+
+[node name="Footer" type="PanelContainer" parent="UI/Root"]
+layout_mode = 1
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -54.0
+grow_vertical = 0
+
+[node name="Row" type="Control" parent="UI/Root/Footer"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 30)
+
+[node name="Actions" type="HBoxContainer" parent="UI/Root/Footer/Row"]
+layout_mode = 1
+anchor_bottom = 1.0
+theme_override_constants/separation = 8
+
+[node name="RandomButton" parent="UI/Root/Footer/Row/Actions" instance=ExtResource("4")]
+layout_mode = 2
+text = "随机阵容"
+
+[node name="ClearButton" parent="UI/Root/Footer/Row/Actions" instance=ExtResource("4")]
+layout_mode = 2
+text = "清空"
+
+[node name="Toggle" parent="UI/Root/Footer/Row" instance=ExtResource("4")]
+layout_mode = 1
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -90.0
+offset_right = 90.0
+offset_bottom = 0.0
+text = "收起英雄名册  ▾"
+
+[node name="Help" type="Label" parent="UI/Root/Footer/Row"]
+layout_mode = 1
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -400.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.74, 0.68, 0.70, 1)
+theme_override_font_sizes/font_size = 14
+text = "拖动布阵 · 点击查看 · 右键移除"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="ToastBox" type="PanelContainer" parent="UI/Root"]
 theme_type_variation = &"PixelModal"
 visible = false
 layout_mode = 1
 mouse_filter = 2
-anchors_preset = 7
 anchor_left = 0.5
-anchor_top = 1.0
+anchor_top = 0.0
 anchor_right = 0.5
-anchor_bottom = 1.0
+anchor_bottom = 0.0
 offset_left = -240.0
-offset_top = -84.0
+offset_top = 72.0
 offset_right = 240.0
-offset_bottom = -44.0
+offset_bottom = 112.0
 grow_horizontal = 2
 grow_vertical = 0
 
-[node name="ToastLabel" type="Label" parent="ToastBox"]
+[node name="ToastLabel" type="Label" parent="UI/Root/ToastBox"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.949, 0.961, 0.98, 1)

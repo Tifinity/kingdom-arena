@@ -18,7 +18,5 @@ func _draw() -> void:
 	if draw_in_3d:
 		return
 	draw_set_transform(Vector2(0, -1), 0.0, Vector2(1.0, 0.34))
-	draw_circle(Vector2.ZERO, radius, Color(ring_color, 0.10))
-	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 30, Color(ring_color, 0.34), 2.0, true)
-	draw_arc(Vector2.ZERO, radius * 0.78, 0.0, TAU, 24, Color(ring_color, 0.14), 1.0, true)
+	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 48, Color(ring_color, 0.60), 1.5, true)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

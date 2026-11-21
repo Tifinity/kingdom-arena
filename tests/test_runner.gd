@@ -336,13 +336,13 @@ func _test_setup_scene() -> void:
 	_check(scene != null, "setup_screen.tscn 可加载")
 	if scene == null:
 		return
-	var setup = scene.instantiate()
+	var setup := scene.instantiate() as ArenaSetup
 	add_child(setup)
 	await get_tree().process_frame
-	var grid: GridContainer = setup.get_node("Root/VBox/Content/Center/RosterScroll/RosterGrid")
+	var grid: GridContainer = setup.roster_grid
 	_check(grid.get_child_count() == 22, "名册生成 22 张卡牌（实际 %d）" % grid.get_child_count())
-	var blue: LineupPanel = setup.get_node("Root/VBox/Content/BluePanel")
-	var red: LineupPanel = setup.get_node("Root/VBox/Content/RedPanel")
+	var blue: LineupPanel = setup.blue_panel
+	var red: LineupPanel = setup.red_panel
 	_check(blue.slots.size() == 5 and red.slots.size() == 5, "双方各有 5 个布阵槽位")
 	_check(GameState.unit_count(0) == 5 and GameState.unit_count(1) == 5, "默认双方阵容各 5 人")
 	_check(blue.power_label.text.begins_with("战力"), "布阵面板显示战力")
@@ -386,6 +386,9 @@ func _test_setup_scene() -> void:
 	setup._select_definition(target_definition)
 	_check(setup.detail_desc.text.contains("CD") and setup.detail_desc.text.contains(target_definition.actions[1].display_name),
 		"英雄详情显示技能描述与冷却")
+	_check(setup.drawer_panel.is_ancestor_of(setup.detail_panel)
+		and setup.detail_panel.is_visible_in_tree() and red.is_visible_in_tree(),
+		"英雄详情位于名册内，同时保留红方阵容")
 	var hero_payload := HeroDragData.from_hero(&"werebear")
 	_check(blue.slots[0]._can_drop_data(Vector2.ZERO, hero_payload), "槽位可接收英雄拖拽")
 	blue.slots[0]._drop_data(Vector2.ZERO, hero_payload)
@@ -410,6 +413,39 @@ func _test_setup_scene() -> void:
 	_check(setup.roster_count.text == "显示 6 / 22", "荒野筛选显示 6 名英雄")
 	setup._set_filter(UnitDefinition.Faction.MONSTER)
 	_check(setup.roster_count.text == "显示 7 / 22", "怪物筛选显示 7 名英雄")
+
+	GameState.reset_lineups()
+	setup._refresh_panels()
+	var arena := setup.battle
+	var unit := arena.unit_in_slot(0, 0)
+	var destination := Vector2(650, 680) * (setup.get_viewport_rect().size / Battle.BASE_SIZE)
+	var screen_point := arena.stage.ground_transform * destination
+	var move_payload := HeroDragData.from_slot(0, 0, unit.definition.unit_id)
+	_check(setup.field._can_drop_data(screen_point, move_payload)
+		and not setup.field._can_drop_data(arena.stage.ground_transform * arena.unit_in_slot(0, 1).position, move_payload)
+		and not setup.field._can_drop_data(Vector2(setup.get_viewport_rect().size.x * 0.56, screen_point.y), move_payload),
+		"场上英雄可拖到己方空地，拒绝重叠和越过半场")
+	setup.field._drop_data(screen_point, move_payload)
+	_check(unit.position.is_equal_approx(destination) and not blue.restore_preset_button.disabled,
+		"拖动落点立即更新布阵和恢复预设按钮")
+	var preset := GameState.selected_team_preset(0)
+	blue.preset_option.item_selected.emit(1)
+	blue.preset_option.item_selected.emit(preset)
+	_check(arena.unit_in_slot(0, 0).position.is_equal_approx(destination), "切换回原队伍保留自定义站位")
+
+	setup.start_button.pressed.emit()
+	_check(not setup.editor.visible and arena.hud.visible and arena.hud.countdown_label.visible
+		and arena.unit_in_slot(0, 0).position.is_equal_approx(destination), "原地开战沿用布阵位置")
+	arena.hud.exit_button.pressed.emit()
+	_check(arena.deploying and setup.editor.visible and not arena.hud.visible
+		and arena.unit_in_slot(0, 0).position.is_equal_approx(destination), "返回布阵保留站位和场景实例")
+	await get_tree().create_timer(0.85).timeout
+	_check(arena.deploying and not arena.hud.countdown_label.visible, "返回布阵后旧倒计时已取消")
+
+	blue.restore_preset_button.pressed.emit()
+	_check(blue.restore_preset_button.disabled
+		and arena.unit_in_slot(0, 0).position.is_equal_approx(arena._formation_position(0, 0))
+		and not arena.unit_in_slot(0, 0).position.is_equal_approx(destination), "恢复预设清除自定义站位")
 	GameState.reset_lineups()
 	setup.queue_free()
 	await get_tree().process_frame
@@ -3745,11 +3781,16 @@ func _check_arena_projection(battle: Battle) -> void:
 	_check(is_equal_approx(span.x * span.y, 2.0 * training_span.x * training_span.y)
 		and viewport.has_point(screen_min) and viewport.has_point(screen_max),
 		"实战竞技场面积为训练场地的两倍，正交相机覆盖全部边界")
+	var concourse := stage.get_node("Concourse") as MeshInstance3D
+	var concourse_half_span := Vector3(concourse.scale.x, 0.0, concourse.scale.z) * 0.5
+	var paving_min := stage.camera.unproject_position(concourse.position - concourse_half_span)
+	var paving_max := stage.camera.unproject_position(concourse.position + concourse_half_span)
+	_check(concourse.visible and paving_min.x <= 0.0 and paving_min.y <= 0.0
+		and paving_max.x >= view_size.x and paving_max.y >= view_size.y,
+		"擂台外围铺地投影覆盖整个视口")
 	var floor_mesh := stage.get_node("Floor") as MeshInstance3D
-	var floor_half_depth := Vector3.BACK * floor_mesh.scale.z * 0.5
-	var floor_top := stage.camera.unproject_position(floor_mesh.position - floor_half_depth)
-	var floor_bottom := stage.camera.unproject_position(floor_mesh.position + floor_half_depth)
-	_check(floor_top.y <= 0.0 and floor_bottom.y >= view_size.y, "竞技场铺地投影覆盖视口的上下边缘")
+	_check(floor_mesh.position.y > concourse.position.y and stage.get_node("RingBase").visible
+		and stage.get_node("RingPosts").get_child_count() == 4, "竞技场有抬高台面、石台基和四根角柱")
 	var unit := battle.units[0]
 	var point := unit.global_position
 	var screen := stage.ground_transform * point

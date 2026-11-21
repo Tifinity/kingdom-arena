@@ -10,6 +10,7 @@ var kind: int = Kind.HERO
 var unit_id: StringName
 var source_team := -1
 var source_slot := -1
+var ground_offset := Vector2.ZERO
 
 
 static func from_hero(hero_id: StringName) -> HeroDragData:

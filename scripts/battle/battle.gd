@@ -5,6 +5,9 @@ extends Node2D
 ## 具体战斗行为由 Unit + UnitBrain + StateMachine 完成。
 
 signal battle_finished(winner: int)
+signal deployment_changed(active: bool)
+
+@export var deployment_enabled := false
 
 const UNIT_SCENE := preload("res://scenes/battle/unit.tscn")
 const PROJECTILE_SCENE := preload("res://scenes/battle/projectile.tscn")
@@ -42,6 +45,8 @@ const BASE_FORMATIONS := [
 ]
 
 var units: Array[Unit] = []
+var deploying := false
+var _round_id := 0
 var battle_active := false
 var finished := false
 var winner := -1
@@ -102,6 +107,8 @@ func _ready() -> void:
 				training_definition = roster[0]
 		if training_definition != null:
 			start_training(training_definition)
+	elif deployment_enabled:
+		_enter_deployment()
 	else:
 		_spawn_lineups()
 		hud.set_roster(units)
@@ -153,10 +160,82 @@ func _refresh_layout() -> void:
 			unit.update_arena_projection(ground_presentation.scale.y / ground_presentation.scale.x)
 
 
+func set_deployment_view_offset(pixels: float) -> void:
+	stage.set_vertical_offset(pixels)
+	ground_presentation.transform = stage.ground_transform
+
+
 func _formation_position(team: int, slot: int) -> Vector2:
+	return GameState.deployment_position(team, slot, _default_formation_position(team, slot)) * (_viewport_size / BASE_SIZE)
+
+
+func _default_formation_position(team: int, slot: int) -> Vector2:
 	var point: Vector2 = BASE_FORMATIONS[team][slot]
 	point.y = FIELD_CENTER.y + (point.y - FIELD_CENTER.y) * FORMATION_DEPTH_SCALE
-	return point * (_viewport_size / BASE_SIZE)
+	return point
+
+
+func unit_in_slot(team: int, slot: int) -> Unit:
+	for unit in units:
+		if unit.team == team and unit.slot == slot:
+			return unit
+	return null
+
+
+func refresh_deployment() -> void:
+	if not deploying:
+		return
+	for team in 2:
+		for slot in GameState.TEAM_SIZE:
+			var unit := unit_in_slot(team, slot)
+			var unit_id: Variant = GameState.get_slot(team, slot)
+			if unit != null and unit.definition.unit_id != unit_id:
+				if selected_unit == unit:
+					select_unit(null)
+				team_sizes[team] -= 1
+				team_max_hp_total[team] -= unit.max_hp
+				units.erase(unit)
+				unit.queue_free()
+				unit = null
+			if unit == null and unit_id != null:
+				unit = _spawn_unit(UnitCatalog.get_definition(unit_id), team, slot, _formation_position(team, slot))
+				unit.set_physics_process(false)
+			elif unit != null:
+				unit.position = _formation_position(team, slot)
+
+
+func set_deployment_position(team: int, slot: int, point: Vector2) -> void:
+	GameState.set_deployment_position(team, slot, point / (_viewport_size / BASE_SIZE), _default_formation_position(team, slot))
+
+
+func start_deployed_battle() -> void:
+	if not deploying or not GameState.lineup_ready():
+		return
+	refresh_deployment()
+	deploying = false
+	stage.set_deployment_markings(false)
+	select_unit(null)
+	for unit in units:
+		unit.set_physics_process(true)
+	_show_combat_hud()
+	deployment_changed.emit(false)
+	_run_countdown()
+
+
+func _enter_deployment() -> void:
+	_reset_round()
+	deploying = true
+	stage.set_deployment_markings(true)
+	hud.hide()
+	hud.process_mode = Node.PROCESS_MODE_DISABLED
+	refresh_deployment()
+	deployment_changed.emit(true)
+
+
+func _show_combat_hud() -> void:
+	hud.show()
+	hud.process_mode = Node.PROCESS_MODE_ALWAYS
+	hud.set_roster(units)
 
 
 func _exit_tree() -> void:
@@ -204,9 +283,28 @@ func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_positio
 func start_training(definition: UnitDefinition) -> void:
 	training_mode = true
 	training_definition = definition
-	_clear_battlefield()
-	finished = false
+	_reset_round()
 	battle_active = true
+	training_hero = null
+	training_dummy = null
+	if definition == null:
+		return
+	var layout_scale := _viewport_size / BASE_SIZE
+	training_hero = _spawn_unit(definition, 0, 0, TRAINING_HERO_SPOT * layout_scale)
+	var dummy_definition := TRAINING_DUMMY_DEFINITION as UnitDefinition
+	training_dummy = _spawn_unit(dummy_definition, 1, 2, TRAINING_DUMMY_SPOT * layout_scale)
+	training_hero.face_direction(1.0)
+	training_dummy.face_direction(-1.0)
+	training_hero.on_battle_started()
+	training_hero.brain.enabled = not training_positioning
+	training_hero.brain.force_think()
+
+
+func _reset_round() -> void:
+	_round_id += 1
+	_clear_battlefield()
+	battle_active = false
+	finished = false
 	winner = -1
 	elapsed = 0.0
 	speed_multiplier = 1.0
@@ -224,19 +322,9 @@ func start_training(definition: UnitDefinition) -> void:
 	_mvp_team = -1
 	_mvp_damage = 0.0
 	selected_unit = null
-	training_hero = null
-	training_dummy = null
-	if definition == null:
-		return
-	var layout_scale := _viewport_size / BASE_SIZE
-	training_hero = _spawn_unit(definition, 0, 0, TRAINING_HERO_SPOT * layout_scale)
-	var dummy_definition := TRAINING_DUMMY_DEFINITION as UnitDefinition
-	training_dummy = _spawn_unit(dummy_definition, 1, 2, TRAINING_DUMMY_SPOT * layout_scale)
-	training_hero.face_direction(1.0)
-	training_dummy.face_direction(-1.0)
-	training_hero.on_battle_started()
-	training_hero.brain.enabled = not training_positioning
-	training_hero.brain.force_think()
+	if not training_mode:
+		get_tree().paused = false
+		hud.reset_round()
 
 
 func _clear_battlefield() -> void:
@@ -263,18 +351,12 @@ func training_damage() -> float:
 
 
 func _run_countdown() -> void:
-	hud.show_countdown("3")
-	await get_tree().create_timer(0.8, false).timeout
-	if not is_inside_tree():
-		return
-	hud.show_countdown("2")
-	await get_tree().create_timer(0.8, false).timeout
-	if not is_inside_tree():
-		return
-	hud.show_countdown("1")
-	await get_tree().create_timer(0.8, false).timeout
-	if not is_inside_tree():
-		return
+	var round_id := _round_id
+	for count in [3, 2, 1]:
+		hud.show_countdown(str(count))
+		await get_tree().create_timer(0.8, false).timeout
+		if not is_inside_tree() or round_id != _round_id:
+			return
 
 	battle_active = true
 	hud.show_countdown("开战！")
@@ -283,13 +365,13 @@ func _run_countdown() -> void:
 			unit.on_battle_started()
 			unit.brain.force_think()
 	await get_tree().create_timer(0.55, false).timeout
-	if not is_inside_tree():
+	if not is_inside_tree() or round_id != _round_id:
 		return
 	hud.hide_countdown()
 
 
 func _physics_process(delta: float) -> void:
-	if finished:
+	if finished or (deployment_enabled and not battle_active):
 		return
 	if battle_active:
 		elapsed += delta
@@ -612,17 +694,28 @@ func toggle_range_overlay() -> void:
 
 
 func restart_battle() -> void:
-	BattleTransition.start()
+	if deployment_enabled:
+		if deploying:
+			return
+		_reset_round()
+		_spawn_lineups()
+		_show_combat_hud()
+		_run_countdown()
+	else:
+		BattleTransition.start()
 
 
 func back_to_setup() -> void:
+	if deployment_enabled:
+		_enter_deployment()
+		return
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 	get_tree().change_scene_to_file(SETUP_SCENE)
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not training_mode and event is InputEventMouseButton:
+	if not training_mode and not deploying and event is InputEventMouseButton:
 		var mouse := event as InputEventMouseButton
 		if mouse.button_index == MOUSE_BUTTON_LEFT and mouse.pressed:
 			_select_at(mouse.position)
@@ -633,6 +726,10 @@ func unit_screen_position(unit: Unit) -> Vector2:
 
 
 func _select_at(point: Vector2) -> void:
+	select_unit(unit_at_screen_position(point))
+
+
+func unit_at_screen_position(point: Vector2) -> Unit:
 	var best: Unit = null
 	var best_distance := INF
 	for unit in units:
@@ -645,7 +742,7 @@ func _select_at(point: Vector2) -> void:
 			best = unit
 			best_distance = distance
 
-	select_unit(best)
+	return best
 
 
 func select_unit(unit: Unit) -> void:

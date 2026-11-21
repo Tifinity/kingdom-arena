@@ -1,6 +1,7 @@
 shader_type spatial;
 render_mode unshaded;
 
+uniform float warmth = 0.0;
 varying vec3 world;
 varying vec3 facing;
 
@@ -22,5 +23,7 @@ void fragment() {
 	float light = 0.93 + facing.y * 0.14 + facing.z * 0.05;
 	vec3 mortar = vec3(0.104, 0.105, 0.150);
 	vec3 stone = vec3(0.184, 0.184, 0.242) + vec3(0.050, 0.041, 0.042) * lip;
+	mortar = mix(mortar, vec3(0.105, 0.075, 0.112), warmth);
+	stone = mix(stone, vec3(0.218, 0.154, 0.187) + vec3(0.060, 0.040, 0.027) * lip, warmth);
 	ALBEDO = mix(mortar, stone, block) * light;
 }
