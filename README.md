@@ -152,6 +152,18 @@ cmp /tmp/arena-first.json /tmp/arena-second.json
 
 可编辑配置里的英雄 ID、槽位和 `seed`，种子范围为 0 至 4294967295。复跑只应用配置中的属性覆盖。项目内容或 Godot 构建不匹配时会拒绝运行。180 秒到时仍未分出胜负时，结果标记为 `timeout`，命令返回 2。去掉 `--headless` 可在窗口中观看复跑。
 
+### 导出战斗视频
+
+保存对阵 JSON 后运行以下命令，需要 Godot 4.6+、FFmpeg 和可用的图形环境。省略第二个参数时，视频会保存为与对阵 JSON 同目录、同名的 `.mp4`。
+
+```sh
+tools/export_battle_video.sh "/tmp/arena-match.json" "/tmp/arena-battle.mp4"
+```
+
+成片为原生 **1920×1080、60 fps、H.264 MP4**，沿用复跑的阵容与时间线，保留队名、计时、存活数、战场血条和结算。录制会打开预览窗口，结算画面保留约 2 秒后自动转码。请保持窗口打开直到导出完成。
+
+脚本会识别 PATH 中的 `godot`、`godot4` 或 macOS 的 Godot.app。可以通过 `GODOT_BIN`、`FFMPEG_BIN` 指定路径。导出会使用临时目录，并在成片就绪后写入目标路径。选择一个新文件名可以保留已有成片。
+
 ### 在编辑器里嵌入运行
 
 Godot 的游戏嵌入功能需要项目使用 **Windowed** 模式。如需嵌入调试，可以在项目设置的
