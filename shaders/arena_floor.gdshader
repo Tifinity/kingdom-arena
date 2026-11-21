@@ -59,12 +59,9 @@ void fragment() {
 	color = mix(color, brass, max(max(emblem * 0.70, diamond * 0.75), max(studs * 0.85, center_line * 0.32)));
 
 	if (surface == 1) {
-		vec3 inset = mix(vec3(0.141, 0.116, 0.151), vec3(0.225, 0.180, 0.195), seam);
-		inset += (floor(vein * 4.0) / 3.0 - 0.5) * 0.037 * seam;
-		inset += lit_edge * vec3(0.034, 0.025, 0.020) - bevel * 0.035;
-		float ring_panels = step(4.0, mod(mix(point.x, point.y, step(edge_dist.x, edge_dist.y)), 120.0));
-		vec3 rim = mix(vec3(0.139, 0.110, 0.145), vec3(0.185, 0.148, 0.164), ring_panels);
-		color = mix(rim, inset, inside);
+		color = mix(vec3(0.141, 0.116, 0.151), vec3(0.225, 0.180, 0.195), seam);
+		color += (floor(vein * 4.0) / 3.0 - 0.5) * 0.037 * seam;
+		color += lit_edge * vec3(0.034, 0.025, 0.020) - bevel * 0.035;
 	} else if (surface == 2) {
 		vec2 distance_from_ring = max(-edge_dist, vec2(0.0));
 		float falloff = smoothstep(36.0, 450.0, length(distance_from_ring));
