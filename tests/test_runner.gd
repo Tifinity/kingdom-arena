@@ -428,6 +428,11 @@ func _test_setup_scene() -> void:
 	setup.field._drop_data(screen_point, move_payload)
 	_check(unit.position.is_equal_approx(destination) and not blue.restore_preset_button.disabled,
 		"拖动落点立即更新布阵和恢复预设按钮")
+	var saved_match := BattleReplayConfig.from_setup()
+	var saved_point := saved_match.position_for_slot(0, 0, Vector2.ZERO)
+	_check(saved_point.is_equal_approx(Vector2(650, 680)), "保存对阵记录设计坐标下的自定义站位")
+	_check(saved_match.position_for_slot(0, 1, Vector2(1, 2)) == Vector2(1, 2),
+		"保存对阵保留未调整槽位的默认站位")
 	var preset := GameState.selected_team_preset(0)
 	blue.preset_option.item_selected.emit(1)
 	blue.preset_option.item_selected.emit(preset)

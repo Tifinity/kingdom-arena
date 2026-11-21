@@ -83,6 +83,10 @@ alignment = 2
 layout_mode = 2
 text = "试炼场"
 
+[node name="SaveMatchButton" parent="UI/Root/Header/HeaderRight" instance=ExtResource("4")]
+layout_mode = 2
+text = "保存对阵"
+
 [node name="StartButton" parent="UI/Root/Header/HeaderRight" instance=ExtResource("4")]
 theme_type_variation = &"PixelPrimary"
 custom_minimum_size = Vector2(124, 40)
@@ -442,7 +446,7 @@ offset_left = -400.0
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.74, 0.68, 0.70, 1)
 theme_override_font_sizes/font_size = 14
-text = "拖动布阵 · 点击查看 · 右键移除"
+text = "拖到己方半场 · 点击查看 · 右键移除"
 horizontal_alignment = 2
 vertical_alignment = 1
 
@@ -470,3 +474,14 @@ theme_override_font_sizes/font_size = 12
 text = "提示"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+
+[node name="SaveMatchDialog" type="FileDialog" parent="."]
+title = "保存对阵"
+visible = false
+initial_position = 2
+size = Vector2i(720, 480)
+file_mode = 4
+access = 2
+filters = PackedStringArray("*.json ; JSON 对阵配置")
+use_native_dialog = true

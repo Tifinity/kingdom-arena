@@ -5,7 +5,6 @@ render_mode unshaded, depth_draw_never;
 uniform vec2 field_min;
 uniform vec2 field_max;
 uniform int surface = 0;
-uniform bool deployment = false;
 varying vec2 ground;
 
 void vertex() {
@@ -21,7 +20,7 @@ void fragment() {
 	vec2 point = ground + dFdx(ground) * offset.x + dFdy(ground) * offset.y;
 	vec2 center = (field_min + field_max) * 0.5;
 	vec2 mark = point - center;
-	vec2 tile_size = vec2(72.0, 52.0);
+	vec2 tile_size = surface == 0 ? vec2(72.0, 52.0) : vec2(144.0, 104.0);
 	float row = floor(point.y / tile_size.y);
 	vec2 staggered = point + vec2(mod(row, 2.0) * tile_size.x * 0.5, 0.0);
 	vec2 tile = floor(staggered / tile_size);
@@ -32,7 +31,7 @@ void fragment() {
 	vec3 stone = mix(vec3(0.139, 0.147, 0.205), vec3(0.182, 0.187, 0.241), floor(vein * 4.0) / 3.0);
 	float seam = step(4.0, local.x) * step(5.0, local.y);
 	float lit_edge = seam * (1.0 - step(10.0, local.y));
-	float bevel = seam * max(step(68.0, local.x), step(47.0, local.y));
+	float bevel = seam * max(step(tile_size.x - 4.0, local.x), step(tile_size.y - 5.0, local.y));
 	float chips = step(0.68, vein) * step(14.0, local.x) * (1.0 - step(34.0, local.x)) * step(17.0, local.y) * (1.0 - step(23.0, local.y));
 	vec3 color = mix(mortar, stone + lit_edge * 0.028 - bevel * 0.023 - chips * 0.022, seam);
 
@@ -63,17 +62,8 @@ void fragment() {
 		vec3 inset = mix(vec3(0.141, 0.116, 0.151), vec3(0.225, 0.180, 0.195), seam);
 		inset += (floor(vein * 4.0) / 3.0 - 0.5) * 0.037 * seam;
 		inset += lit_edge * vec3(0.034, 0.025, 0.020) - bevel * 0.035;
-		vec3 team_stone = mix(vec3(0.006, 0.034, 0.064), vec3(0.072, 0.016, 0.013), step(0.0, mark.x));
-		inset += team_stone * (deployment ? 1.0 : 0.28);
-
-		float ring_panels = step(4.0, mod(mix(point.x, point.y, step(edge_dist.x, edge_dist.y)), 80.0));
-		vec3 rim = mix(vec3(0.163, 0.124, 0.160), vec3(0.284, 0.205, 0.211), ring_panels);
-		float lip = step(-34.0, edge) * (1.0 - step(-26.0, edge));
-		float inner_trim = step(-9.0, edge) * (1.0 - step(-4.0, edge));
-		rim = mix(rim, vec3(0.59, 0.43, 0.28), lip * 0.94 + inner_trim * 0.56);
-		float crest = max(max(emblem * 0.66, diamond * 0.7), studs * 0.7);
-		float seam_mark = deployment ? center_line * 0.5 : center_line * 0.16;
-		inset = mix(inset, vec3(0.58, 0.43, 0.31), max(crest, seam_mark));
+		float ring_panels = step(4.0, mod(mix(point.x, point.y, step(edge_dist.x, edge_dist.y)), 120.0));
+		vec3 rim = mix(vec3(0.139, 0.110, 0.145), vec3(0.185, 0.148, 0.164), ring_panels);
 		color = mix(rim, inset, inside);
 	} else if (surface == 2) {
 		vec2 distance_from_ring = max(-edge_dist, vec2(0.0));

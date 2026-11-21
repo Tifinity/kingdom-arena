@@ -65,11 +65,6 @@ func frame_field(view_size: Vector2, field_min: Vector2, field_max: Vector2, tra
 		_frame_training_walls(view_size, field_min, field_max, center, span)
 
 
-func set_deployment_markings(active: bool) -> void:
-	var material := $Floor.material_override as ShaderMaterial
-	material.set_shader_parameter(&"deployment", active)
-
-
 func set_vertical_offset(pixels: float) -> void:
 	_vertical_offset = pixels
 	camera.position = _camera_origin - camera.basis.y * (pixels * camera.size / _view_height)

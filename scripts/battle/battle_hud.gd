@@ -62,8 +62,6 @@ func _ready() -> void:
 	countdown_label.visible = false
 	inspector.visible = false
 	hint_label.visible = true
-	blue_name.text = GameState.team_name(0)
-	red_name.text = GameState.team_name(1)
 	blue_name.add_theme_color_override("font_color", GameState.team_color(0))
 	red_name.add_theme_color_override("font_color", GameState.team_color(1))
 	speed_button.pressed.connect(_on_speed_pressed)
@@ -80,13 +78,19 @@ func _ready() -> void:
 
 func bind(p_battle: Battle) -> void:
 	battle = p_battle
+	blue_name.text = battle.team_name(0)
+	red_name.text = battle.team_name(1)
+	speed_button.disabled = battle.replay_config != null
+	exit_button.disabled = battle.replay_config != null
+	rematch_button.disabled = battle.replay_config != null
+	back_button.disabled = battle.replay_config != null
 	refresh_controls()
 	_refresh()
 
 
 func set_roster(units: Array[Unit]) -> void:
-	blue_name.text = GameState.team_name(0)
-	red_name.text = GameState.team_name(1)
+	blue_name.text = battle.team_name(0)
+	red_name.text = battle.team_name(1)
 	for unit in units:
 		var card := BattleRosterCard.new()
 		roster_columns[unit.team].add_child(card)
@@ -130,7 +134,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	if event is InputEventKey:
 		var key := event as InputEventKey
-		if key.pressed and not key.echo and key.keycode == KEY_F2:
+		if key.pressed and not key.echo and key.keycode == KEY_F2 and battle.replay_config == null:
 			debug_panel.visible = not debug_panel.visible
 			if debug_panel.visible:
 				_sync_debug_panel()
@@ -499,8 +503,8 @@ func show_result(result: Dictionary) -> void:
 
 
 func _result_team_name(team: int) -> String:
-	var name := GameState.team_name(team)
-	if GameState.selected_team_preset(0) == GameState.selected_team_preset(1):
+	var name := battle.team_name(team)
+	if battle.team_name(0) == battle.team_name(1):
 		return "%s（%s）" % [name, GameState.team_short_name(team)]
 	return name
 

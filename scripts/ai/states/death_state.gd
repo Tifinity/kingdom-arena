@@ -17,4 +17,8 @@ func enter(_previous: StringName) -> void:
 	tween.tween_interval(hold)
 	tween.tween_property(unit.visual, "modulate:a", 0.0, 0.65)
 	tween.parallel().tween_property(unit.shadow, "modulate:a", 0.0, 0.65)
-	tween.tween_callback(unit.queue_free)
+	# 复跑保留已阵亡的伤害来源，避免渲染帧上的淡出影响持续伤害归属。
+	if unit.battle is Battle and unit.battle.replay_config != null:
+		tween.tween_callback(unit.hide)
+	else:
+		tween.tween_callback(unit.queue_free)

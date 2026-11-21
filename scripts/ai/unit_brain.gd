@@ -55,6 +55,10 @@ func setup(p_unit: Unit) -> void:
 	_think_left = 0.0
 
 
+func set_random_seed(value: int) -> void:
+	_rng.seed = value
+
+
 func _physics_process(delta: float) -> void:
 	if not enabled or unit == null or not unit.initialized or not unit.alive:
 		return
