@@ -1,19 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=2 format=3]
 
-[sub_resource type="Gradient" id="Gradient_shadow"]
-offsets = PackedFloat32Array(0, 0.25, 0.5, 0.75, 1)
-colors = PackedColorArray(1, 1, 1, 0.72, 1, 1, 1, 0.60, 1, 1, 1, 0.36, 1, 1, 1, 0.12, 1, 1, 1, 0)
-
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_shadow"]
-gradient = SubResource("Gradient_shadow")
-width = 192
-height = 96
-fill = 1
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(1, 0.5)
+[ext_resource type="Texture2D" path="res://assets/ui/pixel_shadow.png" id="1"]
 
 [node name="Shadow" type="Sprite2D"]
-self_modulate = Color(0.64, 0.74, 0.88, 1)
+self_modulate = Color(0.62, 0.65, 0.76, 1)
 z_index = -1
-texture_filter = 2
-texture = SubResource("GradientTexture2D_shadow")
+texture_filter = 1
+texture = ExtResource("1")

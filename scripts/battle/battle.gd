@@ -62,6 +62,7 @@ var action_hits := 0
 ## 训练模式：不读 GameState 阵容，只生成指定英雄 + 一只不会死亡、不会移动的稻草人。
 ## Hero Lab 在 add_child 之前设置 training_mode / training_definition。
 var training_mode := false
+var training_positioning := false
 var training_definition: UnitDefinition
 var training_hero: Unit
 var training_dummy: Unit
@@ -104,6 +105,11 @@ func _ready() -> void:
 	else:
 		_spawn_lineups()
 		hud.set_roster(units)
+		if BattleTransition.is_loading():
+			var previous_process_mode := process_mode
+			process_mode = Node.PROCESS_MODE_DISABLED
+			await BattleTransition.finished
+			process_mode = previous_process_mode
 		_run_countdown()
 
 
@@ -117,10 +123,14 @@ func _on_viewport_resized() -> void:
 	_refresh_layout()
 	if training_mode:
 		var layout_scale := _viewport_size / BASE_SIZE
+		var next_dummy := TRAINING_DUMMY_SPOT * layout_scale
 		if is_instance_valid(training_hero):
-			training_hero.position = TRAINING_HERO_SPOT * layout_scale
+			if training_positioning and is_instance_valid(training_dummy):
+				training_hero.position = clamp_unit_position(training_hero.position + next_dummy - training_dummy.position)
+			else:
+				training_hero.position = TRAINING_HERO_SPOT * layout_scale
 		if is_instance_valid(training_dummy):
-			training_dummy.position = TRAINING_DUMMY_SPOT * layout_scale
+			training_dummy.position = next_dummy
 		return
 	if previous.x <= 1.0 or previous.y <= 1.0:
 		return
@@ -176,6 +186,8 @@ func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_positio
 	unit.setup(self, team, slot, definition)
 	unit.face_direction(1.0 if team == 0 else -1.0)
 	var sprite := UnitSprite3D.new()
+	if training_mode:
+		sprite.process_mode = Node.PROCESS_MODE_ALWAYS
 	stage.actors.add_child(sprite)
 	sprite.setup(unit, stage)
 	unit.tree_exiting.connect(sprite.queue_free, CONNECT_ONE_SHOT)
@@ -223,6 +235,7 @@ func start_training(definition: UnitDefinition) -> void:
 	training_hero.face_direction(1.0)
 	training_dummy.face_direction(-1.0)
 	training_hero.on_battle_started()
+	training_hero.brain.enabled = not training_positioning
 	training_hero.brain.force_think()
 
 
@@ -599,9 +612,7 @@ func toggle_range_overlay() -> void:
 
 
 func restart_battle() -> void:
-	Engine.time_scale = 1.0
-	get_tree().paused = false
-	get_tree().reload_current_scene()
+	BattleTransition.start()
 
 
 func back_to_setup() -> void:
@@ -611,7 +622,7 @@ func back_to_setup() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
+	if not training_mode and event is InputEventMouseButton:
 		var mouse := event as InputEventMouseButton
 		if mouse.button_index == MOUSE_BUTTON_LEFT and mouse.pressed:
 			_select_at(mouse.position)

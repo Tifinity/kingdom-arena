@@ -5,8 +5,8 @@ extends Node
 
 const TEAM_SIZE := 5
 const TEAM_SHORT_NAMES := ["蓝方", "红方"]
-const TEAM_COLORS := [Color("#58a6ff"), Color("#ff6b7a")]
-const TEAM_COLORS_DIM := [Color("#2b5f96"), Color("#8d3541")]
+const TEAM_COLORS := [Color("#82bdcf"), Color("#e98878")]
+const TEAM_COLORS_DIM := [Color("#415d78"), Color("#81464f")]
 
 const TEAM_PRESETS := [
 	{"name": "晨曦王庭", "units": [&"soldier", &"knight", &"knight_templar", &"armored_axeman", &"lancer"]},

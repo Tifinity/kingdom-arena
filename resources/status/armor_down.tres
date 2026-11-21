@@ -2,11 +2,12 @@
 
 [ext_resource type="Script" path="res://scripts/status/status_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/status/behaviors/stat_modifier_behavior.gd" id="2"]
-[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/stat_badges.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/status/pixel_status.png" id="pixel_icons"]
 
 [sub_resource type="AtlasTexture" id="icon"]
-atlas = ExtResource("3")
-region = Rect2(44, 18, 22, 18)
+atlas = ExtResource("pixel_icons")
+region = Rect2(40, 0, 8, 8)
+filter_clip = true
 
 [sub_resource type="Resource" id="behavior"]
 script = ExtResource("2")

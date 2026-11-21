@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle/unit.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ai/unit_brain.gd" id="6"]
@@ -10,7 +10,6 @@
 [ext_resource type="Script" path="res://scripts/ai/states/death_state.gd" id="12"]
 [ext_resource type="Script" path="res://scripts/status/unit_status_controller.gd" id="13"]
 [ext_resource type="Script" path="res://scripts/fx/unit_attribute_badges.gd" id="14"]
-[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/stat_badges.png" id="15"]
 
 [node name="Unit" type="Node2D"]
 script = ExtResource("1")
@@ -23,7 +22,6 @@ z_index = 30
 [node name="AttributeBadges" type="Node2D" parent="StatusVisuals"]
 texture_filter = 1
 script = ExtResource("14")
-sheet = ExtResource("15")
 
 [node name="StatusController" type="Node" parent="."]
 script = ExtResource("13")

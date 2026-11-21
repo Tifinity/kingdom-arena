@@ -4,7 +4,6 @@ extends Control
 ## 所有配置写入 GameState，开战后由 Battle 场景读取。
 
 const CARD_SCENE := preload("res://scenes/setup/unit_card.tscn")
-const BATTLE_SCENE := "res://scenes/battle/battle.tscn"
 const LAB_SCENE := "res://scenes/debug/hero_lab.tscn"
 
 var selected_definition: UnitDefinition
@@ -206,9 +205,7 @@ func _on_start_pressed() -> void:
 	if not GameState.lineup_ready():
 		_toast("双方至少各部署 1 名英雄")
 		return
-	Engine.time_scale = 1.0
-	get_tree().paused = false
-	get_tree().change_scene_to_file(BATTLE_SCENE)
+	BattleTransition.start()
 
 
 func _toast(message: String) -> void:

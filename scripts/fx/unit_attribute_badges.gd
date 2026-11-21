@@ -4,20 +4,20 @@ extends Node2D
 const STATS: Array[StringName] = [&"attack_damage", &"attack_speed", &"armor", &"move_speed"]
 const UP := 1
 const DOWN := 2
-const CELL_SIZE := Vector2(22, 18)
-const ATLAS_FRAME_SIZE := Vector2(88, 54)
-const ATLAS_COLUMNS := 3
-const FPS := 12.0
-
-@export var sheet: Texture2D
+const SHEET := preload("res://assets/status/pixel_status.png")
+const CELL := 8
+const SIZE := 24.0
+const STEP := 28.0
+const BUFF_TILES := [0, 2, 4, 6]
+const DEBUFF_TILES := [1, 3, 5, 7]
+const RISE := Color("#b8e0a5")
+const FALL := Color("#f18d83")
 
 var directions := PackedInt32Array()
-var _elapsed := 0.0
 
 
 func _ready() -> void:
 	hide()
-	set_process(false)
 
 
 func set_directions(next: PackedInt32Array) -> void:
@@ -25,28 +25,22 @@ func set_directions(next: PackedInt32Array) -> void:
 		return
 	directions = next
 	visible = directions.count(0) < directions.size()
-	set_process(visible)
 	queue_redraw()
-
-
-func _process(delta: float) -> void:
-	var previous := int(_elapsed * FPS)
-	_elapsed = fposmod(_elapsed + delta, 1.0)
-	if previous != int(_elapsed * FPS):
-		queue_redraw()
 
 
 func _draw() -> void:
 	var columns := directions.size() - directions.count(0)
-	if columns == 0:
-		return
-	var frame := int(_elapsed * FPS)
-	var atlas_origin := Vector2(frame % ATLAS_COLUMNS, int(frame / ATLAS_COLUMNS)) * ATLAS_FRAME_SIZE
-	var x := -columns * CELL_SIZE.x * 0.5
+	var x := -columns * STEP * 0.5 + (STEP - SIZE) * 0.5
 	for stat in directions.size():
 		var flags := directions[stat]
 		if flags == 0:
 			continue
-		var cell := atlas_origin + Vector2(stat, flags - 1) * CELL_SIZE
-		draw_texture_rect_region(sheet, Rect2(Vector2(x, 0), CELL_SIZE), Rect2(cell, CELL_SIZE))
-		x += CELL_SIZE.x
+		var buff := (flags & UP) != 0
+		var debuff := (flags & DOWN) != 0
+		var tile: int = BUFF_TILES[stat] if buff else DEBUFF_TILES[stat]
+		draw_texture_rect_region(SHEET, Rect2(x, 0, SIZE, SIZE), Rect2(tile * CELL, 0, CELL, CELL), Color.WHITE, false, true)
+		if buff:
+			draw_rect(Rect2(x + 16, 24, 8, 4), RISE)
+		if debuff:
+			draw_rect(Rect2(x, 24, 8, 4), FALL)
+		x += STEP

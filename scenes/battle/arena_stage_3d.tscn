@@ -1,13 +1,15 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle/arena_stage_3d.gd" id="1"]
 [ext_resource type="Shader" path="res://shaders/arena_floor.gdshader" id="2"]
 
 [ext_resource type="PackedScene" path="res://scenes/battle/arena_background.tscn" id="3"]
 
+[ext_resource type="Shader" path="res://shaders/arena_wall.gdshader" id="4"]
+
 [sub_resource type="Environment" id="Environment_arena"]
 background_mode = 1
-background_color = Color(0.036, 0.052, 0.078, 1)
+background_color = Color(0.078, 0.086, 0.129, 1)
 ambient_light_source = 2
 ambient_light_color = Color(0.58, 0.66, 0.85, 1)
 ambient_light_energy = 0.55
@@ -20,9 +22,8 @@ resource_local_to_scene = true
 render_priority = -100
 shader = ExtResource("2")
 
-[sub_resource type="StandardMaterial3D" id="Material_stone"]
-albedo_color = Color(0.19, 0.23, 0.31, 1)
-roughness = 0.95
+[sub_resource type="ShaderMaterial" id="Material_stone"]
+shader = ExtResource("4")
 
 [sub_resource type="BoxMesh" id="Mesh_stone"]
 material = SubResource("Material_stone")

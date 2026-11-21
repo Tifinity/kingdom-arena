@@ -3,8 +3,8 @@ extends Button
 
 ## 正式对战的出场单位卡。即使单位在死亡动画后释放，头像仍留在原槽位。
 const STATUS_SLOTS := 5
-const MUTED := Color("#8fa3ba")
-const ACTIVE := Color("#96cfaa")
+const MUTED := Color("#b2a4b5")
+const ACTIVE := Color("#a9d39d")
 
 var unit: Unit
 var _portrait: TextureRect
@@ -17,29 +17,26 @@ var _status_marks: Array[Label] = []
 var _overflow: Label
 var _skill_timers: Array[Label] = []
 var _skills: Array[CombatActionDefinition] = []
-var _normal_style: StyleBoxFlat
-var _selected_style: StyleBoxFlat
+var _normal_style: StyleBox
+var _selected_style: StyleBox
 
 
 func bind(fighter: Unit) -> void:
 	unit = fighter
 	var team_color := GameState.team_color(fighter.team)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	_normal_style = _panel(Color("#121d2b"), team_color.darkened(0.63))
-	_selected_style = _panel(Color("#1b2c40"), team_color)
-	add_theme_stylebox_override("normal", _normal_style)
-	add_theme_stylebox_override("hover", _panel(Color("#19283a"), team_color.darkened(0.3)))
-	add_theme_stylebox_override("pressed", _selected_style)
-	add_theme_stylebox_override("disabled", _panel(Color("#101823"), Color("#283849")))
+	theme_type_variation = &"PixelCard"
+	_normal_style = get_theme_stylebox("normal")
+	_selected_style = get_theme_stylebox("pressed")
 
 	var margin := MarginContainer.new()
 	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(margin)
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for edge in ["left", "right"]:
-		margin.add_theme_constant_override("margin_" + edge, 9)
+		margin.add_theme_constant_override("margin_" + edge, 8)
 	for edge in ["top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + edge, 7)
+		margin.add_theme_constant_override("margin_" + edge, 8)
 	var rows := VBoxContainer.new()
 	rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rows.add_theme_constant_override("separation", 4)
@@ -51,7 +48,7 @@ func bind(fighter: Unit) -> void:
 	rows.add_child(header)
 	var portrait_frame := PanelContainer.new()
 	portrait_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	portrait_frame.add_theme_stylebox_override("panel", _panel(Color("#0a131e"), team_color.darkened(0.65)))
+	portrait_frame.theme_type_variation = &"PixelInset"
 	header.add_child(portrait_frame)
 	_portrait = _icon(Vector2(52, 48))
 	_portrait.texture = _fit_portrait(fighter.definition.portrait)
@@ -59,25 +56,25 @@ func bind(fighter: Unit) -> void:
 	var vitals := VBoxContainer.new()
 	vitals.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vitals.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vitals.add_theme_constant_override("separation", 3)
+	vitals.add_theme_constant_override("separation", 4)
 	header.add_child(vitals)
-	var name_label := _label(fighter.definition.display_name, 17, Color("#ebf1fa"))
+	var name_label := _label(fighter.definition.display_name, 16, team_color.lightened(0.24))
 	vitals.add_child(name_label)
-	_health = _bar(team_color, 6)
-	_mana = _bar(Color("#56c3d7"), 4)
+	_health = _bar(team_color, 8)
+	_mana = _bar(Color("#91bfcc"), 4)
 	vitals.add_child(_health)
 	vitals.add_child(_mana)
 
 	_status_row = HBoxContainer.new()
 	_status_row.mouse_filter = Control.MOUSE_FILTER_PASS
-	_status_row.add_theme_constant_override("separation", 3)
+	_status_row.add_theme_constant_override("separation", 4)
 	rows.add_child(_status_row)
-	_state = _label("", 13, MUTED)
+	_state = _label("", 12, MUTED)
 	_state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_status_row.add_child(_state)
 	for index in STATUS_SLOTS:
 		var icon := _icon(Vector2(16, 16))
-		var mark := _label("", 13, Color("#e7c46b"))
+		var mark := _label("", 12, Color("#f0c982"))
 		mark.custom_minimum_size = Vector2(16, 16)
 		mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_status_row.add_child(icon)
@@ -97,23 +94,23 @@ func bind(fighter: Unit) -> void:
 		var slot := PanelContainer.new()
 		slot.mouse_filter = Control.MOUSE_FILTER_PASS
 		slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		slot.add_theme_stylebox_override("panel", _panel(Color("#0a131e"), Color("#273648")))
+		slot.theme_type_variation = &"PixelInset"
 		slot.tooltip_text = action.display_name
 		skills.add_child(slot)
 		var detail := VBoxContainer.new()
 		detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		detail.add_theme_constant_override("separation", 0)
 		slot.add_child(detail)
-		var title := _label(action.display_name, 12, Color("#c6d4e4"))
+		var title := _label(action.display_name, 12, Color("#eed9b8"))
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var timer := _label("", 13, ACTIVE)
+		var timer := _label("", 12, ACTIVE)
 		timer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		detail.add_child(title)
 		detail.add_child(timer)
 		_skills.append(action)
 		_skill_timers.append(timer)
 	refresh(false)
-	custom_minimum_size.y = maxf(122.0, margin.get_combined_minimum_size().y)
+	custom_minimum_size.y = maxf(124.0, margin.get_combined_minimum_size().y)
 
 
 func refresh(selected: bool) -> void:
@@ -121,7 +118,9 @@ func refresh(selected: bool) -> void:
 	if disabled and not active:
 		return
 	disabled = not active
-	add_theme_stylebox_override("normal", _selected_style if selected else _normal_style)
+	var card_face := _selected_style if selected else _normal_style
+	if get_theme_stylebox("normal") != card_face:
+		add_theme_stylebox_override("normal", card_face)
 	_portrait.modulate = Color.WHITE if active else Color("#697483")
 	_health.value = unit.hp_ratio() if active else 0.0
 	_mana.value = clampf(unit.mana / maxf(1.0, unit.max_mana), 0.0, 1.0) if active else 0.0
@@ -170,15 +169,6 @@ func _refresh_statuses(statuses: Array) -> void:
 	_status_row.tooltip_text = " · ".join(names)
 
 
-func _panel(fill: Color, border: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = fill
-	style.border_color = border
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(5)
-	return style
-
-
 func _label(text_value: String, text_size: int, color: Color) -> Label:
 	var label := Label.new()
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -221,6 +211,12 @@ func _bar(color: Color, height: int) -> ProgressBar:
 	bar.max_value = 1.0
 	bar.step = 0.0
 	bar.show_percentage = false
-	bar.add_theme_stylebox_override("background", _panel(Color("#0a111c"), Color.TRANSPARENT))
-	bar.add_theme_stylebox_override("fill", _panel(color, Color.TRANSPARENT))
+	bar.add_theme_stylebox_override("background", _meter_style(Color("#1a182a")))
+	bar.add_theme_stylebox_override("fill", _meter_style(color))
 	return bar
+
+
+func _meter_style(color: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	return style

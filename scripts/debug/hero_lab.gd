@@ -36,6 +36,7 @@ var _toast_serial := 0
 @onready var detail_meta: Label = $HUD/Root/RightPanel/VBox/Meta
 @onready var detail_desc: Label = $HUD/Root/RightPanel/VBox/Desc
 @onready var live_label: Label = $HUD/Root/RightPanel/VBox/Live
+@onready var range_readout: Label = $HUD/Root/RightPanel/VBox/RangeReadout
 @onready var stat_hp: SpinBox = $HUD/Root/RightPanel/VBox/Stats/HpValue
 @onready var stat_atk: SpinBox = $HUD/Root/RightPanel/VBox/Stats/AtkValue
 @onready var stat_aspd: SpinBox = $HUD/Root/RightPanel/VBox/Stats/AspdValue
@@ -66,6 +67,9 @@ var _toast_serial := 0
 @onready var mana_button: Button = $HUD/Root/SkillPanel/VBox/Controls/ManaButton
 @onready var wound_button: Button = $HUD/Root/SkillPanel/VBox/Controls/WoundButton
 @onready var reset_button: Button = $HUD/Root/SkillPanel/VBox/Controls/ResetButton
+@onready var positioning_button: Button = $HUD/Root/SkillPanel/VBox/Controls/PositioningButton
+@onready var basic_button: Button = $HUD/Root/SkillPanel/VBox/Controls/BasicButton
+@onready var controls_hint: Label = $HUD/Root/SkillPanel/VBox/Controls/Hint
 @onready var toast_label: Label = $HUD/Root/Toast
 @onready var stat_save_status: Label = $HUD/Root/RightPanel/VBox/StatSaveStatus
 
@@ -82,6 +86,8 @@ func _ready() -> void:
 	mana_button.pressed.connect(_fill_mana)
 	wound_button.pressed.connect(_apply_wound)
 	reset_button.pressed.connect(_reset_demo)
+	positioning_button.toggled.connect(_set_positioning_mode)
+	basic_button.pressed.connect(_test_basic_attack)
 	get_viewport().size_changed.connect(_refresh_live)
 	_build_cards()
 	_populate_opponents()
@@ -140,9 +146,7 @@ func _create_training_battle(definition: UnitDefinition) -> void:
 	# 试炼场使用自己的技能栏，嵌套 Battle 的 HUD 只负责战斗内部逻辑，不显示也不接收输入。
 	battle.hud.visible = false
 	battle.hud.process_mode = Node.PROCESS_MODE_DISABLED
-	hero = battle.training_hero
-	dummy = battle.training_dummy
-	_refresh_controls()
+	_bind_training_units()
 
 
 func _select_definition(definition: UnitDefinition) -> void:
@@ -159,10 +163,18 @@ func _select_definition(definition: UnitDefinition) -> void:
 	if battle != null:
 		_set_paused(false)
 		battle.start_training(definition)
-		hero = battle.training_hero
-		dummy = battle.training_dummy
-		_refresh_controls()
+		_bind_training_units()
 	_refresh_live()
+
+
+func _bind_training_units() -> void:
+	hero = battle.training_hero
+	dummy = battle.training_dummy
+	if battle.training_positioning:
+		_hold_hero_position()
+		hero.set_selected(true)
+		hero.set_range_overlay_visible(true)
+	_refresh_controls()
 
 
 func _update_details(definition: UnitDefinition) -> void:
@@ -243,7 +255,11 @@ func _refresh_live() -> void:
 		roundi(hero.hp), roundi(hero.max_hp), roundi(hero.mana), roundi(hero.max_mana),
 		roundi(damage), dps, state_text, (" · " + current) if not current.is_empty() else "",
 	]
-	skill_status.text = "自动交战中 · 点击技能卡立即施放" if not get_tree().paused else "已暂停 · 点击技能卡会继续演示"
+	if battle.training_positioning:
+		skill_status.text = "点击场地摆位 · 方向键微调 1 px"
+		_refresh_range_readout()
+	else:
+		skill_status.text = "自动交战中 · 点击技能卡立即施放" if not get_tree().paused else "已暂停 · 点击技能卡会继续演示"
 	_refresh_skill_states()
 	_refresh_stat_comparison()
 	_refresh_status_list()
@@ -379,7 +395,7 @@ func _on_skill_cast_requested(action: CombatActionDefinition) -> void:
 
 ## 手动演示：补足蓝量与冷却、按动作类型选择稻草人/自身为目标，
 ## 必要时把英雄移动到技能有效距离，然后强制进入真实 Action 状态。
-func _cast_action(action: CombatActionDefinition) -> void:
+func _cast_action(action: CombatActionDefinition, prepare_demo := true) -> void:
 	if action == null or not is_instance_valid(battle):
 		return
 	if get_tree().paused:
@@ -390,9 +406,10 @@ func _cast_action(action: CombatActionDefinition) -> void:
 	if not is_instance_valid(dummy):
 		return
 
-	if hero.state_machine.current_name != &"idle":
-		hero.state_machine.transition_to(&"idle", true)
-	_prepare_hero_for_cast(action)
+	if prepare_demo:
+		if hero.state_machine.current_name != &"idle":
+			hero.state_machine.transition_to(&"idle", true)
+		_prepare_hero_for_cast(action)
 
 	var cast_target: Unit = dummy
 	match action.target_mode:
@@ -410,13 +427,12 @@ func _cast_action(action: CombatActionDefinition) -> void:
 	hero.planned_point = dummy.global_position
 	hero.planned_has_point = action.target_mode == CombatActionDefinition.TargetMode.POINT
 
-	_position_hero_for_demo(action, cast_target)
-	# 移动后重新计算朝向与落点。
-	hero.planned_direction = (dummy.global_position - hero.global_position).normalized()
-	if hero.planned_direction.length_squared() < 0.001:
-		hero.planned_direction = Vector2.RIGHT
-	hero.planned_point = dummy.global_position
-	hero.target = dummy
+	if not battle.training_positioning:
+		_position_hero_for_demo(action, cast_target)
+		# 移动后重新计算朝向。
+		hero.planned_direction = (dummy.global_position - hero.global_position).normalized()
+		if hero.planned_direction.length_squared() < 0.001:
+			hero.planned_direction = Vector2.RIGHT
 
 	var activation_target := hero.action_target(action)
 	var reason := ActionActivation.reason(hero, action, activation_target, hero.planned_direction,
@@ -540,6 +556,80 @@ func _refresh_controls() -> void:
 	pause_button.text = "继续" if get_tree().paused else "暂停"
 	if is_instance_valid(battle):
 		speed_button.text = "×0.5" if battle.speed_multiplier < 0.75 else "×%d" % int(battle.speed_multiplier)
+		positioning_button.set_pressed_no_signal(battle.training_positioning)
+		basic_button.visible = battle.training_positioning
+		range_readout.visible = battle.training_positioning
+		controls_hint.visible = not battle.training_positioning
+
+
+func _set_positioning_mode(enabled: bool) -> void:
+	if not is_instance_valid(battle) or not is_instance_valid(hero) or not is_instance_valid(dummy):
+		return
+	battle.training_positioning = enabled
+	hero.brain.enabled = not enabled
+	hero.set_selected(enabled)
+	hero.set_range_overlay_visible(enabled)
+	if enabled:
+		_hold_hero_position()
+	else:
+		hero.brain.force_think()
+	_refresh_controls()
+	_refresh_live()
+
+
+func _hold_hero_position() -> void:
+	hero.brain.intent = UnitBrain.Intent.IDLE
+	hero.intent = UnitBrain.Intent.IDLE
+	hero.planned_action = null
+	hero.state_machine.transition_to(&"idle", true)
+	hero.target = dummy
+
+
+func _place_hero(point: Vector2) -> void:
+	_hold_hero_position()
+	hero.position = battle.clamp_unit_position(point)
+	hero.face_target()
+	_refresh_range_readout()
+
+
+func _refresh_range_readout() -> void:
+	if not is_instance_valid(dummy):
+		return
+	var distance := hero.global_position.distance_to(dummy.global_position)
+	var longest_reach := 0.0
+	var in_range := false
+	for action in hero.actions:
+		if action == null or action.category != CombatActionDefinition.Category.BASIC:
+			continue
+		var reach := ActionActivation.enemy_reach(hero, action, dummy)
+		longest_reach = maxf(longest_reach, reach)
+		in_range = in_range or (distance >= action.min_range and distance <= reach)
+	if not is_equal_approx(hero.selection_ring.attack_range, longest_reach) or hero.selection_ring.skill_range != 0.0:
+		hero.selection_ring.set_combat_ranges(longest_reach, 0.0)
+	range_readout.text = "距靶 %.1f px · 普攻最远 %.1f px\n%s" % [
+		distance, longest_reach, "普攻范围内" if in_range else "普攻范围外",
+	]
+	range_readout.modulate = Color("#a9d39d") if in_range else Color("#e98878")
+
+
+func _test_basic_attack() -> void:
+	if not is_instance_valid(battle) or not battle.training_positioning or not is_instance_valid(hero) or not is_instance_valid(dummy):
+		return
+	if hero.state_machine.current_name != &"idle":
+		_show_toast("请等当前动作结束")
+		return
+	var distance := hero.global_position.distance_to(dummy.global_position)
+	var unavailable := "目标超出普攻范围"
+	for action in hero.actions:
+		if action == null or action.category != CombatActionDefinition.Category.BASIC:
+			continue
+		if distance > ActionActivation.enemy_reach(hero, action, dummy) or distance < action.min_range:
+			continue
+		unavailable = ActionActivation.reason(hero, action, dummy)
+		if unavailable.is_empty():
+			_cast_action(action, false)
+			return
+	_show_toast(unavailable)
 
 
 func _fill_mana() -> void:
@@ -565,9 +655,7 @@ func _reset_demo() -> void:
 		return
 	_set_paused(false)
 	battle.start_training(selected_definition)
-	hero = battle.training_hero
-	dummy = battle.training_dummy
-	_refresh_controls()
+	_bind_training_units()
 	_refresh_live()
 	_show_toast("演示已重置")
 
@@ -636,9 +724,7 @@ func _start_1v1() -> void:
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, selected_definition.unit_id)
 	GameState.set_slot(1, 0, opponent.unit_id)
-	Engine.time_scale = 1.0
-	get_tree().paused = false
-	get_tree().change_scene_to_file("res://scenes/battle/battle.tscn")
+	BattleTransition.start()
 
 
 func _go_setup() -> void:
@@ -657,3 +743,27 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("ui_cancel"):
 		_go_setup()
 		get_viewport().set_input_as_handled()
+	elif is_instance_valid(battle) and battle.training_positioning and is_instance_valid(hero) and hero.alive and is_instance_valid(dummy):
+		_handle_positioning_input(event)
+
+
+func _handle_positioning_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var point := battle.stage.screen_to_ground(event.position)
+		if battle.clamp_unit_position(point).is_equal_approx(point):
+			_place_hero(point)
+			get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed:
+		var offset := Vector2.ZERO
+		match event.keycode:
+			KEY_LEFT:
+				offset = Vector2.LEFT
+			KEY_RIGHT:
+				offset = Vector2.RIGHT
+			KEY_UP:
+				offset = Vector2.UP
+			KEY_DOWN:
+				offset = Vector2.DOWN
+		if offset != Vector2.ZERO:
+			_place_hero(hero.position + offset)
+			get_viewport().set_input_as_handled()

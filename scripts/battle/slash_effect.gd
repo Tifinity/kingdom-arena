@@ -27,13 +27,22 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var k := clampf(_time / life, 0.0, 1.0)
 	var alpha := 1.0 - k
-	var radius := 26.0 + 26.0 * k
+	var radius := 30.0 + 18.0 * k
 	var mid := 0.0 if facing > 0 else PI
-	var start := mid - 1.1
-	var end := mid + 1.1
-	draw_arc(Vector2.ZERO, radius, start, end, 16, Color(tint, alpha * 0.85), 4.0 * (1.0 - k * 0.5), true)
-	draw_arc(Vector2.ZERO, radius * 0.82, start + 0.2, end - 0.2, 12, Color(1.0, 1.0, 1.0, alpha * 0.55), 1.5, true)
-	for index in 3:
-		var angle := lerpf(start, end, float(index) / 2.0)
-		var direction := Vector2.from_angle(angle)
-		draw_line(direction * radius * 0.75, direction * radius * 1.08, Color(tint, alpha), 1.5)
+	var tilt := -0.24 * facing
+	var start := mid - 1.18 + k * 1.02
+	var end := mid + 1.04
+	var steps := ceili(radius * (end - start) / 3.0)
+	var previous := Vector2.INF
+	for index in range(steps + 1):
+		var progress := float(index) / float(steps)
+		var direction := Vector2.from_angle(lerpf(start, end, progress)) * Vector2(1.0, 0.86)
+		var tip := (direction.rotated(tilt) * radius).snapped(PixelCombatDraw.CELL)
+		if tip == previous:
+			continue
+		var rim := tint.lightened(0.76 if k < 0.4 else 0.34)
+		PixelCombatDraw.dot(self, tip, Color(rim, alpha))
+		if progress > 0.22 and progress < 0.95:
+			var inside := direction.rotated(tilt) * (radius - 5.0)
+			PixelCombatDraw.dot(self, inside, Color(tint, alpha * 0.76))
+		previous = tip
