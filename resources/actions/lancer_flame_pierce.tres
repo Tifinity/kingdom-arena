@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="movement_script"]
 [ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="targeting_script"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/fire_charge.wav" id="sfx_fire_charge"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -63,3 +64,4 @@ priority = 10
 movement = SubResource("movement")
 targeting = SubResource("targeting")
 effects = [SubResource("effect_0")]
+cast_sound = ExtResource("sfx_fire_charge")

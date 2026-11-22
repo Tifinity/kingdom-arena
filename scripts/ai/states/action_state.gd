@@ -68,6 +68,8 @@ func enter(_previous: StringName) -> void:
 	unit.visual.speed_scale = maxf(_action.animation_speed, 0.05)
 	_visual_start_y = unit.visual.position.y
 	unit.play_animation(_action.animation, true)
+	if unit.battle != null:
+		unit.battle.play_action_sound(_action.cast_sound)
 
 	var frames := 1
 	var fps := 10.0
@@ -82,7 +84,9 @@ func enter(_previous: StringName) -> void:
 		_cast.duration = maxf(_cast.duration, unit.global_position.distance_to(_cast.charge_destination) / _action.movement_speed())
 	elif _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT and _action.movement_speed() > 0.0:
 		var speed_factor := maxf(unit.status_controller.modify_stat(&"move_speed", 1.0), 0.05)
-		_cast.duration = maxf(_cast.duration, unit.global_position.distance_to(_cast.point) / (_action.movement_speed() * speed_factor) + 0.12)
+		var descent_scale := _action.movement.leap_descent_speed_scale
+		var travel_time := _leap_distance * (0.5 + 0.5 / descent_scale) / (_action.movement_speed() * speed_factor)
+		_cast.duration = maxf(_cast.duration, travel_time + 0.12)
 	# 同一帧可能有多个效果（伤害 → 眩晕 → 击退）。Godot 的 sort_custom 不是稳定排序，
 	# 这里用原始下标做第二排序键，保证数据里“先伤害、后状态”的顺序不会被交换。
 	var ordered: Array = []
@@ -115,9 +119,13 @@ func update(delta: float) -> void:
 	elif _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT and _action.movement_speed() > 0.0:
 		var remaining := _cast.point - unit.global_position
 		if remaining.length_squared() > 1.0:
-			unit.advance_step(remaining.normalized(), minf(_action.movement_speed() * delta, remaining.length()) / maxf(delta, 0.0001), delta)
+			var speed := _action.movement_speed()
+			if remaining.length() <= _leap_distance * 0.5:
+				speed *= _action.movement.leap_descent_speed_scale
+			unit.advance_step(remaining.normalized(), minf(speed * delta, remaining.length()) / maxf(delta, 0.0001), delta)
 		if _action.movement.leap_height > 0.0:
-			var travel_ratio := 1.0 - clampf(unit.global_position.distance_to(_cast.point) / maxf(_leap_distance, 1.0), 0.0, 1.0)
+			var distance := unit.global_position.distance_to(_cast.point)
+			var travel_ratio := 1.0 if distance <= 1.0 else 1.0 - clampf(distance / maxf(_leap_distance, 1.0), 0.0, 1.0)
 			unit.visual.position.y = _visual_start_y - sin(travel_ratio * PI) * _action.movement.leap_height
 	elif _action.movement_kind() == ActionMovementDefinition.Kind.ADVANCE and _action.movement_speed() > 0.0:
 		var step_distance := _action.movement_speed() * delta
@@ -143,10 +151,10 @@ func update(delta: float) -> void:
 		var trigger_time := float(maxi(effect.trigger_frame, 0)) / maxf(fps * unit.visual.speed_scale, 0.01)
 		if trigger_time > _cast.elapsed:
 			break
-		if _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT \
-				and unit.global_position.distance_to(_cast.point) > 18.0 \
-				and _cast.elapsed < _cast.duration + 0.4:
-			break
+		if _action.movement_kind() == ActionMovementDefinition.Kind.DASH_TO_POINT:
+			var landing_distance := 1.0 if _action.movement.leap_descent_speed_scale < 1.0 else 18.0
+			if unit.global_position.distance_to(_cast.point) > landing_distance and _cast.elapsed < _cast.duration + 0.4:
+				break
 		if _action.movement_kind() == ActionMovementDefinition.Kind.RETREAT \
 				and _cast.advanced_distance < _action.movement_distance() - 1.0 \
 				and _cast.elapsed < _cast.duration + 0.4:

@@ -4,6 +4,8 @@
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/fx/templar_holy_blade.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/fx/templar_holy_blade_rising.tscn" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/holy_edge.wav" id="sfx_holy_edge"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/holy_finish.wav" id="sfx_holy_finish"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -27,6 +29,7 @@ knockback = 0.0
 projectile_kind = 0
 duration = 0.00
 effect_scene = ExtResource("3")
+effect_sound = ExtResource("sfx_holy_finish")
 
 [sub_resource type="Resource" id="effect_rising"]
 script = ExtResource("2")
@@ -34,6 +37,7 @@ kind = 2
 trigger_frame = 3
 radius = 190.0
 effect_scene = ExtResource("4")
+effect_sound = ExtResource("sfx_holy_edge")
 
 [resource]
 script = ExtResource("1")

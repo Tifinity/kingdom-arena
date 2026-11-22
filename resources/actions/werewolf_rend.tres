@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="movement_script"]
 [ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="targeting_script"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/claw_rake.wav" id="sfx_claw_rake"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -36,6 +37,7 @@ knockback = 0.0
 projectile_kind = 0
 straight_projectile = false
 duration = 0.00
+impact_sound = ExtResource("sfx_claw_rake")
 
 [sub_resource type="Resource" id="effect_1"]
 script = ExtResource("2")
@@ -68,6 +70,7 @@ knockback = 0.0
 projectile_kind = 0
 straight_projectile = false
 duration = 0.00
+impact_sound = ExtResource("sfx_claw_rake")
 
 [sub_resource type="Resource" id="effect_2"]
 script = ExtResource("2")
@@ -100,6 +103,7 @@ knockback = 0.0
 projectile_kind = 0
 straight_projectile = false
 duration = 0.00
+impact_sound = ExtResource("sfx_claw_rake")
 
 [sub_resource type="Resource" id="effect_3"]
 script = ExtResource("2")
@@ -132,6 +136,7 @@ knockback = 0.0
 projectile_kind = 0
 straight_projectile = false
 duration = 0.00
+impact_sound = ExtResource("sfx_claw_rake")
 
 [sub_resource type="Resource" id="effect_4"]
 script = ExtResource("2")
@@ -164,6 +169,7 @@ knockback = 0.0
 projectile_kind = 0
 straight_projectile = false
 duration = 0.00
+impact_sound = ExtResource("sfx_claw_rake")
 
 [sub_resource type="Resource" id="effect_5"]
 script = ExtResource("2")

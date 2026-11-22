@@ -4,6 +4,8 @@
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/soldier/jump.wav" id="5_jump"]
+[ext_resource type="AudioStream" path="res://assets/audio/soldier/slash_hit.wav" id="6_slash"]
 
 [sub_resource type="Resource" id="strike"]
 script = ExtResource("2")
@@ -11,6 +13,7 @@ kind = 0
 shape = 0
 trigger_frame = 4
 damage_ratio = 1.0
+impact_sound = ExtResource("6_slash")
 
 [sub_resource type="Resource" id="leap"]
 script = ExtResource("3")
@@ -39,3 +42,4 @@ priority = 8
 movement = SubResource("leap")
 targeting = SubResource("softest")
 effects = [SubResource("strike")]
+cast_sound = ExtResource("5_jump")

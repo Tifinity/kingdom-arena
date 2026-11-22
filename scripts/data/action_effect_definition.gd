@@ -82,3 +82,11 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 
 ## 新效果优先使用独立 Behavior；为空时兼容旧 kind 结算。
 @export var behavior: ActionEffectBehavior
+
+@export_group("音效")
+## 效果帧播放一次，适合护盾、剑气和落地等与命中人数无关的音效。
+@export var effect_sound: AudioStream
+## 成功生成投射物时播放。
+@export var projectile_release_sound: AudioStream
+## 近战或投射物接触目标时播放，包括格挡和致命一击。
+@export var impact_sound: AudioStream

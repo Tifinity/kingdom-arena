@@ -14,6 +14,7 @@ const FPS := 30.0
 const FRAME_ORIGIN := Vector2(40.0, 70.0)
 
 var _sprite: Sprite2D
+var _pixel_scale := 1.0
 var _elapsed := 0.0
 var _playing := false
 
@@ -30,7 +31,7 @@ func _ready() -> void:
 	_sprite.position = -FRAME_ORIGIN
 	add_child(_sprite)
 	# 和单位精灵使用同一像素密度，光环才会贴着身体而不是缩成一小圈。
-	scale = Vector2.ONE * _unit_visual_scale()
+	_pixel_scale = _unit_visual_scale()
 	_show_frame(0)
 	visible = false
 	set_process(false)
@@ -39,6 +40,7 @@ func _ready() -> void:
 func play() -> void:
 	_playing = true
 	_elapsed = 0.0
+	_sync_projection()
 	_show_frame(0)
 	visible = true
 	set_process(true)
@@ -61,8 +63,15 @@ func current_frame() -> int:
 func _process(delta: float) -> void:
 	if not _playing:
 		return
+	_sync_projection()
 	_elapsed += delta
 	_show_frame(int(_elapsed * FPS) % FRAME_COUNT)
+
+
+func _sync_projection() -> void:
+	# 怒纹和蒸汽竖直贴着角色，抵消地面 Canvas 的纵深压缩。
+	var projection := get_canvas_transform()
+	scale = Vector2(_pixel_scale, _pixel_scale * projection.x.length() / projection.y.length())
 
 
 func _show_frame(index: int) -> void:

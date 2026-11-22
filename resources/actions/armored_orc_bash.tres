@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://hq4wq54ylw3j" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" uid="uid://baxat1yr4f3hd" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/armor_pierce.wav" id="sfx_armor_pierce"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -11,6 +12,7 @@ damage_ratio = 1.2
 length = 190.0
 width = 76.0
 ignore_shield = true
+effect_sound = ExtResource("sfx_armor_pierce")
 
 [sub_resource type="Resource" id="effect_1"]
 script = ExtResource("2")

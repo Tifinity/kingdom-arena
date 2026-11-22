@@ -727,6 +727,19 @@ func spawn_projectile(source: Unit, target: Unit, damage: float, kind: int, colo
 	var projectile: Projectile = PROJECTILE_SCENE.instantiate()
 	projectiles_root.add_child(projectile)
 	projectile.setup(source, target, damage, kind, color, effect)
+	if effect != null:
+		play_action_sound(effect.projectile_release_sound)
+
+
+func play_action_sound(stream: AudioStream) -> void:
+	if stream == null:
+		return
+	var player := AudioStreamPlayer.new()
+	player.stream = stream
+	player.volume_db = -9.0
+	player.finished.connect(player.queue_free)
+	effects_root.add_child(player)
+	player.play()
 
 
 func spawn_slash(at: Vector2, color: Color, direction: float) -> void:
