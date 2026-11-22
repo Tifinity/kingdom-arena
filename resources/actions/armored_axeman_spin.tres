@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="movement_script"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/spin_whoosh.wav" id="sfx_spin_whoosh"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -25,6 +26,7 @@ summon_count = 1
 knockback = 0.0
 projectile_kind = 0
 duration = 0.00
+effect_sound = ExtResource("sfx_spin_whoosh")
 
 [sub_resource type="Resource" id="effect_1"]
 script = ExtResource("2")

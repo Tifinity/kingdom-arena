@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://hq4wq54ylw3j" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" uid="uid://baxat1yr4f3hd" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/ground_slam.wav" id="sfx_ground_slam"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -10,6 +11,7 @@ trigger_frame = 6
 damage_ratio = 1.8
 radius = 150.0
 center_on_self = true
+effect_sound = ExtResource("sfx_ground_slam")
 
 [sub_resource type="Resource" id="effect_1"]
 script = ExtResource("2")

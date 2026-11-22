@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/fx/aegis_ring.tscn" id="5"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/holy_barrier.wav" id="sfx_holy_barrier"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -16,6 +17,7 @@ center_on_self = true
 status_id = &"taunt"
 status_duration = 2.5
 effect_scene = ExtResource("5")
+effect_sound = ExtResource("sfx_holy_barrier")
 
 [sub_resource type="Resource" id="effect_1"]
 script = ExtResource("2")

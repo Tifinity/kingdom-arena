@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/fx/simple_roar_ring.tscn" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/bear_roar.wav" id="sfx_bear_roar"]
 
 [sub_resource type="Resource" id="slow"]
 script = ExtResource("2")
@@ -15,6 +16,7 @@ status_kind = 1
 status_duration = 2.0
 status_power = 0.5
 effect_scene = ExtResource("3")
+effect_sound = ExtResource("sfx_bear_roar")
 
 [resource]
 script = ExtResource("1")

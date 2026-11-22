@@ -50,6 +50,10 @@ enum TargetMode { ENEMY, ALLY, SELF, POINT, DIRECTION }
 
 @export var effects: Array[ActionEffectDefinition] = []
 
+@export_group("音效")
+## 行动通过施放校验并开始播放动画时触发。
+@export var cast_sound: AudioStream
+
 
 func movement_kind() -> int:
 	if movement != null:

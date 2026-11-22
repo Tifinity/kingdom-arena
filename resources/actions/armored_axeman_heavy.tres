@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/heavy_chop.wav" id="sfx_heavy_chop"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -24,6 +25,7 @@ summon_count = 1
 knockback = 0.0
 projectile_kind = 0
 duration = 0.00
+impact_sound = ExtResource("sfx_heavy_chop")
 
 [resource]
 script = ExtResource("1")

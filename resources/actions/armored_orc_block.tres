@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://hq4wq54ylw3j" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" uid="uid://baxat1yr4f3hd" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/shield_guard.wav" id="sfx_shield_guard"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -11,6 +12,7 @@ trigger_frame = 0
 damage_ratio = 0.0
 shield_self_ratio = 0.2
 duration = 4.0
+effect_sound = ExtResource("sfx_shield_guard")
 
 [resource]
 script = ExtResource("1")

@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/fx/ground_pound.tscn" id="5"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/ground_slam.wav" id="sfx_ground_slam"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -28,6 +29,7 @@ summon_count = 1
 knockback = 0.0
 projectile_kind = 0
 duration = 0.00
+effect_sound = ExtResource("sfx_ground_slam")
 
 [sub_resource type="Resource" id="effect_1"]
 script = ExtResource("2")
@@ -58,6 +60,7 @@ kind = 4
 speed = 850.0
 distance = 340.0
 leap_height = 100.0
+leap_descent_speed_scale = 0.60
 
 [sub_resource type="Resource" id="targeting"]
 script = ExtResource("4")

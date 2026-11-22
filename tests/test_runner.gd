@@ -127,6 +127,24 @@ func _test_catalog() -> void:
 	_check(nonzero_starting_mana == [&"swordsman"] and is_equal_approx(swordsman.starting_mana, 50.0),
 		"剑士入场蓝量为 50，其余英雄为 0")
 	_check(basic_timing_mismatch.is_empty(), "所有英雄普攻冷却与攻速一致")
+	var silent_default_skills: Array[String] = []
+	var audible_default_basics: Array[String] = []
+	for team_index in 2:
+		for unit_id in GameState.get_lineup(team_index):
+			var definition := UnitCatalog.get_definition(unit_id)
+			for action in definition.actions:
+				var has_sound := action.cast_sound != null or action.effects.any(
+					func(effect: ActionEffectDefinition) -> bool:
+						return effect.effect_sound != null or effect.impact_sound != null or effect.projectile_release_sound != null
+				)
+				if action.category == CombatActionDefinition.Category.BASIC:
+					if has_sound:
+						audible_default_basics.append(action.display_name)
+				elif not has_sound:
+					silent_default_skills.append(action.display_name)
+	_check(silent_default_skills.is_empty(),
+		"默认双方所有主动技能都有音效（缺失：%s）" % "、".join(silent_default_skills))
+	_check(audible_default_basics.is_empty(), "默认双方普攻没有配置技能音效")
 
 	var missing_ultimate: Array[String] = []
 	var bad_mana: Array[String] = []
@@ -1359,8 +1377,14 @@ func _test_templar_guardian_ultimate() -> void:
 		and templar.global_position.distance_to(chosen_point) > 150.0,
 		"AI 选择可到达的三人密集区，不追逐附近的单个敌人")
 	templar.brain.enabled = false
+	var played_sounds: Array[AudioStream] = []
+	battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+		if node is AudioStreamPlayer:
+			played_sounds.append(node.stream)
+	)
 	templar.state_machine.transition_to(&"action", true)
 	_check(templar.current_animation() == &"move_02", "冲向目标地点时播放移动2动画")
+	_check(played_sounds.is_empty(), "圣盾守护冲阵途中保持安静")
 	var effect_deadline := Time.get_ticks_msec() + 2000
 	while templar.shield <= 0.0 and Time.get_ticks_msec() < effect_deadline:
 		await get_tree().process_frame
@@ -1370,6 +1394,8 @@ func _test_templar_guardian_ultimate() -> void:
 	_check(is_equal_approx(templar.shield, templar.max_hp * 0.36)
 		and templar.shield_time > 3.0,
 		"三名受嘲讽敌人提供 36% 最大生命护盾")
+	_check(ultimate.effects[0].effect_sound != null and played_sounds == [ultimate.effects[0].effect_sound],
+		"圣盾守护落地且影响三名敌人时，结界音效只播放一次")
 	var all_taunted := true
 	for index in 3:
 		all_taunted = all_taunted and enemies[index].status_controller.has_status(&"taunt")
@@ -1653,8 +1679,12 @@ func _test_wizard_and_elite_orc() -> void:
 	_check(elite.status_controller.has_status(&"elite_orc_rage"), "生命低于 50% 时触发狂怒")
 	_check(is_equal_approx(elite.current_attack_damage(), elite.attack_damage * 1.5),
 		"狂怒提高 50% 攻击力")
-	var rage_fx := elite.status_controller.get_vfx(&"elite_orc_rage")
+	var rage_fx := elite.status_controller.get_vfx(&"elite_orc_rage") as RageStatusFx
 	_check(rage_fx is RageStatusFx and rage_fx.is_playing(), "狂怒使用 Seething 状态特效")
+	if rage_fx != null:
+		var screen_transform := rage_fx.get_global_transform_with_canvas()
+		_check(is_equal_approx(screen_transform.x.length(), screen_transform.y.length()),
+			"狂怒在战场镜头下保留像素比例")
 	battle.hud.set_selected_unit(elite)
 	await get_tree().process_frame
 	_check(battle.hud.skill_status.text.contains("狂怒") and battle.hud.skill_status.text.contains("生效中"),
@@ -1897,9 +1927,14 @@ func _test_werebear_skills() -> void:
 	bear.planned_point = (enemies[1].position + enemies[2].position) * 0.5
 	bear.planned_has_point = true
 	var quake_hp: float = enemies[1].hp
+	var grounded_y := bear.visual.position.y
 	bear.state_machine.transition_to(&"action", true)
-	await get_tree().create_timer(0.65).timeout
+	await get_tree().create_timer(0.36).timeout
+	_check(bear.visual.position.y < grounded_y - 10.0 and is_equal_approx(enemies[1].hp, quake_hp),
+		"天声震落延长下落阶段，腾空时不造成伤害")
+	await get_tree().create_timer(0.29).timeout
 	_check(bear.position.distance_to(bear.planned_point) < 25.0 and enemies[1].hp < quake_hp
+		and is_equal_approx(bear.visual.position.y, grounded_y)
 		and enemies[1].status_controller.has_status(&"stun"), "天声震落落到敌群并造成伤害和眩晕")
 	var impact := battle.effects_root.get_node_or_null("GroundPoundFx") as GroundPoundFx
 	var floor_fx: Sprite3D = null
@@ -2009,14 +2044,25 @@ func _test_new_passives_and_soldier() -> void:
 	enemies[1].armor = 0.02
 	_check(soldier.brain._lowest_armor_enemy_in_range(jump, enemies) == enemies[1],
 		"跳劈锁定中距离内护甲最低的敌人")
+	var played_sounds: Array[AudioStream] = []
+	battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+		if node is AudioStreamPlayer:
+			played_sounds.append(node.stream)
+	)
 	var initial_hp := enemies[1].hp
 	soldier.target = enemies[1]
 	soldier.planned_action = jump
 	soldier.state_machine.transition_to(&"action", true)
+	_check(jump.cast_sound != null and played_sounds == [jump.cast_sound],
+		"跳劈起跳时播放一次音效")
 	await get_tree().create_timer(1.0).timeout
 	_check(soldier.position.distance_to(enemies[1].position) < 100.0
 		and absf(initial_hp - enemies[1].hp - soldier.attack_damage * (1.0 - enemies[1].armor)) < 0.5,
 		"跳劈落到目标身旁并造成 1.0 AD 单体伤害")
+	_check(jump.effects[0].impact_sound != null
+		and played_sounds == [jump.cast_sound, jump.effects[0].impact_sound],
+		"跳劈命中时播放一次劈砍音效")
+	played_sounds.clear()
 	soldier.state_machine.transition_to(&"idle", true)
 	soldier.position = origin + Vector2(45.0, 0.0)
 	enemies[0].position = origin + Vector2(240.0, 0.0)
@@ -2029,9 +2075,14 @@ func _test_new_passives_and_soldier() -> void:
 	_check(soldier.position.distance_to(before_retreat) > 35.0
 		and is_equal_approx(enemies[0].hp, before_shot_hp)
 		and soldier.current_animation() == &"attack_03", "后撤射击播放远程攻击动画，先位移再发箭")
+	_check(played_sounds.is_empty(), "后撤阶段未播放发箭或命中音效")
 	await get_tree().create_timer(0.9).timeout
 	_check(absf(before_shot_hp - enemies[0].hp - soldier.attack_damage * 1.3 * (1.0 - enemies[0].armor)) < 0.5,
 		"后撤射出的直线箭造成 1.3 AD 单体伤害")
+	_check(backshot.effects[0].projectile_release_sound != null and backshot.effects[0].impact_sound != null
+		and played_sounds == [backshot.effects[0].projectile_release_sound, backshot.effects[0].impact_sound],
+		"后撤射击依次播放弓弦和箭矢命中音效")
+	played_sounds.clear()
 	soldier.state_machine.transition_to(&"idle", true)
 	soldier.action_cooldowns[jump.action_id] = 99.0
 	soldier.action_cooldowns[backshot.action_id] = 99.0
@@ -2049,6 +2100,7 @@ func _test_new_passives_and_soldier() -> void:
 		_check(soldier.current_animation() == &"attack_03", "弓箭普攻播放远程攻击动画")
 		await get_tree().create_timer(0.65).timeout
 		_check(battle.projectiles_fired > arrows_before, "弓箭普攻在攻击动画出手帧射箭")
+		_check(played_sounds.is_empty(), "弓箭普攻不触发后撤射击的音效")
 		soldier.state_machine.transition_to(&"idle", true)
 	soldier.position = enemies[0].position - Vector2(65.0, 0.0)
 	soldier.brain._observe()
@@ -2239,6 +2291,11 @@ func _test_werewolf_combo() -> void:
 	wolf.planned_action = combo
 	var target_hp: float = enemies[0].hp
 	var other_hp: float = enemies[1].hp
+	var played_sounds: Array[AudioStream] = []
+	battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+		if node is AudioStreamPlayer:
+			played_sounds.append(node.stream)
+	)
 	wolf.state_machine.transition_to(&"action", true)
 	_check(wolf.global_position.distance_to(enemies[0].global_position) < 100.0
 		and wolf.global_position.x > start.x + 110.0,
@@ -2247,6 +2304,9 @@ func _test_werewolf_combo() -> void:
 	var combo_damage := wolf.attack_damage * 5.0 * 0.6 * (1.0 - enemies[0].current_armor())
 	_check(battle.action_hits == 5 and enemies[0].hp <= target_hp - combo_damage + 0.5,
 		"血月连斩对单体连续命中五次")
+	_check(combo.effects[0].impact_sound != null and played_sounds.size() == 5
+		and played_sounds.count(combo.effects[0].impact_sound) == 5,
+		"血月连斩五次命中各播放一次爪击声")
 	_check(is_equal_approx(enemies[1].hp, other_hp), "附近其他敌人不受连斩伤害")
 	_check(enemies[0].bleed_time > 0.0 and is_zero_approx(enemies[1].bleed_time),
 		"只有被连斩命中的目标流血")
@@ -2269,6 +2329,7 @@ func _test_werewolf_combo() -> void:
 	await get_tree().create_timer(0.9).timeout
 	_check(is_equal_approx(enemies[2].hp, missed_hp) and is_zero_approx(enemies[2].bleed_time),
 		"目标离开近战距离后，落空的连斩不会附加流血")
+	_check(played_sounds.size() == 5, "落空时没有额外的斩击声")
 	await get_tree().create_timer(4.0).timeout
 	_check(is_zero_approx(enemies[0].bleed_time), "流血在五秒后结束")
 	wolf.position = start
@@ -2621,8 +2682,11 @@ func _test_axeman_skills() -> void:
 	axeman.action_cooldowns[armor_guard.action_id] = 0.0
 	axeman.planned_action = armor_guard
 	var body_material := axeman.visual.material
+	var hits_before_guard := battle.action_hits
 	axeman.state_machine.transition_to(&"action", true)
 	await get_tree().create_timer(0.2).timeout
+	_check(axeman.current_animation() == &"idle" and battle.action_hits == hits_before_guard,
+		"盔甲护身站定披甲，不播放旋风斩动画或造成攻击伤害")
 	_check(axeman.status_controller.has_status(&"armored_axeman_armor_guard")
 		and absf(axeman.current_armor() - minf(armor_before + 0.20, 0.8)) < 0.001,
 		"盔甲护身立即提高 20 个百分点护甲")

@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="movement_script"]
 [ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="targeting_script"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/shadow_step.wav" id="sfx_shadow_step"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -72,3 +73,4 @@ min_targets = 1
 requires_wounded_ally = false
 priority = 8
 effects = [SubResource("effect_0")]
+cast_sound = ExtResource("sfx_shadow_step")
