@@ -355,7 +355,7 @@ def _write_action(
         f'category = {category}',
         f'target_mode = {target_mode}',
         f'animation = &"{animation}"',
-        f'animation_speed = {animation_speed:.2f}',
+        f'animation_speed = {animation_speed}',
         f'action_range = {action_range:.1f}',
         f'min_range = {min_range:.1f}',
         f'preferred_min_range = {preferred_min_range:.1f}',
@@ -384,7 +384,7 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         shield_per_target_ratio=0.0, shield_max_ratio=0.0,
         shield_self_ratio=0.0, ignore_shield=False,
         requires_action_hit=False, guard_reward_shield_ratio=0.0,
-        guard_reward_shield_duration=0.0, straight_projectile=False) -> dict:
+        guard_reward_shield_duration=0.0, straight_projectile=False, scene_path="") -> dict:
     return {
         "kind": kind, "shape": shape, "trigger_frame": frame,
         "damage_ratio": ratio, "radius": radius, "half_angle": half,
@@ -404,7 +404,7 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         "guard_reward_shield_ratio": guard_reward_shield_ratio,
         "guard_reward_shield_duration": guard_reward_shield_duration,
         "requires_action_hit": requires_action_hit,
-        "straight_projectile": straight_projectile,
+        "straight_projectile": straight_projectile, "scene_path": scene_path,
     }
 
 
@@ -621,12 +621,19 @@ def _skills_for(unit: Unit) -> list[dict]:
                              16.0, 10, 0.0, rng, mana=100.0, target_mode=2,
                              description="震击周围敌人，造成 {damage_0}范围伤害并眩晕 0.8 秒。"))
     elif slug == "greatsword_skeleton":
-        skills.append(_skill("greatsword_skeleton_cleave", "断魂斩", "attack_02",
-                             [_fx(shape=2, ratio=1.4, frame=7, radius=rng + 14.0, half=62.0)],
-                             8.0, 7, rng, rng))
+        skills.append(_skill("greatsword_skeleton_cleave", "断魂斩", "attack_01",
+                             [_fx(shape=2, ratio=1.4, frame=5, radius=110.0, half=62.0,
+                                  scene_path="res://scenes/fx/greatsword_cleave.tscn")],
+                             8.0, 7, 110.0, rng))
+        skills.append(_skill("greatsword_skeleton_heavy_slash", "蓄力重斩", "attack_02",
+                             [_fx(shape=0, ratio=2.0, frame=7,
+                                  scene_path="res://scenes/fx/greatsword_heavy_slash.tscn"),
+                              _fx(kind=2, frame=4, scene_path="res://scenes/fx/greatsword_heavy_charge.tscn")],
+                             10.0, 8, 96.0, rng, animation_speed=0.625))
         skills.append(_skill("greatsword_skeleton_pierce", "穿魂刺", "attack_03",
-                             [_fx(shape=4, ratio=2.4, frame=6, length=210.0, width=46.0)],
-                             15.0, 10, 220.0, rng, mana=100.0))
+                             [_fx(shape=4, ratio=2.4, frame=4, length=210.0, width=46.0,
+                                  scene_path="res://scenes/fx/greatsword_pierce.tscn")],
+                             15.0, 10, 210.0, rng, mana=100.0))
     elif slug == "skeleton_archer":
         skills.append(_skill("skeleton_archer_volley", "骸骨连射", "attack_01",
                              [_fx(kind=1, shape=0, ratio=0.75, frame=2, projectile=1),
@@ -1081,6 +1088,7 @@ def build_character(unit: Unit) -> tuple[float, str]:
         "knight_templar": "knight_templar_guardian",
         "werebear": "werebear_thick_hide",
         "werewolf": "werewolf_pursuit",
+        "greatsword_skeleton": "greatsword_skeleton_decapitate",
     }
     passive_path = passive_paths.get(unit.slug, "")
     passive_id = str(6 + len(action_paths)) if passive_path else ""

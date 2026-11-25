@@ -544,7 +544,7 @@ UnitActionState（唯一行动状态）
 
 ## 从技能实验室导入
 
-在技能实验室从「竞技场 · 箭雨」范例开始，修改节点参数后点击「导出到竞技场」，得到 `archer_arrow_rain.arena-skill.json`。在王国竞技场项目根目录执行：
+在技能实验室从「竞技场 · 箭雨」或巨剑骷髅的四项技能范例开始，修改节点参数后点击「导出到竞技场」。在王国竞技场项目根目录执行：
 
 ```sh
 godot --headless --path . res://tools/import_arena_skill.tscn -- ~/Downloads/archer_arrow_rain.arena-skill.json
