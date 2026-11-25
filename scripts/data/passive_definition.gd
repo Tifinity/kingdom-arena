@@ -30,6 +30,11 @@ extends Resource
 @export var bonus_damage_min_distance := 0.0
 @export var bonus_damage_at_distance_ratio := 0.0
 
+## 对当前生命比例严格高于阈值的目标造成额外伤害；0 表示不启用。
+@export var bonus_damage_target_above_hp_ratio := 0.0
+@export var bonus_damage_above_hp_ratio := 0.0
+@export var bonus_damage_above_hp_fx: PackedScene
+
 
 func detail_text() -> String:
 	var rendered := description
@@ -40,6 +45,8 @@ func detail_text() -> String:
 	rendered = rendered.replace("{bonus_damage_percent}", _number_text(bonus_damage_ratio * 100.0))
 	rendered = rendered.replace("{bonus_damage_min_distance}", _number_text(bonus_damage_min_distance))
 	rendered = rendered.replace("{bonus_damage_at_distance_percent}", _number_text(bonus_damage_at_distance_ratio * 100.0))
+	rendered = rendered.replace("{bonus_damage_target_above_hp_percent}", _number_text(bonus_damage_target_above_hp_ratio * 100.0))
+	rendered = rendered.replace("{bonus_damage_above_hp_percent}", _number_text(bonus_damage_above_hp_ratio * 100.0))
 	for index in battle_start_statuses.size():
 		var status := battle_start_statuses[index]
 		if status == null:
