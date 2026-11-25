@@ -26,6 +26,10 @@ const DEBUG_FIELD_DEFS := [
 @onready var blue_alive: Label = $Root/TopBar/Margin/Row/BlueTeam/BlueHeader/BlueAlive
 @onready var red_name: Label = $Root/TopBar/Margin/Row/RedTeam/RedHeader/RedName
 @onready var red_alive: Label = $Root/TopBar/Margin/Row/RedTeam/RedHeader/RedAlive
+@onready var base_labels: Array[Label] = [
+	$Root/TopBar/Margin/Row/BlueTeam/BlueBase,
+	$Root/TopBar/Margin/Row/RedTeam/RedBase,
+]
 @onready var timer_label: Label = $Root/TopBar/Margin/Row/Center/TimerLabel
 @onready var phase_label: Label = $Root/TopBar/Margin/Row/Center/PhaseLabel
 @onready var speed_button: Button = $Root/Controls/SpeedButton
@@ -92,12 +96,22 @@ func set_roster(units: Array[Unit]) -> void:
 	blue_name.text = battle.team_name(0)
 	red_name.text = battle.team_name(1)
 	for unit in units:
+		if unit.is_main_base():
+			continue
 		var card := BattleRosterCard.new()
 		roster_columns[unit.team].add_child(card)
 		card.bind(unit)
 		card.pressed.connect(_select_from_roster.bind(card))
 		_roster_cards.append(card)
 	_refresh()
+
+
+func replace_roster_unit(unit: Unit) -> void:
+	for card in _roster_cards:
+		if card.team == unit.team and card.slot == unit.slot:
+			card.unit = unit
+			card.refresh(false)
+			return
 
 
 func reset_round() -> void:
@@ -178,7 +192,16 @@ func _refresh() -> void:
 	if battle == null:
 		return
 	for card in _roster_cards:
-		card.refresh(is_instance_valid(selected_unit) and card.unit == selected_unit)
+		card.refresh(is_instance_valid(selected_unit) and card.unit == selected_unit, battle.respawn_remaining(card.team, card.slot))
+	for team in 2:
+		var base := battle.main_bases[team]
+		var label := base_labels[team]
+		label.visible = battle.is_siege() and (is_instance_valid(base) or battle.finished)
+		if label.visible:
+			if is_instance_valid(base):
+				label.text = "主基地  %d / %d" % [ceili(base.hp), ceili(base.max_hp)]
+			else:
+				label.text = "主基地  已摧毁"
 	timer_label.text = _format_time(battle.elapsed)
 	blue_alive.text = "%d/%d" % [battle.team_alive(0), battle.team_sizes[0]]
 	red_alive.text = "%d/%d" % [battle.team_alive(1), battle.team_sizes[1]]
@@ -190,6 +213,8 @@ func _refresh() -> void:
 		phase_label.text = "交战中"
 	else:
 		phase_label.text = "备战中"
+	if battle.is_siege():
+		phase_label.text = "攻坚 · " + phase_label.text
 
 
 
@@ -482,6 +507,12 @@ func show_result(result: Dictionary) -> void:
 		result_title.text = "同归于尽"
 		result_title.add_theme_color_override("font_color", Color("#e7c46b"))
 		result_sub.text = "双方英雄全部阵亡 · 平局"
+	match result.get("reason", ""):
+		"base_destroyed":
+			result_sub.text = "%s主基地已摧毁" % _result_team_name(1 - winner) if winner >= 0 else "双方主基地同时摧毁 · 平局"
+		"timeout":
+			result_title.text = "战斗超时"
+			result_sub.text = "达到 5 分钟时限 · 平局"
 
 	time_value.text = _format_time(result.get("elapsed", 0.0))
 	var alive: Array = result.get("alive", [0, 0])

@@ -12,5 +12,5 @@ script = ExtResource("1")
 action_id = &"werebear_basic"
 display_name = "普通攻击"
 action_range = 94.0
-cooldown = 1.67
+cooldown = 2.22
 effects = Array[ExtResource("2")]([SubResource("effect_0")])

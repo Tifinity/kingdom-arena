@@ -87,3 +87,9 @@
 ## Pixelfx 高压水枪特效
 
 - `assets/fx/water/` 包含五套独立特效的图集、帧数据、预览和源码。使用方法、重新导出命令与署名见 [素材说明](assets/fx/water/README.md)。
+
+## 攻坚模式基地
+
+- 圆塔来自 CodeLaboratory 的 [Pixel Tower Defenders Asset Pack](https://codelaboratory.itch.io/pixel-tower-defenders-asset-pack)。作者允许用于游戏（包括商业游戏），禁止原样转售素材。
+- 项目收录该塔的单张裁切 `artifacts/main_base_tower_source.png`，使用 pixelfx 重着色为蓝红阵营图集 `assets/fx/pixelfx/main_base_tower.png`。
+- 从项目根目录运行 `PIXELFX_DIR=../pixelfx node tools/export_main_base_tower.mjs` 可重新导出。需要 Python 3 和 Pillow。

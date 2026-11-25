@@ -173,6 +173,10 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	status_controller.setup(self)
 	brain.setup(self)
 	state_machine.setup(self)
+	if is_main_base():
+		# 基地的 idle 图集按队伍存放静态帧。
+		visual.frame = team
+		brain.enabled = false
 	if p_definition.training_dummy:
 		# 训练靶没有生命条和 AI；仍保留受击闪烁与状态表现，方便观察技能。
 		health_bar.hide()
@@ -183,6 +187,10 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 
 func is_training_dummy() -> bool:
 	return definition != null and definition.training_dummy
+
+
+func is_main_base() -> bool:
+	return definition != null and definition.main_base
 
 
 ## 调试用：不挂 Battle，只把一名英雄的资源和场景初始化好，停在 idle。
@@ -721,7 +729,7 @@ func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 
 
 func apply_knockback(origin: Vector2, distance: float) -> void:
-	if distance <= 0.0 or is_training_dummy():
+	if distance <= 0.0 or is_training_dummy() or is_main_base():
 		return
 	var dir := global_position - origin
 	if dir.length_squared() < 0.0001:

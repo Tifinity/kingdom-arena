@@ -3,6 +3,8 @@ extends Node3D
 
 ## 角色脚下的影子和圆环先于立绘绘制。节点随立绘销毁，坐标独立于立绘的朝向。
 const RINGS_SHADER := preload("res://shaders/unit_ground_rings.gdshader")
+const HERO_SHADOW_DEPTH_SCALE := 0.82
+const HERO_RING_DEPTH_SCALE := 0.40
 
 var _unit: Unit
 var _stage: ArenaStage3D
@@ -10,6 +12,7 @@ var _shadow: Sprite3D
 var _shadow_tint: Color
 var _rings: MeshInstance3D
 var _material: ShaderMaterial
+var _shadow_depth_scale := 1.0
 
 
 func setup(unit: Unit, stage: ArenaStage3D) -> void:
@@ -33,6 +36,9 @@ func setup(unit: Unit, stage: ArenaStage3D) -> void:
 	_material = ShaderMaterial.new()
 	_material.shader = RINGS_SHADER
 	_material.render_priority = ArenaStage3D.GROUND_MARKER_PRIORITY
+	if not unit.is_main_base() and not unit.is_training_dummy():
+		_shadow_depth_scale = HERO_SHADOW_DEPTH_SCALE
+		_material.set_shader_parameter(&"foot_ring_depth", HERO_RING_DEPTH_SCALE)
 	_rings.material_override = _material
 	add_child(_rings)
 
@@ -44,6 +50,7 @@ func setup(unit: Unit, stage: ArenaStage3D) -> void:
 func sync() -> void:
 	global_position = _stage.ground_to_world(_unit.global_position)
 	_stage.sync_ground_sprite(_shadow, _unit.shadow, -0.55)
+	_shadow.transform.basis.y *= _shadow_depth_scale
 	_shadow.modulate = _unit.shadow.modulate * Color(_shadow_tint, _unit.shadow.self_modulate.a) * _unit.modulate
 
 	var team := _unit.team_ring

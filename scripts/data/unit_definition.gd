@@ -50,6 +50,7 @@ const FACTION_NAMES := {
 ## 训练靶：不移动、不死亡，也不会损失生命，只记录实际受到的伤害。
 ## 试炼场的稻草人使用该标记，正常名册单位保持关闭。
 @export var training_dummy := false
+@export var main_base := false
 
 @export_group("动作")
 ## 该单位可执行的全部 Action（普通攻击、技能、防御、位移……）。

@@ -35,13 +35,13 @@ func _on_battle_finished(winner: int) -> void:
 	var hud := _battle.hud
 	if _battle.replay_result["reason"] == "timeout":
 		hud.result_title.text = "时间到 · 平局"
-		hud.result_sub.text = "双方均有英雄存活"
 	elif winner >= 0:
 		var names := [_battle.team_name(0), _battle.team_name(1)]
 		if names[0] == names[1]:
 			for team in 2:
 				names[team] += "（%s）" % GameState.team_short_name(team)
 		hud.result_title.text = "%s 获胜" % names[winner]
-		hud.result_sub.text = "%s全员阵亡" % names[1 - winner]
+		var objective := "主基地已摧毁" if _battle.is_siege() else "全员阵亡"
+		hud.result_sub.text = names[1 - winner] + objective
 	await get_tree().create_timer(RESULT_HOLD_SECONDS).timeout
 	super._on_battle_finished(winner)

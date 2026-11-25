@@ -16,6 +16,11 @@ const HIT_SPARK_SCENE := preload("res://scenes/battle/hit_spark.tscn")
 const SLASH_SCENE := preload("res://scenes/battle/slash_effect.tscn")
 const TRAINING_DUMMY_DEFINITION := preload("res://resources/training/training_dummy.tres")
 
+const MAIN_BASE_DEFINITION := preload("res://resources/battle/main_base.tres")
+const RESPAWN_DELAY := 8.0
+const RESPAWN_DELAY_STEP := 3.0
+const MAX_RESPAWN_DELAY := 20.0
+
 const SETUP_SCENE := "res://scenes/setup/setup_screen.tscn"
 const BASE_SIZE := Vector2(1600.0, 900.0)
 const TRAINING_FIELD_MIN := Vector2(190.0, 430.0)
@@ -45,6 +50,11 @@ const BASE_FORMATIONS := [
 ]
 
 var units: Array[Unit] = []
+var mode := GameState.BattleMode.ELIMINATION
+var main_bases: Array[Unit] = [null, null]
+var _base_shot_ready_at: Array[float] = [0.0, 0.0]
+var _respawns: Array[Dictionary] = [{}, {}]
+var _hero_deaths: Array[Dictionary] = [{}, {}]
 var deploying := false
 var _round_id := 0
 var battle_active := false
@@ -95,6 +105,7 @@ var _rng := RandomNumberGenerator.new()
 @onready var projectiles_root: Node2D = $GroundPresentation/Projectiles
 @onready var effects_root: Node2D = $GroundPresentation/Effects
 @onready var combat_text: CanvasLayer = $CombatText
+@onready var _base_markers: Array[Marker2D] = [$BasePositions/BlueBase, $BasePositions/RedBase]
 
 
 func _ready() -> void:
@@ -102,6 +113,7 @@ func _ready() -> void:
 	get_tree().paused = false
 	_viewport_size = get_viewport_rect().size
 	_refresh_layout()
+	mode = replay_config.mode if replay_config != null else GameState.battle_mode
 	get_viewport().size_changed.connect(_on_viewport_resized)
 	hud.bind(self)
 	if training_mode:
@@ -155,8 +167,11 @@ func _on_viewport_resized() -> void:
 		return
 	var ratio := next_size / previous
 	for unit in units:
-		if is_instance_valid(unit):
+		if is_instance_valid(unit) and not unit.is_main_base():
 			unit.position = clamp_unit_position(unit.position * ratio)
+	for team in 2:
+		if is_instance_valid(main_bases[team]):
+			main_bases[team].position = _base_position(team)
 
 
 func _refresh_layout() -> void:
@@ -192,7 +207,7 @@ func _default_formation_position(team: int, slot: int) -> Vector2:
 
 func unit_in_slot(team: int, slot: int) -> Unit:
 	for unit in units:
-		if unit.team == team and unit.slot == slot:
+		if is_instance_valid(unit) and unit.alive and not unit.summoned and unit.team == team and unit.slot == slot:
 			return unit
 	return null
 
@@ -217,6 +232,7 @@ func refresh_deployment() -> void:
 				unit.set_physics_process(false)
 			elif unit != null:
 				unit.position = _formation_position(team, slot)
+	_sync_main_bases()
 
 
 func set_deployment_position(team: int, slot: int, point: Vector2) -> void:
@@ -267,6 +283,69 @@ func _spawn_lineups() -> void:
 			if definition == null:
 				continue
 			_spawn_unit(definition, team, slot, _formation_position(team, slot))
+	_sync_main_bases()
+
+
+func _sync_main_bases() -> void:
+	mode = replay_config.mode if replay_config != null else GameState.battle_mode
+	for team in 2:
+		var base := main_bases[team]
+		if is_siege():
+			if not is_instance_valid(base):
+				base = _spawn_unit(MAIN_BASE_DEFINITION, team, -1, _base_position(team), false)
+				base.set_physics_process(not deploying)
+				main_bases[team] = base
+		elif is_instance_valid(base):
+			units.erase(base)
+			main_bases[team] = null
+			base.queue_free()
+
+
+func _base_position(team: int) -> Vector2:
+	var layout_scale := _viewport_size / BASE_SIZE if replay_config == null else Vector2.ONE
+	return clamp_unit_position(_base_markers[team].position * layout_scale)
+
+
+func is_siege() -> bool:
+	return not training_mode and mode == GameState.BattleMode.SIEGE
+
+
+func respawn_remaining(team: int, slot: int) -> float:
+	var pending: Dictionary = _respawns[team].get(slot, {})
+	return maxf(0.0, float(pending.get("at", elapsed)) - elapsed)
+
+
+func _update_siege() -> void:
+	for team in 2:
+		var base := main_bases[team]
+		if elapsed >= _base_shot_ready_at[team]:
+			_fire_base_arrow(base)
+		for slot: int in _respawns[team].keys():
+			if respawn_remaining(team, slot) > 0.0:
+				continue
+			var definition: UnitDefinition = _respawns[team][slot]["definition"]
+			_respawns[team].erase(slot)
+			var rear := -1.0 if team == 0 else 1.0
+			var offset := Vector2(rear * (base.body_radius + 46.0 + 25.0 * (slot % 2)), 66.0 * (slot - 2))
+			var hero := _spawn_unit(definition, team, slot, clamp_unit_position(base.position + offset), false)
+			hero.on_battle_started()
+			hud.replace_roster_unit(hero)
+
+
+func _fire_base_arrow(base: Unit) -> void:
+	var target: Unit
+	var nearest := INF
+	for enemy in living_units(1 - base.team):
+		if enemy.is_main_base():
+			continue
+		var distance := base.position.distance_to(enemy.position)
+		if distance <= base.attack_range + enemy.body_radius and distance < nearest:
+			target = enemy
+			nearest = distance
+	if target == null:
+		return
+	spawn_projectile(base, target, base.current_attack_damage(), base.projectile_kind, GameState.team_color(base.team))
+	_base_shot_ready_at[base.team] = elapsed + base.current_attack_interval()
 
 
 func _lineup_definition(unit_id: StringName) -> UnitDefinition:
@@ -274,7 +353,7 @@ func _lineup_definition(unit_id: StringName) -> UnitDefinition:
 
 
 ## 生成并登记一个单位。正常战斗与试炼场的训练模式共用这条路径。
-func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_position: Vector2) -> Unit:
+func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_position: Vector2, count_in_lineup := true) -> Unit:
 	var unit_scene: PackedScene = definition.unit_scene if definition.unit_scene != null else UNIT_SCENE
 	var unit: Unit = unit_scene.instantiate()
 	units_root.add_child(unit)
@@ -292,8 +371,9 @@ func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_positio
 	unit.set_range_overlay_visible(show_combat_ranges)
 	unit.died.connect(_on_unit_died)
 	units.append(unit)
-	team_sizes[team] += 1
-	team_max_hp_total[team] += unit.max_hp
+	if count_in_lineup:
+		team_sizes[team] += 1
+		team_max_hp_total[team] += unit.max_hp
 	return unit
 
 
@@ -354,6 +434,10 @@ func _clear_battlefield() -> void:
 		unit.set_process(false)
 		unit.queue_free()
 	units.clear()
+	main_bases = [null, null]
+	_base_shot_ready_at = [0.0, 0.0]
+	_respawns = [{}, {}]
+	_hero_deaths = [{}, {}]
 	for container in [projectiles_root, effects_root, combat_text]:
 		for child in container.get_children():
 			child.queue_free()
@@ -394,24 +478,24 @@ func _begin_battle() -> void:
 func _physics_process(delta: float) -> void:
 	if finished or (deployment_enabled and not battle_active):
 		return
+	if replay_config != null and replay_tick == 0:
+		_begin_battle()
+	elif battle_active and not training_mode:
+		# 在完整物理帧之间结算，先判胜负，再判超时。
+		_evaluate_victory()
+		if finished:
+			return
+		if elapsed >= GameState.BATTLE_TIME_LIMIT_SECONDS:
+			_finish(-1, "timeout")
+			return
 	if replay_config != null:
-		if replay_tick == 0:
-			_begin_battle()
-		else:
-			# 在完整物理帧之间结算，避免渲染帧的延迟调用改变胜负。
-			_evaluate_victory()
-			if finished:
-				return
-			if replay_tick >= BattleReplayConfig.MAX_TICKS:
-				_finish(-1, "timeout")
-				return
 		replay_tick += 1
 		elapsed = float(replay_tick) / BattleReplayConfig.TICKS_PER_SECOND
 	elif battle_active:
-		elapsed += delta
+		elapsed = minf(elapsed + delta, GameState.BATTLE_TIME_LIMIT_SECONDS) if not training_mode else elapsed + delta
+	if battle_active and is_siege():
+		_update_siege()
 	_resolve_separation()
-	if battle_active and not training_mode and replay_config == null:
-		_evaluate_victory()
 
 
 func _resolve_separation() -> void:
@@ -427,7 +511,7 @@ func _resolve_separation() -> void:
 			# 稻草人固定站位，不被分离推挤，也不推开英雄。
 			if is_training_dummy(a) or is_training_dummy(b):
 				continue
-			if a.is_charging() or b.is_charging():
+			if (a.is_charging() or b.is_charging()) and not (a.is_main_base() or b.is_main_base()):
 				continue
 			var min_distance := (a.body_radius + b.body_radius) * 0.86
 			var offset: Vector2 = b.position - a.position
@@ -439,8 +523,10 @@ func _resolve_separation() -> void:
 				distance = 1.0
 			var push := (min_distance - distance) * 0.38
 			var direction := offset / distance
-			a.position = clamp_unit_position(a.position - direction * push)
-			b.position = clamp_unit_position(b.position + direction * push)
+			if not a.is_main_base():
+				a.position = clamp_unit_position(a.position - direction * push * (2.0 if b.is_main_base() else 1.0))
+			if not b.is_main_base():
+				b.position = clamp_unit_position(b.position + direction * push * (2.0 if a.is_main_base() else 1.0))
 
 
 func clamp_unit_position(point: Vector2) -> Vector2:
@@ -475,25 +561,43 @@ func team_max_hp(team: int) -> float:
 
 
 func team_alive(team: int) -> int:
-	return living_units(team).size()
+	var living := living_units(team)
+	if not is_siege():
+		return living.size()
+	var heroes := 0
+	for unit in living:
+		if not unit.is_main_base() and not unit.summoned:
+			heroes += 1
+	return heroes
 
 
 func _on_unit_died(unit: Unit, killer: Unit) -> void:
 	if is_instance_valid(unit):
 		spawn_death_burst(unit.get_effect_point(), unit.accent_color)
-	if is_instance_valid(killer):
+	if is_instance_valid(killer) and not unit.is_main_base():
 		team_kills[killer.team] += 1
+	if is_siege() and battle_active and not unit.is_main_base() and not unit.summoned:
+		var previous_deaths: int = _hero_deaths[unit.team].get(unit.slot, 0)
+		var delay := minf(RESPAWN_DELAY + RESPAWN_DELAY_STEP * previous_deaths, MAX_RESPAWN_DELAY)
+		_hero_deaths[unit.team][unit.slot] = previous_deaths + 1
+		_respawns[unit.team][unit.slot] = {"at": elapsed + delay, "definition": unit.definition}
 	# 训练模式没有胜负：稻草人不会死亡，英雄也不应由靶子击杀。
 	if replay_config != null:
 		_record_replay_event("death", killer, unit)
 		return
-	if training_mode:
+	if training_mode or is_siege():
 		return
 	call_deferred("_evaluate_victory")
 
 
 func _evaluate_victory() -> void:
 	if finished or training_mode or deploying:
+		return
+	if is_siege():
+		var blue_destroyed := not is_instance_valid(main_bases[0]) or not main_bases[0].alive
+		var red_destroyed := not is_instance_valid(main_bases[1]) or not main_bases[1].alive
+		if blue_destroyed or red_destroyed:
+			_finish(-1 if blue_destroyed and red_destroyed else (1 if blue_destroyed else 0), "base_destroyed")
 		return
 	var alive_blue := team_alive(0)
 	var alive_red := team_alive(1)
@@ -512,6 +616,7 @@ func _finish(result_winner: int, reason := "elimination") -> void:
 		return
 	finished = true
 	battle_active = false
+	_respawns = [{}, {}]
 	winner = result_winner
 	for unit in units:
 		if is_instance_valid(unit):
@@ -521,7 +626,8 @@ func _finish(result_winner: int, reason := "elimination") -> void:
 	hud.refresh_controls()
 
 	if replay_config != null:
-		replay_result = {"tick": replay_tick, "reason": reason, "summary": _build_result()}
+		replay_result = {"tick": replay_tick, "reason": reason, "summary": _build_result(reason)}
+	if replay_config != null or is_siege() or reason == "timeout":
 		# 保留最后一击的动画与特效，同时停止战斗逻辑。
 		for unit in living_units():
 			unit.set_physics_process(false)
@@ -535,15 +641,16 @@ func _finish(result_winner: int, reason := "elimination") -> void:
 	if not is_inside_tree() or round_id != _round_id:
 		return
 
-	var result: Dictionary = replay_result["summary"] if replay_config != null else _build_result()
+	var result: Dictionary = replay_result["summary"] if replay_config != null else _build_result(reason)
 	GameState.last_result = result
 	battle_finished.emit(winner)
 	hud.show_result(result)
 
 
-func _build_result() -> Dictionary:
+func _build_result(reason: String) -> Dictionary:
 	return {
 		"winner": winner,
+		"reason": reason,
 		"elapsed": elapsed,
 		"alive": [team_alive(0), team_alive(1)],
 		"size": [team_sizes[0], team_sizes[1]],
@@ -558,9 +665,12 @@ func on_damage_dealt(target: Unit, source: Unit, amount: float) -> void:
 		return
 	if is_instance_valid(source):
 		team_damage[source.team] += amount
-		var total: float = unit_damage.get(source, 0.0) + amount
-		unit_damage[source] = total
-		if total > _mvp_damage:
+		var damage_key: Variant = source
+		if is_siege() and not source.summoned and not source.is_main_base():
+			damage_key = Vector2i(source.team, source.slot)
+		var total: float = unit_damage.get(damage_key, 0.0) + amount
+		unit_damage[damage_key] = total
+		if not source.is_main_base() and total > _mvp_damage:
 			_mvp_damage = total
 			_mvp_name = source.definition.display_name
 			_mvp_team = source.team
@@ -620,8 +730,9 @@ func spawn_summons(source: Unit, unit_id: StringName, count: int, effect_scene: 
 		unit.set_range_overlay_visible(show_combat_ranges)
 		unit.died.connect(_on_unit_died)
 		units.append(unit)
-		team_sizes[source.team] += 1
-		team_max_hp_total[source.team] += unit.max_hp
+		if not is_siege():
+			team_sizes[source.team] += 1
+			team_max_hp_total[source.team] += unit.max_hp
 		unit.play_summon_intro()
 
 
@@ -833,6 +944,8 @@ func unit_at_screen_position(point: Vector2) -> Unit:
 	var best_distance := INF
 	for unit in units:
 		if not is_instance_valid(unit) or not unit.alive:
+			continue
+		if deploying and unit.is_main_base():
 			continue
 		var center := unit_screen_position(unit)
 		var distance := center.distance_to(point)

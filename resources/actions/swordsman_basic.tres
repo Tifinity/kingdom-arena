@@ -12,5 +12,5 @@ script = ExtResource("1")
 action_id = &"swordsman_basic"
 display_name = "普通攻击"
 action_range = 60.0
-cooldown = 1.25
+cooldown = 1.67
 effects = Array[ExtResource("2")]([SubResource("effect_0")])

@@ -79,6 +79,11 @@ layout_mode = 2
 theme_override_constants/separation = 10
 alignment = 2
 
+[node name="ModeSelect" type="OptionButton" parent="UI/Root/Header/HeaderRight"]
+custom_minimum_size = Vector2(116, 40)
+layout_mode = 2
+theme_type_variation = &"PixelButton"
+
 [node name="LabButton" parent="UI/Root/Header/HeaderRight" instance=ExtResource("4")]
 layout_mode = 2
 text = "试炼场"
