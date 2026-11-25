@@ -2469,6 +2469,11 @@ func _test_armored_skeleton_basic_and_ultimate() -> void:
 	await get_tree().create_timer(0.7).timeout
 	_check(enemy.hp < hp_before_basic and battle.action_hits == 1,
 		"attack1 普攻实际命中目标一次")
+	# 普攻命中后还有收招，等状态机退出再验证下一轮决策。
+	for tick in 120:
+		if not skeleton.state_machine.is_state(&"action"):
+			break
+		await get_tree().physics_frame
 
 	skeleton.hp = skeleton.max_hp * 0.5
 	skeleton.brain.enabled = true

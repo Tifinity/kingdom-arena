@@ -717,6 +717,10 @@ def _skills_for(unit: Unit) -> list[dict]:
     return skills
 
 
+BASE_MOVE_SPEED_SCALE = 0.8
+BASE_ATTACK_SPEED_SCALE = 0.75
+
+
 def build_actions(unit: Unit, out_dir: Path) -> list[str]:
     RES_ACTIONS.mkdir(parents=True, exist_ok=True)
     basic_animation = "attack_02" if unit.slug == "orc_rider" else "attack_01"
@@ -738,10 +742,11 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
         basic_range = 80.0
         basic_display_name = "镰刀斩"
     basic_name = f"{unit.slug}_basic"
+    basic_cooldown = 1.0 / max(unit.attack_speed * BASE_ATTACK_SPEED_SCALE, 0.05)
     _write_action(
         RES_ACTIONS / f"{basic_name}.tres", basic_name, basic_display_name, 0, 0,
-        basic_animation, basic_range, 1.0 / max(unit.attack_speed, 0.05),
-        0, basic_effect,
+        basic_animation, basic_range, basic_cooldown,
+        0, basic_effect, animation_speed=BASE_ATTACK_SPEED_SCALE,
         description="近战距离挥剑，造成 1.2 AD 伤害。" if unit.slug == "soldier" else "",
     )
     actions = [f"res://resources/actions/{basic_name}.tres"]
@@ -749,9 +754,9 @@ def build_actions(unit: Unit, out_dir: Path) -> list[str]:
         ranged_name = "soldier_ranged_basic"
         _write_action(
             RES_ACTIONS / f"{ranged_name}.tres", ranged_name, "弓箭普攻", 0, 0,
-            "attack_03", 430.0, 1.1, 0,
+            "attack_03", 430.0, basic_cooldown, 0,
             _fx(kind=1, shape=0, frame=7, ratio=1.0, projectile=1,
-                straight_projectile=True), min_range=125.0,
+                straight_projectile=True), min_range=125.0, animation_speed=BASE_ATTACK_SPEED_SCALE,
             description="远距离射出一箭，造成 1.0 AD 单体伤害。",
         )
         actions.append(f"res://resources/actions/{ranged_name}.tres")
@@ -1110,12 +1115,12 @@ roster_order = {unit.order}
 description = "{unit.description}"
 max_hp = {unit.max_hp:.1f}
 attack_damage = {unit.attack_damage:.1f}
-attack_speed = {unit.attack_speed:.2f}
+attack_speed = {unit.attack_speed * BASE_ATTACK_SPEED_SCALE:.4f}
 attack_range = {unit.attack_range:.1f}
 max_mana = 100.0
 starting_mana = {50.0 if unit.slug == "swordsman" else 0.0:.1f}
 mana_regen = 8.0
-move_speed = {unit.move_speed:.1f}
+move_speed = {unit.move_speed * BASE_MOVE_SPEED_SCALE:.1f}
 armor = {unit.armor:.2f}
 attack_windup = {unit.attack_windup:.2f}
 attack_kind = {unit.attack_kind}
