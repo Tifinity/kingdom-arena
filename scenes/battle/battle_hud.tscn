@@ -72,6 +72,13 @@ text = "5/5"
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="BlueBase" type="Label" parent="Root/TopBar/Margin/Row/BlueTeam"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.647, 0.82, 0.9, 1)
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 0
+
 [node name="Center" type="VBoxContainer" parent="Root/TopBar/Margin/Row"]
 custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
@@ -127,6 +134,13 @@ texture_filter = 1
 texture = ExtResource("3")
 expand_mode = 1
 stretch_mode = 5
+
+[node name="RedBase" type="Label" parent="Root/TopBar/Margin/Row/RedTeam"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.66, 0.63, 1)
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 2
 
 [node name="Controls" type="HBoxContainer" parent="Root"]
 layout_mode = 1

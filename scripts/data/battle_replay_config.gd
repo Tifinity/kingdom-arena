@@ -4,13 +4,16 @@ extends RefCounted
 ## 对阵输入。槽位和随机种子独立于当前窗口及布阵页的编辑状态。
 const SCHEMA := 1
 const TICKS_PER_SECOND := 60
-const MAX_TICKS := 180 * TICKS_PER_SECOND
+const MAX_TICKS := GameState.BATTLE_TIME_LIMIT_SECONDS * TICKS_PER_SECOND
 const SOURCE_DIRS := ["assets", "resources", "scenes", "scripts", "shaders"]
 const OVERRIDE_FIELDS := [
 	"max_hp", "attack_damage", "attack_speed", "attack_range", "armor",
 	"move_speed", "max_mana", "starting_mana", "mana_regen",
 ]
 
+const MODE_NAMES := ["elimination", "siege"]
+
+var mode := GameState.BattleMode.ELIMINATION
 var seed: int
 var lineups: Array
 var presets: Array
@@ -26,6 +29,7 @@ static var _project_revision := ""
 static func from_setup() -> BattleReplayConfig:
 	var config := BattleReplayConfig.new()
 	config.seed = randi()
+	config.mode = GameState.battle_mode
 	config.lineups = GameState.lineups.duplicate(true)
 	config.presets = [GameState.selected_team_preset(0), GameState.selected_team_preset(1)]
 	for team in 2:
@@ -50,6 +54,7 @@ func to_dict() -> Dictionary:
 		"godot_version": engine_version,
 		"physics_ticks_per_second": TICKS_PER_SECOND,
 		"seed": seed,
+		"mode": MODE_NAMES[mode],
 		"lineups": lineups,
 		"presets": presets,
 		"stat_overrides": stat_overrides,
@@ -92,6 +97,9 @@ static func read(path: String) -> Dictionary:
 		return {"error": "对阵物理频率必须为 %d Hz" % TICKS_PER_SECOND}
 	if not _whole_number(data.get("seed"), 0, 0xffffffff):
 		return {"error": "随机种子必须为 0 至 4294967295 的整数"}
+	var mode_index := MODE_NAMES.find(data.get("mode", MODE_NAMES[GameState.BattleMode.ELIMINATION]))
+	if mode_index == -1:
+		return {"error": "不支持的战斗模式"}
 	var roster_error := _validate_roster(data.get("lineups"), data.get("presets"))
 	if not roster_error.is_empty():
 		return {"error": roster_error}
@@ -109,6 +117,7 @@ static func read(path: String) -> Dictionary:
 		return {"error": "Godot 版本不匹配。配置 %s，当前 %s" % [data.get("godot_version"), current_engine]}
 	var config := BattleReplayConfig.new()
 	config.seed = int(data["seed"])
+	config.mode = mode_index as GameState.BattleMode
 	config.lineups = data["lineups"]
 	config.presets = [int(data["presets"][0]), int(data["presets"][1])]
 	config.positions = data.get("positions", [])

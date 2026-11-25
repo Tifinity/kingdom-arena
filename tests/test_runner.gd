@@ -60,6 +60,7 @@ func _run_all() -> void:
 	await _test_necromancer()
 	await _test_tactical_movement()
 	await _test_battle()
+	await _test_siege()
 	await _test_extra_lineup()
 	await _test_stat_editor()
 
@@ -3898,10 +3899,11 @@ func _check_arena_projection(battle: Battle) -> void:
 		"影子和选中圆环都在立绘下方的 3D 地面绘制")
 	var ring_material := ring.material_override as ShaderMaterial
 	_check(is_equal_approx(shadow.global_transform.basis.x.length(), 0.6)
-		and is_equal_approx(shadow.global_transform.basis.y.length(), 0.35)
+		and is_equal_approx(shadow.global_transform.basis.y.length(), 0.35 * UnitGroundVisual3D.HERO_SHADOW_DEPTH_SCALE)
+		and is_equal_approx(float(ring_material.get_shader_parameter("foot_ring_depth")), UnitGroundVisual3D.HERO_RING_DEPTH_SCALE)
 		and is_equal_approx(float(ring_material.get_shader_parameter("selection_radius")), unit.selection_ring.radius)
 		and is_equal_approx(float(ring_material.get_shader_parameter("attack_radius")), unit.selection_ring.attack_range),
-		"影子沿用角色场景 Scale，选中圈和调试射程保留实际半径")
+		"影子和脚下圆环只压缩纵深，调试射程保留实际半径")
 	unit.shadow.scale = shadow_scale
 	unit.set_selected(false)
 	unit.set_range_overlay_visible(false)
@@ -3953,6 +3955,113 @@ func _test_battle() -> void:
 	print("\n[8] 默认阵容自动战斗")
 	_check(InputMap.has_action("range_toggle"), "范围开关已注册输入动作")
 	await _run_battle("默认阵容")
+
+
+func _test_siege() -> void:
+	print("\n[攻坚模式] 主基地、复活与胜负")
+	GameState.clear_lineup(0)
+	GameState.clear_lineup(1)
+	GameState.set_slot(0, 0, &"soldier")
+	GameState.set_slot(1, 0, &"werebear")
+	var setup: ArenaSetup = load("res://scenes/setup/setup_screen.tscn").instantiate()
+	var blue_marker := setup.get_node("Battle/BasePositions/BlueBase") as Marker2D
+	var red_marker := setup.get_node("Battle/BasePositions/RedBase") as Marker2D
+	blue_marker.position += Vector2(20.0, -20.0)
+	red_marker.position += Vector2(-20.0, 20.0)
+	add_child(setup)
+	var battle := setup.battle
+	setup.mode_select.select(GameState.BattleMode.SIEGE)
+	setup.mode_select.item_selected.emit(setup.mode_select.selected)
+	_check(GameState.battle_mode == GameState.BattleMode.SIEGE
+		and GameState.get_slot(0, 0) == &"soldier" and GameState.get_slot(1, 0) == &"werebear",
+		"布阵页切换模式并保留两侧阵容")
+	var preview_bases := battle.main_bases.duplicate()
+	_check(is_instance_valid(preview_bases[0]) and is_instance_valid(preview_bases[1])
+		and battle.units.size() == 4 and not battle.battle_active
+		and not preview_bases[0].is_physics_processing() and not preview_bases[1].is_physics_processing()
+		and battle.unit_at_screen_position(battle.unit_screen_position(preview_bases[0])) == null,
+		"攻坚布阵立即显示两座静止基地，基地不参与英雄拾取")
+	setup.mode_select.select(GameState.BattleMode.ELIMINATION)
+	setup.mode_select.item_selected.emit(setup.mode_select.selected)
+	_check(battle.main_bases == [null, null] and battle.units.size() == 2
+		and preview_bases[0].is_queued_for_deletion() and preview_bases[1].is_queued_for_deletion(),
+		"切回歼灭移除双方基地")
+	setup.mode_select.select(GameState.BattleMode.SIEGE)
+	setup.mode_select.item_selected.emit(setup.mode_select.selected)
+	preview_bases = battle.main_bases.duplicate()
+	setup.start_button.pressed.emit()
+	_check(battle.main_bases == preview_bases and battle.units.size() == 4,
+		"攻坚开战沿用布阵时的基地")
+	var blue_base := battle.main_bases[0]
+	var red_base := battle.main_bases[1]
+	var hero := battle.unit_in_slot(0, 0)
+	_check(blue_base.is_main_base() and red_base.is_main_base()
+		and battle.team_sizes == [1, 1] and battle.hud._roster_cards.size() == 2,
+		"基地进入战场但不占英雄槽位")
+	var layout_scale := battle.get_viewport_rect().size / Battle.BASE_SIZE
+	_check(blue_base.position.is_equal_approx(blue_marker.position * layout_scale)
+		and red_base.position.is_equal_approx(red_marker.position * layout_scale),
+		"双方基地使用场景里的塔位标记")
+	var base_position := red_base.position
+	for id: StringName in [&"stun", &"slow", &"taunt"]:
+		_check(red_base.status_controller.apply(StatusCatalog.get_definition(id), hero) == null,
+			"主基地免疫 %s" % id)
+	red_base.apply_knockback(hero.position, 100.0)
+	_check(red_base.position == base_position, "主基地免疫击退")
+
+	battle._begin_battle()
+	var defender := battle.unit_in_slot(1, 0)
+	defender.die(hero)
+	hero.position = base_position - Vector2(160.0, 0.0)
+	hero.brain.force_think()
+	_check(hero.target == red_base, "无人防守时英雄锁定敌方主基地")
+	hero.brain.enabled = false
+	hero.position = base_position + Vector2(100.0, 0.0)
+	var muzzle := red_base.get_muzzle_point()
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(battle.projectiles_fired > 0 and red_base.position == base_position
+		and red_base.facing == -1 and red_base.visual.flip_h and red_base.get_muzzle_point() == muzzle,
+		"基地向身后敌人射箭时保持位置和朝向")
+	hero.die(red_base)
+	battle.hud._refresh()
+	_check(not battle.finished and battle.team_alive(0) == 0 and battle.team_alive(1) == 0
+		and battle.hud._roster_cards[0]._state.text == "复活 8 秒", "双方团灭继续对战并显示复活倒计时")
+	battle.elapsed += Battle.RESPAWN_DELAY + 0.1
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var returned := battle.unit_in_slot(0, 0)
+	_check(is_instance_valid(returned) and returned != hero and returned.hp == returned.max_hp
+		and returned.position.x < blue_base.position.x and battle.hud._roster_cards[0].unit == returned,
+		"英雄在己方主基地后方满血复活并更新原阵容卡")
+	returned.die(red_base)
+	_check(is_equal_approx(battle.respawn_remaining(0, 0), 11.0), "重复阵亡增加复活等待")
+	red_base.take_damage(red_base.max_hp, blue_base)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(battle.finished and battle.winner == 0 and battle.respawn_remaining(0, 0) == 0.0,
+		"摧毁敌方基地获胜并取消待复活项")
+	battle.restart_battle()
+	_check(not battle.finished and battle.main_bases[0] != blue_base
+		and battle.main_bases[1].hp == battle.main_bases[1].max_hp,
+		"攻坚再战生成满血的新基地")
+	battle._begin_battle()
+	battle.main_bases[0].die(battle.main_bases[1])
+	battle.main_bases[1].die(battle.main_bases[0])
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(battle.finished and battle.winner == -1, "同一物理帧基地均被摧毁则判平")
+	battle.restart_battle()
+	battle._begin_battle()
+	battle.elapsed = GameState.BATTLE_TIME_LIMIT_SECONDS
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(battle.finished and battle.winner == -1 and BattleReplayConfig.MAX_TICKS == 18000,
+		"5 分钟时主基地仍存活则判平，与复跑时限一致")
+	setup.queue_free()
+	GameState.battle_mode = GameState.BattleMode.ELIMINATION
+	GameState.reset_lineups()
+	await get_tree().process_frame
 
 
 func _test_extra_lineup() -> void:

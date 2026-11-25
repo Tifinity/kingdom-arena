@@ -7,6 +7,8 @@ const MUTED := Color("#b2a4b5")
 const ACTIVE := Color("#a9d39d")
 
 var unit: Unit
+var team: int
+var slot: int
 var _portrait: TextureRect
 var _health: ProgressBar
 var _mana: ProgressBar
@@ -23,6 +25,8 @@ var _selected_style: StyleBox
 
 func bind(fighter: Unit) -> void:
 	unit = fighter
+	team = fighter.team
+	slot = fighter.slot
 	var team_color := GameState.team_color(fighter.team)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	theme_type_variation = &"PixelCard"
@@ -113,9 +117,12 @@ func bind(fighter: Unit) -> void:
 	custom_minimum_size.y = maxf(124.0, margin.get_combined_minimum_size().y)
 
 
-func refresh(selected: bool) -> void:
+func refresh(selected: bool, respawn_seconds := 0.0) -> void:
 	var active := is_instance_valid(unit) and unit.alive
+	var defeated_text := "复活 %d 秒" % ceili(respawn_seconds) if respawn_seconds > 0.0 else "阵亡"
 	if disabled and not active:
+		_state.text = defeated_text
+		tooltip_text = defeated_text
 		return
 	disabled = not active
 	var card_face := _selected_style if selected else _normal_style
@@ -124,11 +131,11 @@ func refresh(selected: bool) -> void:
 	_portrait.modulate = Color.WHITE if active else Color("#697483")
 	_health.value = unit.hp_ratio() if active else 0.0
 	_mana.value = clampf(unit.mana / maxf(1.0, unit.max_mana), 0.0, 1.0) if active else 0.0
-	_state.text = unit.state_machine.display_name() if active else "阵亡"
+	_state.text = unit.state_machine.display_name() if active else defeated_text
 	if active:
 		tooltip_text = "生命 %.0f / %.0f · 蓝量 %.0f / %.0f" % [unit.hp, unit.max_hp, unit.mana, unit.max_mana]
 	else:
-		tooltip_text = "阵亡"
+		tooltip_text = defeated_text
 	_refresh_statuses(unit.status_controller.snapshot() if active else [])
 	for index in _skills.size():
 		var action := _skills[index]

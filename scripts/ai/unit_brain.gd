@@ -10,6 +10,7 @@ extends Node
 enum Intent { IDLE, ADVANCE, ACTION, KITE, REPOSITION }
 
 const THINK_INTERVAL := 0.16
+const SIEGE_ENGAGEMENT_RANGE := 280.0
 const INTENT_LABELS := {
 	Intent.IDLE: "待机",
 	Intent.ADVANCE: "推进",
@@ -105,13 +106,29 @@ func _observe() -> void:
 	var total_distance := 0.0
 	var low_hp_enemy: Unit = null
 
-	for other in unit.battle.living_units():
+	var enemy_base: Unit
+	for other: Unit in unit.battle.living_units():
 		if other == unit:
+			continue
+		if other.is_main_base():
+			if other.team != unit.team:
+				enemy_base = other
 			continue
 		if other.team == unit.team:
 			allies.append(other)
 			continue
 		enemies.append(other)
+	if enemy_base != null:
+		var engagement_range := maxf(SIEGE_ENGAGEMENT_RANGE, unit.attack_range + 50.0)
+		var nearby_enemies := _units_within(enemies, engagement_range)
+		var near_base := unit.global_position.distance_to(enemy_base.global_position) <= engagement_range
+		var local_advantage := _units_within(allies, engagement_range).size() >= nearby_enemies.size()
+		var push_open := allies.size() > enemies.size() and _units_within(nearby_enemies, 135.0).is_empty()
+		if enemies.is_empty() or push_open or (near_base and local_advantage):
+			enemies = [enemy_base]
+		elif not nearby_enemies.is_empty():
+			enemies = nearby_enemies
+	for other: Unit in enemies:
 		var distance := unit.global_position.distance_to(other.global_position)
 		total_distance += distance
 		if distance < nearest_distance:
@@ -137,6 +154,13 @@ func _observe() -> void:
 			enemies.size(), allies.size(), nearest.definition.display_name,
 			nearest_distance, roundi(unit.hp_ratio() * 100.0),
 		]
+
+
+func _units_within(candidates: Array, radius: float) -> Array:
+	var radius_sq := radius * radius
+	return candidates.filter(func(candidate: Unit) -> bool:
+		return unit.global_position.distance_squared_to(candidate.global_position) <= radius_sq
+	)
 
 
 # --- O：判断 ------------------------------------------------------------
@@ -276,7 +300,7 @@ func _decide() -> void:
 	unit.target = target
 	var threat: Unit = observation.get("nearest")
 	var retreat := unit.global_position
-	if is_instance_valid(threat) and not unit.battle.training_mode and unit.status_controller.forced_target() == null and _should_kite():
+	if is_instance_valid(threat) and not threat.is_main_base() and not unit.battle.training_mode and unit.status_controller.forced_target() == null and _should_kite():
 		var movement := unit.definition.behavior_profile.movement if unit.definition.behavior_profile != null else null
 		if movement != null:
 			retreat = movement.retreat_position(unit, threat)

@@ -1,0 +1,53 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/battle/team_ring.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/battle/selection_ring.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/battle/health_bar.gd" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/units/unit_shadow.tscn" id="4"]
+[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/main_base_tower.png" id="5"]
+
+[sub_resource type="AtlasTexture" id="Atlas_blue"]
+atlas = ExtResource("5")
+region = Rect2(0, 0, 80, 112)
+filter_clip = true
+
+[sub_resource type="AtlasTexture" id="Atlas_red"]
+atlas = ExtResource("5")
+region = Rect2(80, 0, 80, 112)
+filter_clip = true
+
+[sub_resource type="SpriteFrames" id="Frames_base"]
+animations = [{
+"frames": [{"duration": 1.0, "texture": SubResource("Atlas_blue")}, {"duration": 1.0, "texture": SubResource("Atlas_red")}],
+"loop": false,
+"name": &"idle",
+"speed": 0.0
+}]
+
+[node name="MainBaseVisual" type="Node2D"]
+
+[node name="Shadow" parent="." instance=ExtResource("4")]
+visible = false
+
+[node name="TeamRing" type="Node2D" parent="."]
+visible = false
+script = ExtResource("1")
+
+[node name="SelectionRing" type="Node2D" parent="."]
+visible = false
+script = ExtResource("2")
+
+[node name="Body" type="AnimatedSprite2D" parent="."]
+texture_filter = 1
+scale = Vector2(3.14, 3.14)
+sprite_frames = SubResource("Frames_base")
+animation = &"idle"
+offset = Vector2(0, -46)
+
+[node name="HealthBar" type="Node2D" parent="."]
+position = Vector2(0, -298)
+z_index = 20
+script = ExtResource("3")
+
+[node name="Muzzle" type="Marker2D" parent="."]
+position = Vector2(10, -170)

@@ -31,6 +31,9 @@ func setup(p_unit: Unit) -> void:
 func apply(definition: StatusDefinition, source: Unit, options: Dictionary = {}) -> StatusInstance:
 	if definition == null or definition.behavior == null or unit == null or not unit.alive:
 		return null
+	if unit.is_main_base() and (definition.has_tag(&"control") or definition.has_tag(&"slow")
+			or definition.behavior is ControlBehavior or definition.behavior is TauntBehavior):
+		return null
 	var duration: float = maxf(0.0, float(options.get("duration", definition.duration)))
 	var power: float = float(options.get("power", definition.base_power))
 	var requested_stacks: int = maxi(1, int(options.get("stacks", 1)))

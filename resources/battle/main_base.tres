@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/units/main_base_visual.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"main_base"
+display_name = "主基地"
+role = "建筑"
+max_hp = 360.0
+attack_damage = 17.0
+attack_speed = 0.5
+attack_range = 265.0
+move_speed = 0.0
+max_mana = 0.0
+mana_regen = 0.0
+main_base = true
+attack_kind = 1
+projectile_kind = 1
+visual_scene = ExtResource("2")
+visual_scale = 3.14
+body_radius = 52.0
+character_height = 94.0

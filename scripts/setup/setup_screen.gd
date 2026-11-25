@@ -33,6 +33,7 @@ var cards: Array[UnitCard] = []
 @onready var stat_move: Label = $UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Stats/MoveCell/Value
 @onready var random_button: Button = $UI/Root/Footer/Row/Actions/RandomButton
 @onready var clear_button: Button = $UI/Root/Footer/Row/Actions/ClearButton
+@onready var mode_select: OptionButton = $UI/Root/Header/HeaderRight/ModeSelect
 @onready var lab_button: Button = $UI/Root/Header/HeaderRight/LabButton
 @onready var save_match_button: Button = $UI/Root/Header/HeaderRight/SaveMatchButton
 @onready var save_match_dialog: FileDialog = $SaveMatchDialog
@@ -79,6 +80,11 @@ func _ready() -> void:
 	$UI/Root/Drawer/Panel/Split/DetailPanel/Margin/Details/Header/Close.pressed.connect(close_details)
 	random_button.pressed.connect(_on_random_pressed)
 	clear_button.pressed.connect(_on_clear_pressed)
+	mode_select.add_item("歼灭模式", GameState.BattleMode.ELIMINATION)
+	mode_select.add_item("攻坚模式", GameState.BattleMode.SIEGE)
+	mode_select.select(mode_select.get_item_index(GameState.battle_mode))
+	mode_select.item_selected.connect(_on_mode_selected)
+	_on_mode_selected(mode_select.selected)
 	lab_button.pressed.connect(_on_lab_pressed)
 	save_match_button.pressed.connect(_on_save_match_pressed)
 	save_match_dialog.file_selected.connect(_save_match)
@@ -328,6 +334,12 @@ func _on_lab_pressed() -> void:
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 	get_tree().change_scene_to_file(LAB_SCENE)
+
+
+func _on_mode_selected(index: int) -> void:
+	GameState.battle_mode = mode_select.get_item_id(index) as GameState.BattleMode
+	mode_select.tooltip_text = "摧毁敌方主基地。英雄阵亡后会复活。" if GameState.battle_mode == GameState.BattleMode.SIEGE else "歼灭敌方所有作战单位。"
+	battle.refresh_deployment()
 
 
 func _on_start_pressed() -> void:

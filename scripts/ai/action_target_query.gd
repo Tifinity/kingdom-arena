@@ -149,7 +149,7 @@ static func _collect(source: Unit, effect: ActionEffectDefinition, target: Unit,
 			result.append(source)
 		return result
 	if effect.shape == ActionEffectDefinition.Shape.SINGLE:
-		if valid_target and (target.team == source.team) == friendly:
+		if valid_target and (target.team == source.team) == friendly and not (friendly and target.is_main_base()):
 			result.append(target)
 		return result
 	var aim := direction.normalized()
@@ -162,7 +162,7 @@ static func _collect(source: Unit, effect: ActionEffectDefinition, target: Unit,
 	var side := Vector2(-aim.y, aim.x)
 	var half_width := maxf(effect.width, 1.0) * 0.5
 	for victim in source.battle.living_units():
-		if (victim.team == source.team) != friendly:
+		if (victim.team == source.team) != friendly or (friendly and victim.is_main_base()):
 			continue
 		var offset: Vector2 = victim.global_position - source.global_position
 		match effect.shape:

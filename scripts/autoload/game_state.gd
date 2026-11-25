@@ -3,7 +3,10 @@ extends Node
 ## 跨场景的比赛配置：布阵界面写入，战斗场景读取。
 ## 每个队伍固定 5 个槽位，空槽用 null 表示。自定义站位使用设计分辨率下的地面坐标。
 
+enum BattleMode { ELIMINATION, SIEGE }
+
 const TEAM_SIZE := 5
+const BATTLE_TIME_LIMIT_SECONDS := 300
 const TEAM_SHORT_NAMES := ["蓝方", "红方"]
 const TEAM_COLORS := [Color("#82bdcf"), Color("#e98878")]
 const TEAM_COLORS_DIM := [Color("#415d78"), Color("#81464f")]
@@ -14,6 +17,7 @@ const TEAM_PRESETS := [
 	{"name": "暗夜亡灵", "units": [&"skeleton", &"armored_skeleton", &"greatsword_skeleton", &"skeleton_archer", &"necromancer"]},
 ]
 
+var battle_mode := BattleMode.ELIMINATION
 var lineups: Array = []
 var last_result: Dictionary = {}
 var _selected_presets: Array[int] = [0, 1]
