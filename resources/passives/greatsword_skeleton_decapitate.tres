@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/fx/greatsword_decapitate.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "斩首"
+description = "目标当前生命高于 {bonus_damage_target_above_hp_percent}% 时，对该目标造成的伤害提高 {bonus_damage_above_hp_percent}%。"
+bonus_damage_target_above_hp_ratio = 0.7
+bonus_damage_above_hp_ratio = 0.15
+bonus_damage_above_hp_fx = ExtResource("2")

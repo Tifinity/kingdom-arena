@@ -1,47 +1,29 @@
 [gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="action"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="effect"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/steel_cut.wav" id="sound"]
 
-[sub_resource type="Resource" id="effect_0"]
-script = ExtResource("2")
-kind = 0
+[sub_resource type="Resource" id="damage"]
+script = ExtResource("effect")
 shape = 2
-trigger_frame = 7
-damage_ratio = 1.40
+trigger_frame = 5
+damage_ratio = 1.4
 radius = 110.0
 half_angle = 62.0
-length = 0.0
-width = 0.0
-center_on_self = false
-status_kind = 0
-status_duration = 0.00
-status_power = 0.00
-heal_amount = 0.0
-heal_ratio = 0.00
-summon_unit_id = &""
-summon_count = 1
-knockback = 0.0
-projectile_kind = 0
-duration = 0.00
+effect_sound = ExtResource("sound")
 
 [resource]
-script = ExtResource("1")
+script = ExtResource("action")
 action_id = &"greatsword_skeleton_cleave"
 display_name = "断魂斩"
+description = "横扫前方扇形，对范围内每个敌人造成 {damage_0} 物理伤害。"
 category = 1
 target_mode = 0
-animation = &"attack_02"
+animation = &"soul_cleave"
 animation_speed = 1.0
 action_range = 110.0
-min_range = 0.0
-cooldown = 8.00
+cooldown = 8.0
 mana_cost = 0.0
-action_duration = 0.00
-min_self_hp_ratio = 0.00
-max_self_hp_ratio = 1.00
-advance_speed = 0.0
-min_targets = 1
-requires_wounded_ally = false
 priority = 7
-effects = [SubResource("effect_0")]
+effects = [SubResource("damage")]

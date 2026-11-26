@@ -48,7 +48,7 @@ func _run_all() -> void:
 	await _test_new_passives_and_soldier()
 	await _test_werewolf_combo()
 	await _test_werewolf_new_skills()
-	await _test_armored_skeleton_basic_and_ultimate()
+	await _test_armored_skeleton_basic_and_counterstorm()
 	await _test_axeman_skills()
 	await _test_action_framework()
 	await _test_skill_effects()
@@ -170,11 +170,11 @@ func _test_catalog() -> void:
 		for animation in [&"attack_02", &"attack_03"]:
 			if definition.sprite_frames != null and definition.sprite_frames.has_animation(animation) and not used_animations.has(animation):
 				missing_attack_use.append("%s/%s" % [definition.unit_id, animation])
-	var allowed_no_ultimate: Array[String] = ["elite_orc", "soldier"]
+	var allowed_no_ultimate: Array[String] = ["armored_skeleton", "elite_orc", "soldier"]
 	missing_ultimate.sort()
 	allowed_no_ultimate.sort()
 	_check(missing_ultimate == allowed_no_ultimate,
-		"精锐兽人与士兵第三技能留空，其余英雄都有满蓝大招")
+		"重甲骷髅、精锐兽人和士兵的满蓝技能槽留空")
 	_check(bad_mana.is_empty(), "普通技能只受 CD，不再消耗蓝量")
 	_check(missing_attack_use.is_empty(), "所有现有攻击动画都已由动作使用")
 	_check(effect_kinds.has(ActionEffectDefinition.Kind.HEAL), "技能数据包含治疗效果")
@@ -2424,28 +2424,26 @@ func _test_werewolf_new_skills() -> void:
 	await get_tree().process_frame
 
 
-func _test_armored_skeleton_basic_and_ultimate() -> void:
-	print("\n[重甲骷髅] 普攻、反击风暴与大招")
+func _test_armored_skeleton_basic_and_counterstorm() -> void:
+	print("\n[重甲骷髅] 普攻与反击风暴")
 	var definition := UnitCatalog.get_definition(&"armored_skeleton")
-	_check(definition.actions.size() == 3, "重甲骷髅配置普攻、反击风暴和满蓝大招")
-	if definition.actions.size() != 3:
+	_check(definition.actions.size() == 2, "重甲骷髅配置一项普攻和一项主动技能")
+	if definition.actions.size() != 2:
 		return
 	var basic: CombatActionDefinition = definition.actions[0]
 	var counterstorm: CombatActionDefinition = definition.actions[1]
-	var ultimate: CombatActionDefinition = definition.actions[2]
 	_check(basic.animation == &"attack_01" and basic.category == CombatActionDefinition.Category.BASIC
 		and basic.mana_cost == 0.0 and basic.effects[0].trigger_frame < definition.sprite_frames.get_frame_count(&"attack_01"),
 		"attack1 普攻无需蓝量且伤害帧有效")
 	_check(counterstorm.action_id == &"armored_skeleton_counterstorm"
 		and counterstorm.animation == &"attack_02"
+		and counterstorm.category == CombatActionDefinition.Category.SKILL
 		and counterstorm.mana_cost == 0.0
 		and not counterstorm.effects.is_empty()
 		and counterstorm.effects[0].kind == ActionEffectDefinition.Kind.GUARD
 		and is_equal_approx(counterstorm.effects[0].duration, 2.0)
 		and is_equal_approx(counterstorm.action_duration, 2.0),
 		"反击风暴使用 attack_02，持续 2 秒格挡所有攻击")
-	_check(ultimate.animation == &"attack_02" and ultimate.mana_cost >= definition.max_mana,
-		"attack2 大招仍需满蓝")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"armored_skeleton")
@@ -2496,19 +2494,7 @@ func _test_armored_skeleton_basic_and_ultimate() -> void:
 	skeleton.mana = skeleton.max_mana
 	skeleton.brain.enabled = true
 	skeleton.brain.force_think()
-	_check(skeleton.planned_action == ultimate, "满蓝后决策层选择 attack2 大招")
-	skeleton.brain.enabled = false
-	skeleton.planned_action = ultimate
-	var hp_before_ultimate: float = enemy.hp
-	skeleton.state_machine.transition_to(&"action", true)
-	await get_tree().create_timer(0.7).timeout
-	_check(enemy.hp < hp_before_ultimate and enemy.stun_time > 0.0,
-		"attack2 大招造成范围伤害与眩晕")
-	_check(skeleton.mana < skeleton.max_mana, "attack2 大招消耗满蓝")
-	await get_tree().create_timer(0.8).timeout
-	skeleton.brain.enabled = true
-	skeleton.brain.force_think()
-	_check(skeleton.planned_action == basic, "大招后继续使用 attack1 普攻")
+	_check(skeleton.planned_action == basic, "反击风暴结束后，满蓝时继续选择 attack1 普攻")
 	skeleton.brain.enabled = false
 	GameState.reset_lineups()
 	battle.queue_free()

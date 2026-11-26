@@ -548,7 +548,7 @@ UnitActionState（唯一行动状态）
 
 ## 从技能实验室导入
 
-在技能实验室从「竞技场 · 箭雨」范例开始，修改节点参数后点击「导出到竞技场」，得到 `archer_arrow_rain.arena-skill.json`。在王国竞技场项目根目录执行：
+在技能实验室从「竞技场 · 箭雨」或巨剑骷髅的四项技能范例开始，修改节点参数后点击「导出到竞技场」。在王国竞技场项目根目录执行：
 
 ```sh
 godot --headless --path . res://tools/import_arena_skill.tscn -- ~/Downloads/archer_arrow_rain.arena-skill.json
@@ -556,7 +556,7 @@ godot --headless --path . res://tools/import_arena_skill.tscn -- ~/Downloads/arc
 
 如果 macOS 上没有 `godot` 命令，用 `/Applications/Godot.app/Contents/MacOS/Godot` 替换。第一次操作新检出的项目时，先在 Godot 编辑器打开项目，让素材完成导入。
 
-导入会更新弓箭手已有的箭雨资源。名字、冷却、蓝耗、射程、半径和 AD 倍率取自 JSON，角色动作、命中帧及特效场景沿用项目绑定。改过的半径会同时用于 AI 选点、伤害与特效。下次启动游戏后，可在英雄试炼场选择弓箭手并点击箭雨验证。当前绑定只支持箭雨的一次圆形伤害，校验失败时不会修改资源。
+主动技能的名称、冷却、蓝耗、射程、伤害范围及 AD 倍率取自 JSON。箭雨的半径同时用于选点、伤害和特效，斩首可修改生命阈值与增伤比例。游戏绑定负责角色动作、命中帧、特效和音效。导入后重启游戏，在英雄试炼场选择对应角色验证。
 
 ## 测试
 

@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="action"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="effect"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/heavy_chop.wav" id="sound"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/fire_charge.wav" id="charge"]
+
+[sub_resource type="Resource" id="damage"]
+script = ExtResource("effect")
+shape = 0
+trigger_frame = 7
+damage_ratio = 2.0
+impact_sound = ExtResource("sound")
+
+[resource]
+script = ExtResource("action")
+action_id = &"greatsword_skeleton_heavy_slash"
+display_name = "蓄力重斩"
+description = "举剑蓄力后重斩一个敌人，造成 {damage_0} 物理伤害。"
+category = 1
+target_mode = 0
+animation = &"attack_02"
+animation_speed = 0.625
+action_range = 96.0
+cooldown = 10.0
+mana_cost = 0.0
+priority = 8
+cast_sound = ExtResource("charge")
+effects = [SubResource("damage")]

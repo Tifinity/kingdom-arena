@@ -160,6 +160,7 @@ ANIM_LOOP = {"idle": True, "move": True, "move_02": True, "fly": True}
 ANIM_SPEED = {
     "idle": 8.0, "move": 10.0, "move_02": 10.0, "fly": 10.0,
     "attack_01": 16.0, "attack_02": 16.0, "attack_03": 16.0,
+    "soul_cleave": 16.0,
     "hurt": 12.0, "death": 10.0, "block": 8.0, "summon": 12.0, "heal": 10.0,
 }
 SKIP_PATTERNS = ("with_magic_effects", "_effect", "sumon_effect", "summon_effect")
@@ -355,7 +356,7 @@ def _write_action(
         f'category = {category}',
         f'target_mode = {target_mode}',
         f'animation = &"{animation}"',
-        f'animation_speed = {animation_speed:.2f}',
+        f'animation_speed = {animation_speed}',
         f'action_range = {action_range:.1f}',
         f'min_range = {min_range:.1f}',
         f'preferred_min_range = {preferred_min_range:.1f}',
@@ -384,7 +385,7 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         shield_per_target_ratio=0.0, shield_max_ratio=0.0,
         shield_self_ratio=0.0, ignore_shield=False,
         requires_action_hit=False, guard_reward_shield_ratio=0.0,
-        guard_reward_shield_duration=0.0, straight_projectile=False) -> dict:
+        guard_reward_shield_duration=0.0, straight_projectile=False, scene_path="") -> dict:
     return {
         "kind": kind, "shape": shape, "trigger_frame": frame,
         "damage_ratio": ratio, "radius": radius, "half_angle": half,
@@ -404,7 +405,7 @@ def _fx(kind=0, shape=0, frame=4, ratio=0.0, radius=0.0, half=0.0,
         "guard_reward_shield_ratio": guard_reward_shield_ratio,
         "guard_reward_shield_duration": guard_reward_shield_duration,
         "requires_action_hit": requires_action_hit,
-        "straight_projectile": straight_projectile,
+        "straight_projectile": straight_projectile, "scene_path": scene_path,
     }
 
 
@@ -613,20 +614,21 @@ def _skills_for(unit: Unit) -> list[dict]:
                              category=2, action_duration=2.5, max_hp=0.55,
                              description="生命低于 55% 时格挡 2.5 秒，拖住敌方前排。"))
     elif slug == "armored_skeleton":
-        skills.append(_skill("armored_skeleton_shockwave", "墓甲震荡", "attack_02",
-                             [_fx(shape=1, ratio=1.8, frame=4, radius=110.0,
-                                  center_self=True),
-                              _fx(kind=5, shape=1, frame=4, radius=110.0,
-                                  center_self=True, status_kind=0, status_duration=0.8)],
-                             16.0, 10, 0.0, rng, mana=100.0, target_mode=2,
-                             description="震击周围敌人，造成 {damage_0}范围伤害并眩晕 0.8 秒。"))
+        skills.append(_skill("armored_skeleton_counterstorm", "反击风暴", "attack_02",
+                             [_fx(kind=8, shape=3, frame=0, duration=2.0)],
+                             12.0, 6, 0.0, rng, target_mode=2, action_duration=2.0, max_hp=0.70,
+                             description="举盾迎击，技能持续期间格挡所有攻击（{guard_duration} 秒）。"))
     elif slug == "greatsword_skeleton":
-        skills.append(_skill("greatsword_skeleton_cleave", "断魂斩", "attack_02",
-                             [_fx(shape=2, ratio=1.4, frame=7, radius=rng + 14.0, half=62.0)],
-                             8.0, 7, rng, rng))
+        skills.append(_skill("greatsword_skeleton_cleave", "断魂斩", "soul_cleave",
+                             [_fx(shape=2, ratio=1.4, frame=5, radius=110.0, half=62.0)],
+                             8.0, 7, 110.0, rng))
+        skills.append(_skill("greatsword_skeleton_heavy_slash", "蓄力重斩", "attack_02",
+                             [_fx(shape=0, ratio=2.0, frame=7)],
+                             10.0, 8, 96.0, rng, animation_speed=0.625))
         skills.append(_skill("greatsword_skeleton_pierce", "穿魂刺", "attack_03",
-                             [_fx(shape=4, ratio=2.4, frame=6, length=210.0, width=46.0)],
-                             15.0, 10, 220.0, rng, mana=100.0))
+                             [_fx(shape=4, ratio=2.4, frame=4, length=210.0, width=46.0,
+                                  scene_path="res://scenes/fx/greatsword_pierce.tscn")],
+                             15.0, 10, 210.0, rng, mana=100.0))
     elif slug == "skeleton_archer":
         skills.append(_skill("skeleton_archer_volley", "骸骨连射", "attack_01",
                              [_fx(kind=1, shape=0, ratio=0.75, frame=2, projectile=1),
@@ -940,6 +942,36 @@ movement = SubResource("movement")
     return res_path
 
 
+def build_greatsword_skill_poses(out_dir: Path) -> dict[str, str]:
+    # Recolor the baked trail using pixelfx's night and shadow ramps.
+    # Restrict shared steel gray to the trail side of the blade in each cell.
+    shadow_trail = {
+        (110, 110, 110): (27, 23, 52),       # night: #1b1734
+        (197, 208, 213): (47, 41, 86),       # night: #2f2956
+        (255, 255, 255): (128, 72, 184),     # shadow: #8048b8
+    }
+    def recolor_trail(strip: Image.Image, bounds: tuple, colors: dict) -> None:
+        pixels = strip.load()
+        for index, left, top, bottom in bounds:
+            for y in range(top, bottom):
+                for x in range(index * 100 + left, (index + 1) * 100):
+                    r, g, b, alpha = pixels[x, y]
+                    color = colors.get((r, g, b))
+                    if color is not None and alpha:
+                        pixels[x, y] = (*color, alpha)
+
+    sweep = Image.open(out_dir / "attack01.png").convert("RGBA")
+    recolor_trail(sweep, ((3, 0, 57, 100), (4, 0, 57, 100), (5, 60, 0, 100), (6, 60, 0, 100)),
+                  shadow_trail)
+    sweep.save(out_dir / "soul_cleave.png")
+
+    chop = Image.open(out_dir / "attack02.png").convert("RGBA")
+    recolor_trail(chop, ((6, 60, 0, 51), (7, 66, 0, 100), (8, 66, 0, 100), (9, 80, 0, 100)),
+                  {**shadow_trail, (183, 165, 155): (27, 23, 52), (244, 237, 234): (128, 72, 184)})
+    chop.save(out_dir / "heavy_chop.png")
+    return {"soul_cleave": "soul_cleave.png", "attack_02": "heavy_chop.png"}
+
+
 def build_character(unit: Unit) -> tuple[float, str]:
     src_dir = CHAR_SRC / unit.source / unit.source
     if unit.slug == "soldier":
@@ -990,6 +1022,9 @@ def build_character(unit: Unit) -> tuple[float, str]:
         animations["move"] = animations["fly"]
     if "move" not in animations and "move_02" in animations:
         animations["move"] = animations["move_02"]
+
+    if unit.slug == "greatsword_skeleton":
+        animations.update(build_greatsword_skill_poses(out_dir))
 
     unit.animations = animations
 
@@ -1086,6 +1121,7 @@ def build_character(unit: Unit) -> tuple[float, str]:
         "knight_templar": "knight_templar_guardian",
         "werebear": "werebear_thick_hide",
         "werewolf": "werewolf_pursuit",
+        "greatsword_skeleton": "greatsword_skeleton_decapitate",
     }
     passive_path = passive_paths.get(unit.slug, "")
     passive_id = str(6 + len(action_paths)) if passive_path else ""

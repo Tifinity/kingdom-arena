@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/visuals/greatsword_skeleton_frames.tres" id="2"]
@@ -8,6 +8,8 @@
 [ext_resource type="Resource" path="res://resources/actions/greatsword_skeleton_pierce.tres" id="6"]
 [ext_resource type="PackedScene" path="res://scenes/units/greatsword_skeleton_visual.tscn" id="7"]
 [ext_resource type="Resource" path="res://resources/behaviors/greatsword_skeleton.tres" id="8"]
+[ext_resource type="Resource" path="res://resources/actions/greatsword_skeleton_heavy_slash.tres" id="9"]
+[ext_resource type="Resource" path="res://resources/passives/greatsword_skeleton_decapitate.tres" id="10"]
 
 [resource]
 script = ExtResource("1")
@@ -34,7 +36,8 @@ foot_offset = 7.0
 character_height = 20.0
 body_radius = 34.6
 accent_color = Color(0.941, 0.702, 0.420, 1)
-actions = [ExtResource("4"), ExtResource("5"), ExtResource("6")]
+actions = [ExtResource("4"), ExtResource("5"), ExtResource("9"), ExtResource("6")]
+passive = ExtResource("10")
 behavior_profile = ExtResource("8")
 visual_scene = ExtResource("7")
 sprite_frames = ExtResource("2")
