@@ -5,7 +5,6 @@ extends Sprite2D
 @export var reference_reach := 0.0
 @export var reference_width := 0.0
 @export var height_scale := 1.0
-@export var target_contact := false
 
 var _elapsed := 0.0
 
@@ -23,9 +22,6 @@ func setup_from_effect(source: Unit, effect: ActionEffectDefinition) -> void:
 	var cast := source.current_cast
 	var aim := cast.direction if cast != null else Vector2(float(source.facing), 0.0)
 	var reach := effect.length if effect.shape == ActionEffectDefinition.Shape.RECT else effect.radius
-	if target_contact and cast != null and is_instance_valid(cast.target):
-		reach = clampf(source.global_position.distance_to(cast.target.global_position),
-			cast.action.action_range * 0.6, cast.action.action_range)
 	var screen_aim := projection.basis_xform(aim)
 	var forward := screen_aim * maxf(reach, 1.0) / reference_reach
 	var vertical := Vector2.DOWN * screen_height

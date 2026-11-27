@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dvugy1edr308n"
-path="res://.godot/imported/greatsword_cleave.png-9152af005e7c8d7424dcde05a8f3228e.ctex"
+uid="uid://cn66bxouihnqc"
+path="res://.godot/imported/heavy_chop.png-7d94d56615b19a1f7039c49645cfbdd9.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/fx/pixelfx/greatsword_cleave.png"
-dest_files=["res://.godot/imported/greatsword_cleave.png-9152af005e7c8d7424dcde05a8f3228e.ctex"]
+source_file="res://assets/characters/greatsword_skeleton/heavy_chop.png"
+dest_files=["res://.godot/imported/heavy_chop.png-7d94d56615b19a1f7039c49645cfbdd9.ctex"]
 
 [params]
 

@@ -2,7 +2,6 @@
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="action"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="effect"]
-[ext_resource type="PackedScene" path="res://scenes/fx/greatsword_cleave.tscn" id="fx"]
 [ext_resource type="AudioStream" path="res://assets/audio/skills/steel_cut.wav" id="sound"]
 
 [sub_resource type="Resource" id="damage"]
@@ -12,7 +11,6 @@ trigger_frame = 5
 damage_ratio = 1.4
 radius = 110.0
 half_angle = 62.0
-effect_scene = ExtResource("fx")
 effect_sound = ExtResource("sound")
 
 [resource]
@@ -22,7 +20,7 @@ display_name = "断魂斩"
 description = "横扫前方扇形，对范围内每个敌人造成 {damage_0} 物理伤害。"
 category = 1
 target_mode = 0
-animation = &"attack_01"
+animation = &"soul_cleave"
 animation_speed = 1.0
 action_range = 110.0
 cooldown = 8.0

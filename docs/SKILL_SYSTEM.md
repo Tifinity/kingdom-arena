@@ -31,9 +31,9 @@ pixelfx 法阵以正圆绘制，作为 `Sprite3D` 贴在战场地面，由同一
 
 被动「战栗」位于 `resources/passives/armored_axeman_dread.tres`：新增的 `PassiveDefinition.on_hit_status` 指向 `resources/status/armored_axeman_dread.tres`（护甲 -0.10，持续 4 秒，刷新）。`Unit.register_damage_hit()` 在普攻或技能造成伤害后调用它；DoT 周期伤害不经过该入口，因此不会反复刷新破甲。护甲是百分点加法，最终由 `Unit.current_armor()` 夹在 0~0.8；对 0 护甲目标不会产生负护甲。
 
-重甲骷髅「反击风暴」位于 `resources/actions/armored_skeleton_counterstorm.tres`：`attack_02` 动画 + 2 秒 `GUARD` 效果，`action_duration` 同为 2 秒，因此整个技能持续期间 `Unit.is_guarding()` 为真，所有攻击在护甲/护盾结算前被完全挡下，也不会进入受击硬直。它是 0 蓝、CD12 的主动 1，`max_self_hp_ratio = 0.70`：AI 只在生命不高于 70% 时把它纳入候选，避免满血空放。
+重甲骷髅「反击风暴」位于 `resources/actions/armored_skeleton_counterstorm.tres`：`attack_02` 动画 + 2 秒 `GUARD` 效果，`action_duration` 同为 2 秒，因此整个技能持续期间 `Unit.is_guarding()` 为真，所有攻击在护甲/护盾结算前被完全挡下，也不会进入受击硬直。它是当前唯一的主动技能，0 蓝、CD12，`max_self_hp_ratio = 0.70`：AI 只在生命不高于 70% 时把它纳入候选，避免满血空放。
 
-巨剑骷髅使用现有 `attack_01` 横扫、`attack_02` 下劈和 `attack_03` 直刺。伤害分别在动画第 5、7、4 帧结算（从 0 起）。蓄力重斩播放速度为 0.625 倍，第 4 帧出现蓄力光，第 7 帧才出现落地特效。斩首在每次伤害结算前按受击目标的当前生命判定，严格高于 70% 时加成 15%，并在受击处播放短促的碎光。训练靶可用来稳定预览触发效果。
+巨剑骷髅的普攻使用 `attack_01`。断魂斩的 `soul_cleave` 和蓄力重斩的 `attack_02` 分别沿用原始横扫、下劈素材的轮廓，剑气统一采用 pixelfx 的夜色与暗影色板，由 `tools/build_assets.py` 生成。断魂斩、蓄力重斩和穿魂刺（`attack_03`）分别在动画第 5、7、4 帧结算伤害（从 0 起）。蓄力重斩播放速度为 0.625 倍，第 7 帧播放原动画的暗紫落地残影。斩首在每次伤害结算前按受击目标的当前生命判定，严格高于 70% 时加成 15%，并在受击处播放短促的碎光。训练靶可用来稳定预览触发效果。
 
 三项主动分别复用 Jsfxr Pro 的 `steel_cut`、`fire_charge` / `heavy_chop` 和 `spear_thrust`。横扫和直刺在效果帧各响一次，重击声只在接触目标时响。pixelfx 序列帧由 `node tools/export_greatsword_fx.mjs [预览目录]` 重新导出。
 

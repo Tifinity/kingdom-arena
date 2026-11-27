@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://tpcmehgkekuh"
-path="res://.godot/imported/greatsword_heavy_slash.png-8b8dc2baf391d0436cb3c2237a2babb3.ctex"
+uid="uid://d6mfiv2vwbt3"
+path="res://.godot/imported/soul_cleave.png-735108e44db0c965c488b99ca0f1ffad.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/fx/pixelfx/greatsword_heavy_slash.png"
-dest_files=["res://.godot/imported/greatsword_heavy_slash.png-8b8dc2baf391d0436cb3c2237a2babb3.ctex"]
+source_file="res://assets/characters/greatsword_skeleton/soul_cleave.png"
+dest_files=["res://.godot/imported/soul_cleave.png-735108e44db0c965c488b99ca0f1ffad.ctex"]
 
 [params]
 
