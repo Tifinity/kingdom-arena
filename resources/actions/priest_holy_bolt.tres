@@ -1,25 +1,39 @@
 [gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="1_13uot"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/roster_holy_hit.wav" id="2_iope3"]
+[ext_resource type="SpriteFrames" path="res://resources/visuals/roster_holy_bolt.tres" id="3_poqdn"]
+[ext_resource type="PackedScene" path="res://scenes/fx/roster_holy_contact.tscn" id="4_nlxtp"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/roster_holy_launch.wav" id="5_ndwfs"]
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="6_cdx0k"]
 
 [sub_resource type="Resource" id="effect"]
-script = ExtResource("2")
+script = ExtResource("1_13uot")
 kind = 1
-shape = 0
-trigger_frame = 7
-damage_ratio = 1.0
+trigger_frame = 3
+base_damage = 9.0
+damage_ratio = 0.85
+status_kind = 1
+status_duration = 1.5
+status_power = 0.65
 projectile_kind = 6
+projectile_collision_width = 70.0
+projectile_speed_override = 1400.0
+projectile_frames = ExtResource("3_poqdn")
+projectile_visual_scale = 1.02
+projectile_visual_offset = Vector2(-18, 0)
+projectile_impact_scene = ExtResource("4_nlxtp")
+projectile_release_sound = ExtResource("5_ndwfs")
+impact_sound = ExtResource("2_iope3")
 
 [resource]
-script = ExtResource("1")
+script = ExtResource("6_cdx0k")
 action_id = &"priest_holy_bolt"
 display_name = "圣光弹"
-description = "发射圣光弹，对一名敌人造成 {damage_0}。"
+description = "沿瞄准方向发射圣光弹，命中首名敌人时停止，造成 {damage_0} 单体伤害并减速 35.0%，持续 1.5 秒。"
 category = 1
-target_mode = 0
-animation = &"attack_01"
-action_range = 465.0
-cooldown = 6.0
+animation = &"holy_bolt"
+action_range = 900.0
+cooldown = 8.0
 priority = 4
-effects = [SubResource("effect")]
+effects = Array[ExtResource("1_13uot")]([SubResource("effect")])

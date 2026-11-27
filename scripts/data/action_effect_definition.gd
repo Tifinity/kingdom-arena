@@ -13,6 +13,9 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 ## 在动作动画的第几帧触发（0 为第一帧）。
 @export var trigger_frame: int = 0
 
+## 技能固定伤害，和 AD 倍率部分一同结算。
+@export var base_damage := 0.0
+
 ## 相对于单位攻击力的倍率。
 @export var damage_ratio: float = 1.0
 
@@ -80,6 +83,16 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 ## 投射物、AOE、治疗等视觉场景；可选。
 @export var effect_scene: PackedScene
 
+## 大于 0 时，直线弹体按该全宽检测首个接触的敌人。
+@export var projectile_collision_width := 0.0
+@export var projectile_speed_override := 0.0
+
+## 技能可覆写弹道的贴图，沿用投射物的速度、碰撞与命中结算。
+@export var projectile_frames: SpriteFrames
+@export var projectile_visual_scale := 1.0
+@export var projectile_visual_offset := Vector2.ZERO
+@export var projectile_impact_scene: PackedScene
+
 ## 新效果优先使用独立 Behavior；为空时兼容旧 kind 结算。
 @export var behavior: ActionEffectBehavior
 
@@ -90,3 +103,7 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 @export var projectile_release_sound: AudioStream
 ## 近战或投射物接触目标时播放，包括格挡和致命一击。
 @export var impact_sound: AudioStream
+
+
+func raw_damage(attack_damage: float) -> float:
+	return base_damage + attack_damage * maxf(damage_ratio, 0.0)

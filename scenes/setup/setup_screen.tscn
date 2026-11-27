@@ -1,5 +1,6 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
+[ext_resource type="Script" path="res://scripts/ui/arena_ui_root.gd" id="layout"]
 [ext_resource type="Script" path="res://scripts/setup/setup_screen.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/battle/battle.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/setup/lineup_panel.tscn" id="3"]
@@ -25,21 +26,19 @@ deployment_enabled = true
 [node name="UI" type="CanvasLayer" parent="."]
 layer = 10
 
-[node name="Root" type="Control" parent="UI"]
+[node name="Field" type="Control" parent="UI" node_paths=PackedStringArray("setup", "battle")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-mouse_filter = 2
-
-[node name="Field" type="Control" parent="UI/Root" node_paths=PackedStringArray("setup", "battle")]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
 script = ExtResource("6")
-setup = NodePath("../../..")
-battle = NodePath("../../../Battle")
+setup = NodePath("../..")
+battle = NodePath("../../Battle")
+
+[node name="Root" type="Control" parent="UI"]
+layout_mode = 3
+mouse_filter = 2
+script = ExtResource("layout")
 
 [node name="Header" type="HBoxContainer" parent="UI/Root"]
 layout_mode = 1
@@ -215,7 +214,7 @@ text = "怪物"
 layout_mode = 2
 size_flags_vertical = 3
 custom_minimum_size = Vector2(0, 222)
-horizontal_scroll_mode = 0
+horizontal_scroll_mode = 3
 
 [node name="RosterGrid" type="GridContainer" parent="UI/Root/Drawer/Panel/Split/Roster/RosterScroll"]
 layout_mode = 2

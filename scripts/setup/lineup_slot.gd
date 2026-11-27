@@ -64,9 +64,16 @@ func set_definition(p_definition: UnitDefinition) -> void:
 	meta_label.text = "%s · %s" % [definition.faction_label(), definition.role]
 	meta_label.add_theme_color_override("font_color", definition.accent_color)
 	stats_label.text = "生命 %d · 攻击 %d" % [roundi(definition.max_hp), roundi(definition.attack_damage)]
-	tooltip_text = "%s · %s\n拖动到其他槽位可移动/交换；× 或右键移除" % [
-		definition.display_name, definition.role,
+	tooltip_text = "%s · %s\n%s\n拖动到其他槽位可移动/交换；× 或右键移除" % [
+		definition.display_name, definition.role, stats_label.text,
 	]
+
+
+func set_compact(compact: bool) -> void:
+	custom_minimum_size.y = 44.0 if compact else 60.0
+	var portrait_frame: PanelContainer = portrait.get_parent()
+	portrait_frame.custom_minimum_size = Vector2(32, 32) if compact else Vector2(48, 48)
+	stats_label.visible = not compact
 
 
 ## 从已部署槽位拖出英雄，用于移动/交换。

@@ -1,39 +1,41 @@
 [gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/data/effects/heal_effect_behavior.gd" id="3"]
-[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="4"]
-[ext_resource type="PackedScene" path="res://scenes/fx/priest_blessing.tscn" id="5"]
-
-[sub_resource type="Resource" id="targeting"]
-script = ExtResource("4")
-selection = 4
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="1_f3s2c"]
+[ext_resource type="Script" path="res://scripts/data/effects/heal_effect_behavior.gd" id="2_w7ro8"]
+[ext_resource type="PackedScene" path="res://scenes/fx/roster_blessing.tscn" id="3_kumx7"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/roster_blessing.wav" id="4_03ny8"]
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="5_nv5u7"]
+[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="6_4ew52"]
 
 [sub_resource type="Resource" id="behavior"]
-script = ExtResource("3")
+script = ExtResource("2_w7ro8")
 
 [sub_resource type="Resource" id="effect"]
-script = ExtResource("2")
+script = ExtResource("1_f3s2c")
 kind = 3
-shape = 0
 trigger_frame = 2
 heal_amount = 12.0
 heal_ratio = 0.6
+effect_scene = ExtResource("3_kumx7")
 behavior = SubResource("behavior")
-effect_scene = ExtResource("5")
+effect_sound = ExtResource("4_03ny8")
+
+[sub_resource type="Resource" id="targeting"]
+script = ExtResource("6_4ew52")
+selection = 4
 
 [resource]
-script = ExtResource("1")
+script = ExtResource("5_nv5u7")
 action_id = &"priest_blessing"
 display_name = "祈福"
-description = "治疗血量最低的受伤友军 12 + 0.6 AD。"
+description = "治疗生命比例最低的受伤友军 12.0 + 0.6 AD。"
 category = 4
 target_mode = 1
 animation = &"heal"
 action_range = 650.0
 cooldown = 10.0
 requires_wounded_ally = true
+recheck_target_at_effect = true
 priority = 8
 targeting = SubResource("targeting")
-effects = [SubResource("effect")]
+effects = Array[ExtResource("1_f3s2c")]([SubResource("effect")])

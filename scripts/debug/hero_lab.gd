@@ -27,35 +27,37 @@ var _opponents: Array[UnitDefinition] = []
 var _refresh_accum := 0.0
 var _toast_serial := 0
 
+@onready var ui_root: ArenaUIRoot = $HUD/Root
 @onready var battle_host: Node2D = $BattleHost
 @onready var hero_grid: GridContainer = $HUD/Root/LeftPanel/VBox/Scroll/HeroGrid
 @onready var hero_scroll: ScrollContainer = $HUD/Root/LeftPanel/VBox/Scroll
+@onready var stats_scroll: ScrollContainer = $HUD/Root/RightPanel/VBox/Scroll
 @onready var hero_count: Label = $HUD/Root/LeftPanel/VBox/Header/HeroCount
-@onready var detail_name: Label = $HUD/Root/RightPanel/VBox/NameRow/Name
-@onready var detail_title: Label = $HUD/Root/RightPanel/VBox/NameRow/Title
-@onready var detail_meta: Label = $HUD/Root/RightPanel/VBox/Meta
-@onready var detail_desc: Label = $HUD/Root/RightPanel/VBox/Desc
-@onready var live_label: Label = $HUD/Root/RightPanel/VBox/Live
-@onready var range_readout: Label = $HUD/Root/RightPanel/VBox/RangeReadout
-@onready var stat_hp: SpinBox = $HUD/Root/RightPanel/VBox/Stats/HpValue
-@onready var stat_atk: SpinBox = $HUD/Root/RightPanel/VBox/Stats/AtkValue
-@onready var stat_aspd: SpinBox = $HUD/Root/RightPanel/VBox/Stats/AspdValue
-@onready var stat_range: SpinBox = $HUD/Root/RightPanel/VBox/Stats/RangeValue
-@onready var stat_armor: SpinBox = $HUD/Root/RightPanel/VBox/Stats/ArmorValue
-@onready var stat_speed: SpinBox = $HUD/Root/RightPanel/VBox/Stats/SpeedValue
-@onready var stat_max_mana: SpinBox = $HUD/Root/RightPanel/VBox/Stats/MaxManaValue
-@onready var stat_starting_mana: SpinBox = $HUD/Root/RightPanel/VBox/Stats/StartManaValue
-@onready var stat_regen: SpinBox = $HUD/Root/RightPanel/VBox/Stats/RegenValue
-@onready var stat_hp_current: Label = $HUD/Root/RightPanel/VBox/Stats/HpCurrent
-@onready var stat_atk_current: Label = $HUD/Root/RightPanel/VBox/Stats/AtkCurrent
-@onready var stat_aspd_current: Label = $HUD/Root/RightPanel/VBox/Stats/AspdCurrent
-@onready var stat_range_current: Label = $HUD/Root/RightPanel/VBox/Stats/RangeCurrent
-@onready var stat_armor_current: Label = $HUD/Root/RightPanel/VBox/Stats/ArmorCurrent
-@onready var stat_speed_current: Label = $HUD/Root/RightPanel/VBox/Stats/SpeedCurrent
-@onready var stat_max_mana_current: Label = $HUD/Root/RightPanel/VBox/Stats/MaxManaCurrent
-@onready var stat_starting_mana_current: Label = $HUD/Root/RightPanel/VBox/Stats/StartManaCurrent
-@onready var stat_regen_current: Label = $HUD/Root/RightPanel/VBox/Stats/RegenCurrent
-@onready var buffs_label: Label = $HUD/Root/RightPanel/VBox/Buffs
+@onready var detail_name: Label = %StatsBody/NameRow/Name
+@onready var detail_title: Label = %StatsBody/NameRow/Title
+@onready var detail_meta: Label = %StatsBody/Meta
+@onready var detail_desc: Label = %StatsBody/Desc
+@onready var live_label: Label = %StatsBody/Live
+@onready var range_readout: Label = %StatsBody/RangeReadout
+@onready var stat_hp: SpinBox = %StatsBody/Stats/HpValue
+@onready var stat_atk: SpinBox = %StatsBody/Stats/AtkValue
+@onready var stat_aspd: SpinBox = %StatsBody/Stats/AspdValue
+@onready var stat_range: SpinBox = %StatsBody/Stats/RangeValue
+@onready var stat_armor: SpinBox = %StatsBody/Stats/ArmorValue
+@onready var stat_speed: SpinBox = %StatsBody/Stats/SpeedValue
+@onready var stat_max_mana: SpinBox = %StatsBody/Stats/MaxManaValue
+@onready var stat_starting_mana: SpinBox = %StatsBody/Stats/StartManaValue
+@onready var stat_regen: SpinBox = %StatsBody/Stats/RegenValue
+@onready var stat_hp_current: Label = %StatsBody/Stats/HpCurrent
+@onready var stat_atk_current: Label = %StatsBody/Stats/AtkCurrent
+@onready var stat_aspd_current: Label = %StatsBody/Stats/AspdCurrent
+@onready var stat_range_current: Label = %StatsBody/Stats/RangeCurrent
+@onready var stat_armor_current: Label = %StatsBody/Stats/ArmorCurrent
+@onready var stat_speed_current: Label = %StatsBody/Stats/SpeedCurrent
+@onready var stat_max_mana_current: Label = %StatsBody/Stats/MaxManaCurrent
+@onready var stat_starting_mana_current: Label = %StatsBody/Stats/StartManaCurrent
+@onready var stat_regen_current: Label = %StatsBody/Stats/RegenCurrent
+@onready var buffs_label: Label = %StatsBody/Buffs
 @onready var opponent_option: OptionButton = $HUD/Root/RightPanel/VBox/OpponentRow/OpponentOption
 @onready var start_button: Button = $HUD/Root/RightPanel/VBox/StartButton
 @onready var back_button: Button = $HUD/Root/TopBar/HBox/BackButton
@@ -89,6 +91,8 @@ func _ready() -> void:
 	positioning_button.toggled.connect(_set_positioning_mode)
 	basic_button.pressed.connect(_test_basic_attack)
 	get_viewport().size_changed.connect(_refresh_live)
+	ui_root.layout_changed.connect(_apply_ui_layout)
+	_apply_ui_layout(ui_root.compact)
 	_build_cards()
 	_populate_opponents()
 	_wire_stat_inputs()
@@ -97,6 +101,21 @@ func _ready() -> void:
 		_select_definition(_cards[0].definition)
 	_create_training_battle(selected_definition)
 	_refresh_live()
+
+
+func _apply_ui_layout(compact: bool) -> void:
+	var left: Control = $HUD/Root/LeftPanel
+	var right: Control = $HUD/Root/RightPanel
+	var skills: Control = $HUD/Root/SkillPanel
+	left.offset_bottom = -240.0 if compact else -24.0
+	right.offset_bottom = left.offset_bottom
+	right.offset_left = -354.0 if compact else -404.0
+	stats_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO if compact else ScrollContainer.SCROLL_MODE_DISABLED
+	stats_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL if compact else Control.SIZE_SHRINK_BEGIN
+	skills.offset_left = 24.0 if compact else 356.0
+	skills.offset_right = -24.0 if compact else -416.0
+	skills.offset_bottom = -16.0 if compact else -24.0
+	skills.offset_top = -228.0 if compact else -262.0
 
 
 func _exit_tree() -> void:
@@ -152,6 +171,7 @@ func _create_training_battle(definition: UnitDefinition) -> void:
 func _select_definition(definition: UnitDefinition) -> void:
 	if definition == null:
 		return
+	stats_scroll.scroll_vertical = 0
 	selected_definition = definition
 	for card in _cards:
 		var selected := card.definition.unit_id == definition.unit_id

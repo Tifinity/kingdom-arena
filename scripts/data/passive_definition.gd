@@ -14,6 +14,8 @@ extends Resource
 @export var skill_hit_shield_duration := 0.0
 @export var heal_below_hp_ratio := 0.0
 @export var heal_bonus_ratio := 0.0
+@export var heal_bonus_fx: PackedScene
+@export var heal_bonus_sound: AudioStream
 ## 生命低于该比例时施加 hp_threshold_status（例如狂怒）；0 表示没有低血量被动。
 @export var hp_threshold := 0.0
 ## 低血量期间持续存在的状态，通常是攻击/吸血增益，自带特效；由 Unit 按生命自动施加和移除。
@@ -34,6 +36,10 @@ extends Resource
 @export var bonus_damage_target_above_hp_ratio := 0.0
 @export var bonus_damage_above_hp_ratio := 0.0
 @export var bonus_damage_above_hp_fx: PackedScene
+
+
+func heal_multiplier(patient_hp_ratio: float) -> float:
+	return 1.0 + heal_bonus_ratio if patient_hp_ratio < heal_below_hp_ratio else 1.0
 
 
 func detail_text() -> String:

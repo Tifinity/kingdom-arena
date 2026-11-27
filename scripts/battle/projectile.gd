@@ -34,6 +34,11 @@ var _launch_height := 0.0
 var _aim_point: Vector2
 var _aim_height := 0.0
 var _trail_offset := Vector2.ZERO
+var _flight_frames: SpriteFrames
+var _intercepts := false
+var _enemy_team := -1
+var _remaining_range := 0.0
+var _flight_ground: Vector2
 
 @onready var sprite: Sprite2D = $Sprite
 
@@ -78,7 +83,24 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 		sprite.modulate = Color(1.0, 0.96, 0.86)
 		speed = 1180.0
 
-	if target != null and is_instance_valid(target):
+	if effect != null and effect.projectile_frames != null:
+		_flight_frames = effect.projectile_frames
+		sprite.scale = Vector2.ONE * effect.projectile_visual_scale
+		sprite.offset = effect.projectile_visual_offset
+		sprite.texture = _flight_frames.get_frame_texture(&"default", 0)
+
+	_intercepts = effect != null and effect.projectile_collision_width > 0.0
+	if _intercepts:
+		var cast := source.current_cast
+		var direction := cast.direction if cast != null else Vector2(float(source.facing), 0.0)
+		speed = effect.projectile_speed_override if effect.projectile_speed_override > 0.0 else speed
+		_remaining_range = cast.action.action_range if cast != null else source.attack_range
+		life = maxf(life, _remaining_range / speed + 0.1)
+		_enemy_team = 1 - source.team
+		_flight_ground = source.global_position
+		_velocity = direction * speed
+		rotation = direction.angle()
+	elif target != null and is_instance_valid(target):
 		var aim := target.get_hit_point() - global_position
 		if aim.length() > 0.01:
 			_velocity = aim.normalized() * speed
@@ -107,7 +129,7 @@ func _process(_delta: float) -> void:
 
 
 func _sync_presentation() -> void:
-	if _impact_elapsed < 0.0 and is_instance_valid(target) and target.alive:
+	if not _intercepts and _impact_elapsed < 0.0 and is_instance_valid(target) and target.alive:
 		_aim_point = target.get_hit_point()
 		_aim_height = target.global_position.y - _aim_point.y
 	var path := _aim_point - _launch_point
@@ -126,6 +148,7 @@ func _sync_presentation() -> void:
 			angle = projected_path.angle()
 	_sprite_3d.global_transform = Transform3D(basis.rotated(basis.z, -angle), _stage.ground_to_world(ground, height / basis.y.y))
 	_sprite_3d.scale = Vector3(sprite.scale.x, sprite.scale.y, 1.0)
+	_sprite_3d.offset = Vector2(sprite.offset.x, -sprite.offset.y)
 	_sprite_3d.texture = sprite.texture
 	_sprite_3d.modulate = sprite.modulate
 	_trail_offset = to_local(_stage.elevated_canvas_point(ground, offset))
@@ -147,13 +170,20 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 	_travel_elapsed += delta
-	if kind == UnitDefinition.ProjectileKind.HOLY_BOLT:
+	if _flight_frames != null:
+		var frame_count := _flight_frames.get_frame_count(&"default")
+		var frame_index := int(_travel_elapsed * _flight_frames.get_animation_speed(&"default")) % frame_count
+		sprite.texture = _flight_frames.get_frame_texture(&"default", frame_index)
+	elif kind == UnitDefinition.ProjectileKind.HOLY_BOLT:
 		_set_effect_frame(int(_travel_elapsed * 30.0) % 15)
 	elif kind == UnitDefinition.ProjectileKind.FIREBALL:
 		_set_effect_frame(int(_travel_elapsed * 16.0) % 4)
 	elif kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
 		_set_effect_frame(mini(2, int(_travel_elapsed * 12.0)))
 
+	if _intercepts:
+		_advance_intercepting_projectile(delta)
+		return
 	if target != null and is_instance_valid(target) and target.alive:
 		if straight_flight:
 			var next_position := global_position + _velocity * delta
@@ -190,6 +220,23 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 
+func _advance_intercepting_projectile(delta: float) -> void:
+	var step := minf(speed * delta, _remaining_range)
+	var direction := _velocity.normalized()
+	var contact := ActionTargetQuery.first_projectile_contact(_flight_ground, direction, step,
+		effect.projectile_collision_width * 0.5, battle.living_units(_enemy_team))
+	var travel: float = contact.distance
+	_flight_ground += direction * travel
+	global_position += direction * travel
+	target = contact.unit
+	if target != null:
+		_hit()
+		return
+	_remaining_range -= step
+	if _remaining_range <= 0.0:
+		queue_free()
+
+
 func _hit() -> void:
 	if target != null and is_instance_valid(target) and target.alive:
 		var shooter: Unit = source if is_instance_valid(source) else null
@@ -200,6 +247,10 @@ func _hit() -> void:
 		if is_instance_valid(shooter):
 			shooter.register_damage_hit(target, is_skill)
 		ActionImpact.apply_on_hit(effect, shooter, target, blocked)
+	if effect != null and effect.projectile_impact_scene != null and is_instance_valid(target) and _stage != null:
+		battle.spawn_billboard_effect_at(effect.projectile_impact_scene, target)
+		queue_free()
+		return
 	if battle != null and is_instance_valid(battle):
 		var spark_color := Color("#87d9ff") if kind == UnitDefinition.ProjectileKind.ICE else (
 			Color("#ff9d42") if kind == UnitDefinition.ProjectileKind.FIREBALL else (
@@ -235,6 +286,8 @@ func _set_effect_frame(frame: int) -> void:
 
 
 func _draw() -> void:
+	if _flight_frames != null:
+		return
 	draw_set_transform(_trail_offset)
 	var back := -_velocity.normalized()
 	var magic := kind == UnitDefinition.ProjectileKind.MAGIC

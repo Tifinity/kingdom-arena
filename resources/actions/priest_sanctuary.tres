@@ -1,62 +1,45 @@
 [gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/data/effects/heal_effect_behavior.gd" id="heal_behavior_script"]
-
-[ext_resource type="PackedScene" path="res://scenes/fx/priest_healing_ring.tscn" id="fx"]
-[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="targeting_script"]
-
-[sub_resource type="Resource" id="lowest_targeting"]
-script = ExtResource("targeting_script")
-selection = 4
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="1_ccv10"]
+[ext_resource type="Script" path="res://scripts/data/effects/heal_effect_behavior.gd" id="2_8fl2g"]
+[ext_resource type="PackedScene" path="res://scenes/fx/roster_sanctuary.tscn" id="3_awlfl"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/roster_sanctuary.wav" id="4_tkurt"]
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="5_oq3ga"]
+[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="6_k1hw2"]
 
 [sub_resource type="Resource" id="heal_behavior"]
-script = ExtResource("heal_behavior_script")
+script = ExtResource("2_8fl2g")
 
 [sub_resource type="Resource" id="effect_0"]
-script = ExtResource("2")
+script = ExtResource("1_ccv10")
 kind = 3
 shape = 1
 trigger_frame = 2
-damage_ratio = 0.00
+damage_ratio = 0.0
 radius = 520.0
-half_angle = 0.0
-length = 0.0
-width = 0.0
-center_on_self = false
-status_kind = 0
-status_duration = 0.00
-status_power = 0.00
 heal_amount = 20.0
-heal_ratio = 1.00
+heal_ratio = 1.0
+effect_scene = ExtResource("3_awlfl")
 behavior = SubResource("heal_behavior")
-effect_scene = ExtResource("fx")
-summon_unit_id = &""
-summon_count = 1
-knockback = 0.0
-projectile_kind = 0
-duration = 0.00
+effect_sound = ExtResource("4_tkurt")
+
+[sub_resource type="Resource" id="lowest_targeting"]
+script = ExtResource("6_k1hw2")
+selection = 4
 
 [resource]
-script = ExtResource("1")
+script = ExtResource("5_oq3ga")
 action_id = &"priest_sanctuary"
 display_name = "圣光普照"
-description = "以生命比例最低的受伤友军为中心，范围治疗 20 + 1.0 AD。"
+description = "以生命比例最低的受伤友军为中心，范围治疗 20.0 + 1.0 AD。"
 category = 1
 target_mode = 1
 animation = &"heal"
-animation_speed = 1.0
 action_range = 650.0
-min_range = 0.0
-cooldown = 15.00
+cooldown = 15.0
 mana_cost = 100.0
-action_duration = 0.00
-min_self_hp_ratio = 0.00
-max_self_hp_ratio = 1.00
-advance_speed = 0.0
-min_targets = 1
 requires_wounded_ally = true
+recheck_target_at_effect = true
 priority = 9
 targeting = SubResource("lowest_targeting")
-effects = [SubResource("effect_0")]
+effects = Array[ExtResource("1_ccv10")]([SubResource("effect_0")])

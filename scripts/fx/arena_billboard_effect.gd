@@ -18,7 +18,6 @@ func setup_from_effect(source: Unit, _effect: ActionEffectDefinition) -> void:
 
 
 func setup_projection(stage: ArenaStage3D, ground: Vector2, height_offset := Vector2.ZERO) -> void:
-	global_position = ground
 	_sprite = Sprite3D.new()
 	_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	_sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -26,13 +25,17 @@ func setup_projection(stage: ArenaStage3D, ground: Vector2, height_offset := Vec
 	_sprite.sorting_use_aabb_center = false
 	_sprite.sorting_offset = sorting_offset
 	add_child(_sprite)
-	_sprite.global_transform = Transform3D(stage.camera.basis, stage.billboard_anchor(ground, height_offset))
-	_sprite.scale = Vector3(scale.x, scale.y, 1.0)
+	update_projection_anchor(stage, ground, height_offset)
 	_sprite.centered = centered
 	_sprite.offset = Vector2(offset.x, -offset.y)
 	hide()
 	frame_changed.connect(_sync_frame)
 	_sync_frame()
+
+func update_projection_anchor(stage: ArenaStage3D, ground: Vector2, height_offset := Vector2.ZERO) -> void:
+	global_position = ground
+	_sprite.global_transform = Transform3D(
+		stage.camera.basis.scaled_local(Vector3(scale.x, scale.y, 1.0)), stage.billboard_anchor(ground, height_offset))
 
 
 func _sync_frame() -> void:

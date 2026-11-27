@@ -552,7 +552,7 @@ func _evaluate_plan(action: CombatActionDefinition, candidate: Unit, direction: 
 			for victim in _plan_victims(action, effect, candidate, direction):
 				var key := victim.get_instance_id()
 				victims_by_id[key] = victim
-				damage_by_target[key] = float(damage_by_target.get(key, 0.0)) + unit.attack_damage * maxf(effect.damage_ratio, 0.0)
+				damage_by_target[key] = float(damage_by_target.get(key, 0.0)) + effect.raw_damage(unit.attack_damage)
 		elif effect.kind == ActionEffectDefinition.Kind.HEAL:
 			for ally in ActionTargetQuery.allies(unit, effect, candidate, direction):
 				support += minf(ally.max_hp - ally.hp, effect.heal_amount + unit.attack_damage * effect.heal_ratio) / maxf(unit.attack_damage, 1.0)
@@ -604,11 +604,20 @@ func _committed_ally_damage(victim: Unit) -> float:
 			continue
 		for effect in ally.planned_action.effects:
 			if (effect.kind == ActionEffectDefinition.Kind.DAMAGE or effect.kind == ActionEffectDefinition.Kind.PROJECTILE) and effect.shape == ActionEffectDefinition.Shape.SINGLE:
-				incoming += ally.attack_damage * effect.damage_ratio * (1.0 - clampf(victim.armor, 0.0, 0.8))
+				incoming += effect.raw_damage(ally.attack_damage) * (1.0 - clampf(victim.armor, 0.0, 0.8))
 	return incoming
 
 
 func _plan_victims(action: CombatActionDefinition, effect: ActionEffectDefinition, candidate: Unit, direction: Vector2) -> Array[Unit]:
+	if effect.kind == ActionEffectDefinition.Kind.PROJECTILE and effect.projectile_collision_width > 0.0:
+		var origin := unit.global_position
+		var aim := direction.normalized() if not direction.is_zero_approx() else origin.direction_to(candidate.global_position)
+		var contact := ActionTargetQuery.first_projectile_contact(origin, aim, action.action_range,
+			effect.projectile_collision_width * 0.5, unit.battle.living_units(1 - unit.team))
+		var victims: Array[Unit] = []
+		if contact.unit != null:
+			victims.append(contact.unit)
+		return victims
 	if action.movement_kind() == ActionMovementDefinition.Kind.CHARGE:
 		var path_effect := effect.duplicate() as ActionEffectDefinition
 		path_effect.length = unit.global_position.distance_to(candidate.global_position)
