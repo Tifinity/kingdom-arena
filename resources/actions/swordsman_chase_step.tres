@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/data/action_movement_definition.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="4"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/swordsman_chase_step.wav" id="dash"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
@@ -35,6 +36,7 @@ description = "向范围内血量最低的敌人方向位移 160 像素，不造
 category = 1
 target_mode = 0
 animation = &"move"
+cast_sound = ExtResource("dash")
 animation_speed = 1.6
 action_range = 300.0
 min_range = 240.0

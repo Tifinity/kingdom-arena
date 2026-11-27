@@ -357,14 +357,17 @@ func _lineup_definition(unit_id: StringName) -> UnitDefinition:
 
 
 ## 生成并登记一个单位。正常战斗与试炼场的训练模式共用这条路径。
-func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_position: Vector2, count_in_lineup := true) -> Unit:
+func _spawn_unit(definition: UnitDefinition, team: int, slot: int, spawn_position: Vector2,
+		count_in_lineup := true, summoner: Unit = null) -> Unit:
 	var unit_scene: PackedScene = definition.unit_scene if definition.unit_scene != null else UNIT_SCENE
 	var unit: Unit = unit_scene.instantiate()
 	units_root.add_child(unit)
 	unit.position = spawn_position
 	unit.setup(self, team, slot, definition)
-	_register_replay_unit(unit)
-	unit.face_direction(1.0 if team == 0 else -1.0)
+	unit.summoned = summoner != null
+	_register_replay_unit(unit, summoner)
+	var direction := 1.0 if team == 0 else -1.0
+	unit.face_direction(-direction if unit.summoned else direction)
 	var sprite := UnitSprite3D.new()
 	if training_mode:
 		sprite.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -725,29 +728,18 @@ func spawn_summons(source: Unit, unit_id: StringName, count: int, effect_scene: 
 	if definition == null:
 		return
 	for index in maxi(count, 1):
-		var scene: PackedScene = definition.unit_scene if definition.unit_scene != null else UNIT_SCENE
-		var unit: Unit = scene.instantiate()
-		units_root.add_child(unit)
 		var angle := TAU * float(index) / float(maxi(count, 1))
 		var spawn_position := source.global_position + Vector2.from_angle(angle) * 58.0
-		unit.position = spawn_position
+		var unit := _spawn_unit(definition, source.team, source.slot, spawn_position, not is_siege(), source)
 		if effect_scene != null:
 			var fx := effect_scene.instantiate()
 			effects_root.add_child(fx)
-			if fx is Node2D:
+			if fx is ArenaBillboardEffect:
+				fx.setup_projection(stage, spawn_position)
+			elif fx is Node2D:
 				fx.global_position = spawn_position
-		unit.setup(self, source.team, source.slot, definition)
-		_register_replay_unit(unit, source)
 		if battle_active:
 			unit.on_battle_started()
-		unit.summoned = true
-		unit.face_direction(-1.0 if source.team == 0 else 1.0)
-		unit.set_range_overlay_visible(show_combat_ranges)
-		unit.died.connect(_on_unit_died)
-		units.append(unit)
-		if not is_siege():
-			team_sizes[source.team] += 1
-			team_max_hp_total[source.team] += unit.max_hp
 		unit.play_summon_intro()
 
 

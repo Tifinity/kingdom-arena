@@ -3,12 +3,14 @@
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/fx/archer_piercing_arrow.tscn" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/archer_piercing_shot.wav" id="archer_piercing_shot"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
 kind = 0
 shape = 4
 trigger_frame = 9
+effect_sound = ExtResource("archer_piercing_shot")
 damage_ratio = 1.50
 radius = 0.0
 half_angle = 0.0

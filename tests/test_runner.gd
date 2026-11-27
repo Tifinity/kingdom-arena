@@ -332,6 +332,11 @@ func _test_piercing_arrow(battle: Battle, archer: Unit, victim: Unit, pierce: Co
 	archer.planned_action = pierce
 	archer.planned_direction = direction
 	archer.mana = pierce.mana_cost
+	var sounds: Array[AudioStream] = []
+	battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+		if node is AudioStreamPlayer:
+			sounds.append(node.stream)
+	)
 	archer.state_machine.transition_to(&"action", true)
 	var fx: Sprite2D = null
 	for _tick in 75:
@@ -341,6 +346,8 @@ func _test_piercing_arrow(battle: Battle, archer: Unit, victim: Unit, pierce: Co
 			break
 	_check(victim.hp < near_hp and far.hp < far.max_hp and is_equal_approx(off_axis.hp, off_axis.max_hp)
 		and battle.action_hits == 2, "贯穿箭只命中斜向一条直线上的两个敌人")
+	_check(pierce.effects[0].effect_sound != null and sounds == [pierce.effects[0].effect_sound],
+		"贯穿箭命中多个敌人只播放一次破风声")
 	_check(is_instance_valid(fx) and fx.global_transform.x.normalized().is_equal_approx(direction)
 		and is_equal_approx(fx.scale.x * 180.0, pierce.effects[0].length)
 		and is_equal_approx(fx.scale.y * 20.0, pierce.effects[0].width),
@@ -593,6 +600,11 @@ func _test_hero_lab() -> void:
 	await get_tree().process_frame
 	var rain: CombatActionDefinition = archer.actions[2]
 	lab.hero.brain.enabled = false
+	var rain_sounds: Array[AudioStream] = []
+	lab.battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+		if node is AudioStreamPlayer:
+			rain_sounds.append(node.stream)
+	)
 	var rain_damage: float = lab.hero.current_attack_damage() * rain.effects[1].damage_ratio
 	lab.skill_cards[1].cast_requested.emit(rain)
 	if lab.hero.global_position.distance_to(lab.dummy.global_position) >= archer.passive.bonus_damage_min_distance:
@@ -607,16 +619,21 @@ func _test_hero_lab() -> void:
 	var arrows := rain_fx.get_node("Arrows") as Sprite2D if is_instance_valid(rain_fx) else null
 	_check(is_instance_valid(arrows) and arrows.frame < 12 and is_zero_approx(lab.battle.training_damage()),
 		"箭雨预警和下落阶段尚未造成伤害")
+	_check(rain.effects[0].effect_sound != null and rain_sounds == [rain.effects[0].effect_sound],
+		"箭雨下落阶段只播放开弓声")
 	_check(is_instance_valid(rain_fx) and is_equal_approx(rain_fx.scale.x * 70.0, rain.effects[1].radius)
 		and rain_fx.global_position.is_equal_approx(lab.dummy.global_position),
 		"箭雨预警圈对齐实际落点与伤害半径")
 	await get_tree().create_timer(0.36).timeout
 	_check(is_instance_valid(arrows) and arrows.frame >= 12 and is_equal_approx(lab.battle.training_damage(), rain_damage),
 		"箭雨齐落时按技能资源倍率结算（%.2f / %.2f）" % [lab.battle.training_damage(), rain_damage])
+	_check(rain.effects[1].effect_sound != null and rain_sounds == [rain.effects[0].effect_sound, rain.effects[1].effect_sound],
+		"箭雨齐落时播放一次落地声")
 	await get_tree().create_timer(0.42).timeout
 	_check(not is_instance_valid(rain_fx) and is_equal_approx(lab.battle.training_damage(), rain_damage),
 		"箭雨只结算一次，余尘消散后移除特效")
 
+	rain_sounds.clear()
 	lab.skill_cards[1].cast_requested.emit(rain)
 	await get_tree().create_timer(0.55).timeout
 	lab.hero.state_machine.transition_to(&"idle", true)
@@ -627,6 +644,7 @@ func _test_hero_lab() -> void:
 			lingering = true
 	_check(not lingering and is_equal_approx(lab.battle.training_damage(), rain_damage),
 		"箭雨在伤害帧前中断时取消落地和伤害")
+	_check(rain_sounds == [rain.effects[0].effect_sound], "提前中断的箭雨没有落地声")
 
 	lab.positioning_button.toggled.emit(true)
 	lab._select_definition(UnitCatalog.get_definition(&"soldier"))
@@ -678,6 +696,7 @@ func _test_swordsman_kit() -> void:
 	var chase: CombatActionDefinition = null
 	var basic: CombatActionDefinition = null
 	var triple: CombatActionDefinition = null
+	var flurry: CombatActionDefinition = null
 	for action in definition.actions:
 		if action == null:
 			continue
@@ -685,6 +704,8 @@ func _test_swordsman_kit() -> void:
 			chase = action
 		elif action.action_id == &"swordsman_triple":
 			triple = action
+		elif action.action_id == &"swordsman_flurry":
+			flurry = action
 		elif action.category == CombatActionDefinition.Category.BASIC:
 			basic = action
 	_check(chase != null and chase.display_name == "追击步"
@@ -724,7 +745,7 @@ func _test_swordsman_kit() -> void:
 	_check(definition.skill_description_text().contains("追击步")
 		and definition.skill_description_text().contains("热诚决斗"),
 		"剑士技能详情包含追击步与热诚决斗")
-	if chase == null or basic == null or triple == null or passive == null or zeal == null:
+	if chase == null or basic == null or triple == null or flurry == null or passive == null or zeal == null:
 		_check(false, "剑士追击步/热诚决斗资源完整")
 		return
 
@@ -774,6 +795,11 @@ func _test_swordsman_kit() -> void:
 	hero.brain.enabled = false
 
 	# 实际施放：无伤害、向前位移并施加攻速 buff。
+	var played_sounds: Array[AudioStream] = []
+	battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+		if node is AudioStreamPlayer:
+			played_sounds.append(node.stream)
+	)
 	var haste: StatusDefinition = StatusCatalog.get_definition(&"swordsman_chase_haste")
 	hero.status_controller.clear_all()
 	var start_position := hero.global_position
@@ -783,7 +809,10 @@ func _test_swordsman_kit() -> void:
 	hero.planned_has_point = false
 	var damage_before := battle.training_damage()
 	hero.state_machine.transition_to(&"action", true)
+	_check(chase.cast_sound != null and played_sounds == [chase.cast_sound],
+		"追击步在起步时播放掠风声")
 	await get_tree().create_timer(0.6).timeout
+	_check(played_sounds == [chase.cast_sound], "追击步施加攻速状态时不重复播放")
 	_check(hero.state_machine.current_name != &"death"
 		and hero.global_position.distance_to(start_position) > 50.0,
 		"追击步实际朝目标方向位移一段距离")
@@ -794,6 +823,7 @@ func _test_swordsman_kit() -> void:
 		"追击步本身不造成伤害")
 
 	# 热诚决斗：只有技能命中叠层，普攻不叠；每次叠加刷新 6 秒。
+	played_sounds.clear()
 	hero.status_controller.clear_all()
 	var base_speed := hero.current_attack_speed()
 	hero.register_damage_hit(enemies[0], false)
@@ -813,17 +843,22 @@ func _test_swordsman_kit() -> void:
 	_check(hero.status_controller.stacks(zeal.id) == 4
 		and is_equal_approx(hero.apply_status_damage_bonus(100.0, false), 100.0),
 		"4 层热诚尚未获得固定额外伤害")
+	_check(played_sounds.is_empty(), "热诚未满层时不播放提示")
 	hero.register_damage_hit(enemies[0], true)
 	_check(hero.status_controller.stacks(zeal.id) == 5
 		and is_equal_approx(hero.current_attack_speed(), base_speed * 1.25)
 		and is_equal_approx(hero.apply_status_damage_bonus(100.0, false), 105.0)
 		and is_equal_approx(hero.apply_status_damage_bonus(100.0, true), 105.0),
 		"满 5 层时 +25% 攻速且每次攻击额外 +5 伤害")
+	var zeal_sound: AudioStream = (zeal.behavior as ZealDuelBehavior).ready_sound
+	hero.register_damage_hit(enemies[0], true)
+	_check(zeal_sound != null and played_sounds == [zeal_sound], "热诚到达满层时提示一次，满层刷新时不重复")
 	hero.start_action_cooldown(basic)
 	_check(hero.action_cooldown(basic) < hero.attack_interval * 0.95,
 		"满层攻速缩短基础普攻冷却")
 
 	# 真实动作路径：突刺斩 3 次命中叠 3 层。
+	played_sounds.clear()
 	hero.status_controller.clear_all()
 	hero.action_cooldowns[triple.action_id] = 0.0
 	if hero.state_machine.current_name != &"idle":
@@ -835,10 +870,41 @@ func _test_swordsman_kit() -> void:
 	hero.planned_direction = Vector2.RIGHT
 	hero.planned_has_point = false
 	hero.state_machine.transition_to(&"action", true)
-	await get_tree().create_timer(0.8).timeout
+	await get_tree().create_timer(1.05).timeout
 	_check(hero.status_controller.stacks(zeal.id) == 3,
 		"突刺斩三次技能命中真实叠加 3 层热诚")
+	var thrust_sound := triple.effects[0].impact_sound
+	_check(thrust_sound != null and played_sounds == [thrust_sound, thrust_sound, thrust_sound],
+		"突刺斩三次命中各播放一次刺击声")
+
+	played_sounds.clear()
 	hero.status_controller.clear_all()
+	enemies[0].hp = enemies[0].max_hp
+	hero.position = enemies[0].position + Vector2(-70.0, 0.0)
+	hero.action_cooldowns[flurry.action_id] = 0.0
+	hero.mana = hero.max_mana
+	hero.planned_action = flurry
+	hero.planned_target = enemies[0]
+	hero.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.85).timeout
+	var flurry_sound := flurry.effects[0].impact_sound
+	var finisher := flurry.effects[4].impact_sound
+	_check(flurry_sound != null and finisher != null and finisher != flurry_sound
+		and played_sounds == [flurry_sound, flurry_sound, flurry_sound, flurry_sound, zeal_sound, finisher],
+		"利刃华尔兹四段轻斩、第五段收剑与满层提示按命中播放：%s" % [
+			played_sounds.map(func(sound: AudioStream) -> String: return sound.resource_path.get_file())
+		])
+
+	played_sounds.clear()
+	hero.action_cooldowns[flurry.action_id] = 0.0
+	hero.mana = hero.max_mana
+	hero.planned_action = flurry
+	hero.planned_target = enemies[0]
+	hero.state_machine.transition_to(&"action", true)
+	var started_flurry := hero.current_cast != null and hero.current_cast.action == flurry
+	enemies[0].position += Vector2(300.0, 0.0)
+	await get_tree().create_timer(0.85).timeout
+	_check(started_flurry and played_sounds.is_empty(), "利刃华尔兹落空时没有命中声")
 
 	battle.queue_free()
 	await get_tree().process_frame
@@ -3641,15 +3707,26 @@ func _test_necromancer() -> void:
 		var hp_before := target.hp
 		var second_hp_before := second_target.hp if second_target != null else 0.0
 		var projectiles_before := battle.projectiles_fired
+		var sounds: Array[AudioStream] = []
+		battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+			if node is AudioStreamPlayer:
+				sounds.append(node.stream)
+		)
 		necro.mana = necro.max_mana
 		necro.target = target
 		necro.planned_action = ghostfire
 		necro.state_machine.transition_to(&"action", true)
-		await get_tree().create_timer(0.9).timeout
+		await get_tree().create_timer(0.6).timeout
+		var ghost_fx := battle.effects_root.get_node_or_null("NecromancerGhostFire") as ArenaBillboardEffect
+		_check(_has_upright_effect(ghost_fx, battle.stage, target.global_position, target.get_hit_point() - target.global_position),
+			"幽火保持原始比例，定位到锁定目标受击点")
+		await get_tree().create_timer(0.3).timeout
 		_check(battle.projectiles_fired == projectiles_before and target.hp < hp_before,
 			"幽火直接在目标位置生成并命中，不发射飞行物")
 		_check(second_target != null and second_target.hp < second_hp_before,
 			"幽火命中圆形范围内的第二个敌人")
+		_check(ghostfire.effects[0].effect_sound != null and sounds == [ghostfire.effects[0].effect_sound],
+			"幽火命中两名敌人只播放一次爆裂声")
 
 		necro.mana = necro.max_mana
 		necro.planned_action = tendrils
@@ -3657,9 +3734,14 @@ func _test_necromancer() -> void:
 		await get_tree().create_timer(0.9).timeout
 		_check(target.status_controller.has_tag(&"shadow") and second_target.status_controller.has_tag(&"shadow"),
 			"暗影触手给圆形范围内所有敌人施加持续伤害")
+		var tendril_fx := battle.effects_root.get_node_or_null("NecromancerShadowTendrils") as ArenaBillboardEffect
+		_check(_has_upright_effect(tendril_fx, battle.stage, target.global_position),
+			"暗影触手保持原始比例，底部锚定在范围中心")
 		var dot_hp_before := target.hp
 		await get_tree().create_timer(0.6).timeout
 		_check(target.hp < dot_hp_before, "暗影触手持续扣血")
+		_check(tendrils.effects[0].effect_sound != null and sounds == [ghostfire.effects[0].effect_sound, tendrils.effects[0].effect_sound],
+			"暗影触手只在施放时发声，持续扣血不重复触发")
 
 		# 召唤完整流程：魔法阵 + 骷髅 summon 动画 + 正常行动。
 		necro.mana = necro.max_mana
@@ -3674,6 +3756,18 @@ func _test_necromancer() -> void:
 			if unit.summoned:
 				summoned = unit
 		_check(summoned != null and not summoned.brain.enabled, "召唤骷髅先播放 summon 动画")
+		var circle_scene := summon.effects[0].effect_scene.resource_path
+		var circles := battle.effects_root.get_children().filter(func(node: Node) -> bool:
+			return node.scene_file_path == circle_scene
+		)
+		_check(summoned != null and not summoned.visual.visible and battle.stage.actors.get_child_count() == battle.units.size(),
+			"召唤骷髅由与其他单位相同的 3D 立绘层显示")
+		_check(summoned != null and circles.size() == 1
+			and _has_upright_effect(circles[0], battle.stage, summoned.global_position),
+			"召唤法阵只播放一次，并以原始比例对齐召唤点")
+		_check(summon.effects[0].effect_sound != null
+			and sounds == [ghostfire.effects[0].effect_sound, tendrils.effects[0].effect_sound, summon.effects[0].effect_sound],
+			"召唤骷髅出场时播放一次法阵和骨响")
 		await get_tree().create_timer(1.1).timeout
 		_check(summoned != null and summoned.brain.enabled, "召唤动画结束后骷髅恢复行动")
 		if summoned != null:
@@ -3702,6 +3796,17 @@ func _test_necromancer() -> void:
 	GameState.reset_lineups()
 	battle.queue_free()
 	await get_tree().process_frame
+
+
+func _has_upright_effect(effect: ArenaBillboardEffect, stage: ArenaStage3D, anchor: Vector2,
+		height_offset := Vector2.ZERO) -> bool:
+	if not is_instance_valid(effect) or effect.get_child_count() != 1:
+		return false
+	var sprite := effect.get_child(0) as Sprite3D
+	return sprite != null and sprite.texture != null and not effect.visible \
+		and sprite.scale.is_equal_approx(Vector3(effect.scale.x, effect.scale.y, 1.0)) \
+		and sprite.global_basis.y.normalized().is_equal_approx(stage.camera.basis.y) \
+		and sprite.global_position.is_equal_approx(stage.billboard_anchor(anchor, height_offset))
 
 
 func _test_stat_editor() -> void:

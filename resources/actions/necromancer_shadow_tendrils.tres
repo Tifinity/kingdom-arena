@@ -1,14 +1,16 @@
-[gd_resource type="Resource" script_class="CombatActionDefinition" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="CombatActionDefinition" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/fx/necromancer_shadow_tendrils.tscn" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/necro_tendrils.wav" id="necro_tendrils"]
 
 [sub_resource type="Resource" id="effect_0"]
 script = ExtResource("2")
 kind = 5
 shape = 1
 trigger_frame = 6
+effect_sound = ExtResource("necro_tendrils")
 damage_ratio = 0.0
 radius = 72.0
 status_id = &"shadow_tendrils"
