@@ -85,6 +85,7 @@ func _ready() -> void:
 	mode_select.select(mode_select.get_item_index(GameState.battle_mode))
 	mode_select.item_selected.connect(_on_mode_selected)
 	_on_mode_selected(mode_select.selected)
+	$UI/Root/Header/HeaderRight/AudioButton.pressed.connect(AudioMix.open_settings)
 	lab_button.pressed.connect(_on_lab_pressed)
 	save_match_button.pressed.connect(_on_save_match_pressed)
 	save_match_dialog.file_selected.connect(_save_match)

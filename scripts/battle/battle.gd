@@ -20,6 +20,8 @@ const MAIN_BASE_DEFINITION := preload("res://resources/battle/main_base.tres")
 const RESPAWN_DELAY := 8.0
 const RESPAWN_DELAY_STEP := 3.0
 const MAX_RESPAWN_DELAY := 20.0
+const MUSIC_TRIM_DB := -2.0
+const MUSIC_FADE_SECONDS := 2.5
 
 const SETUP_SCENE := "res://scenes/setup/setup_screen.tscn"
 const BASE_SIZE := Vector2(1600.0, 900.0)
@@ -97,8 +99,10 @@ var field_max := BASE_FIELD_MAX
 var _viewport_size := Vector2.ZERO
 
 var _rng := RandomNumberGenerator.new()
+var _music_fade: Tween
 
 @onready var hud: BattleHUD = $HUD
+@onready var battle_music: AudioStreamPlayer = $BattleMusic
 @onready var stage: ArenaStage3D = $Stage
 @onready var ground_presentation: CanvasLayer = $GroundPresentation
 @onready var units_root: Node2D = $GroundPresentation/UnitsRoot
@@ -400,6 +404,10 @@ func start_training(definition: UnitDefinition) -> void:
 
 func _reset_round() -> void:
 	_round_id += 1
+	if _music_fade != null:
+		_music_fade.kill()
+		_music_fade = null
+	battle_music.stop()
 	_clear_battlefield()
 	battle_active = false
 	finished = false
@@ -470,6 +478,9 @@ func _run_countdown() -> void:
 
 func _begin_battle() -> void:
 	battle_active = true
+	if not training_mode and DisplayServer.get_name() != "headless":
+		battle_music.volume_db = MUSIC_TRIM_DB
+		battle_music.play()
 	for unit in living_units():
 		unit.on_battle_started()
 		unit.brain.force_think()
@@ -624,6 +635,10 @@ func _finish(result_winner: int, reason := "elimination") -> void:
 	Engine.time_scale = 1.0
 	speed_multiplier = 1.0
 	hud.refresh_controls()
+	if battle_music.playing:
+		_music_fade = create_tween()
+		_music_fade.tween_property(battle_music, "volume_db", -48.0, MUSIC_FADE_SECONDS)
+		_music_fade.tween_callback(battle_music.stop)
 
 	if replay_config != null:
 		replay_result = {"tick": replay_tick, "reason": reason, "summary": _build_result(reason)}
@@ -848,6 +863,7 @@ func play_action_sound(stream: AudioStream) -> void:
 	var player := AudioStreamPlayer.new()
 	player.stream = stream
 	player.volume_db = -9.0
+	player.bus = AudioMix.SFX
 	player.finished.connect(player.queue_free)
 	effects_root.add_child(player)
 	player.play()

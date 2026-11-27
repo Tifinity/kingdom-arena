@@ -84,6 +84,10 @@ custom_minimum_size = Vector2(116, 40)
 layout_mode = 2
 theme_type_variation = &"PixelButton"
 
+[node name="AudioButton" parent="UI/Root/Header/HeaderRight" instance=ExtResource("4")]
+layout_mode = 2
+text = "音量"
+
 [node name="LabButton" parent="UI/Root/Header/HeaderRight" instance=ExtResource("4")]
 layout_mode = 2
 text = "试炼场"
