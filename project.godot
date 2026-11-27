@@ -25,6 +25,7 @@ UnitCatalog="*res://scripts/autoload/unit_catalog.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 StatusCatalog="*res://scripts/autoload/status_catalog.gd"
 BattleTransition="*res://scenes/battle/battle_transition.tscn"
+BattleVideoExport="*res://scripts/autoload/battle_video_export.gd"
 
 [display]
 

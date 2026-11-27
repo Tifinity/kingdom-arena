@@ -96,6 +96,10 @@ text = "试炼场"
 layout_mode = 2
 text = "保存对阵"
 
+[node name="ExportVideoButton" parent="UI/Root/Header/HeaderRight" instance=ExtResource("4")]
+layout_mode = 2
+text = "导出录像"
+
 [node name="StartButton" parent="UI/Root/Header/HeaderRight" instance=ExtResource("4")]
 theme_type_variation = &"PixelPrimary"
 custom_minimum_size = Vector2(124, 40)
@@ -494,3 +498,22 @@ file_mode = 4
 access = 2
 filters = PackedStringArray("*.json ; JSON 对阵配置")
 use_native_dialog = true
+
+[node name="ExportVideoDialog" type="FileDialog" parent="."]
+title = "导出战斗录像"
+visible = false
+initial_position = 2
+size = Vector2i(720, 480)
+file_mode = 4
+access = 2
+filters = PackedStringArray("*.mp4 ; MP4 视频")
+use_native_dialog = true
+
+[node name="ExportVideoResult" type="AcceptDialog" parent="."]
+initial_position = 1
+min_size = Vector2i(480, 0)
+visible = false
+exclusive = true
+transient = true
+dialog_autowrap = true
+ok_button_text = "关闭"

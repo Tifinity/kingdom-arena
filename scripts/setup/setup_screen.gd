@@ -37,6 +37,9 @@ var cards: Array[UnitCard] = []
 @onready var lab_button: Button = $UI/Root/Header/HeaderRight/LabButton
 @onready var save_match_button: Button = $UI/Root/Header/HeaderRight/SaveMatchButton
 @onready var save_match_dialog: FileDialog = $SaveMatchDialog
+@onready var export_video_button: Button = $UI/Root/Header/HeaderRight/ExportVideoButton
+@onready var export_video_dialog: FileDialog = $ExportVideoDialog
+@onready var export_video_result: AcceptDialog = $ExportVideoResult
 @onready var start_button: Button = $UI/Root/Header/HeaderRight/StartButton
 @onready var all_filter: Button = $UI/Root/Drawer/Panel/Split/Roster/RosterHeader/Filters/AllFilter
 @onready var human_filter: Button = $UI/Root/Drawer/Panel/Split/Roster/RosterHeader/Filters/HumanFilter
@@ -89,6 +92,12 @@ func _ready() -> void:
 	lab_button.pressed.connect(_on_lab_pressed)
 	save_match_button.pressed.connect(_on_save_match_pressed)
 	save_match_dialog.file_selected.connect(_save_match)
+	export_video_button.visible = BattleVideoExport.is_available()
+	export_video_button.pressed.connect(_on_export_video_pressed)
+	export_video_dialog.file_selected.connect(_export_video)
+	BattleVideoExport.busy_changed.connect(_refresh_video_export_button)
+	BattleVideoExport.finished.connect(_show_video_export_result)
+	_refresh_video_export_button(BattleVideoExport.is_busy())
 	start_button.pressed.connect(_on_start_pressed)
 	all_filter.pressed.connect(_set_filter.bind(-1))
 	human_filter.pressed.connect(_set_filter.bind(UnitDefinition.Faction.HUMAN))
@@ -362,6 +371,33 @@ func _save_match(path: String) -> void:
 	var config := BattleReplayConfig.from_setup()
 	var error := config.save(path)
 	_toast("已保存对阵 · 种子 %d" % config.seed if error == OK else "保存对阵失败 · %s" % error_string(error))
+
+
+func _on_export_video_pressed() -> void:
+	if not GameState.lineup_ready():
+		_toast("双方至少各部署 1 名英雄")
+		return
+	export_video_dialog.current_file = "arena-%s.mp4" % Time.get_datetime_string_from_system().replace(":", "-")
+	export_video_dialog.popup_centered_ratio(0.7)
+
+
+func _export_video(path: String) -> void:
+	var error := BattleVideoExport.start(BattleReplayConfig.from_setup(), path)
+	if error.is_empty():
+		_toast("正在导出录像，请保持录制窗口打开")
+	else:
+		_show_video_export_result(path, error)
+
+
+func _refresh_video_export_button(busy: bool) -> void:
+	export_video_button.disabled = busy
+	export_video_button.text = "导出中…" if busy else "导出录像"
+
+
+func _show_video_export_result(path: String, error: String) -> void:
+	export_video_result.title = "录像已保存" if error.is_empty() else "录像导出失败"
+	export_video_result.dialog_text = path if error.is_empty() else error
+	export_video_result.popup_centered()
 
 
 func _toast(message: String) -> void:
