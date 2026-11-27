@@ -215,7 +215,10 @@ static func _validate_overrides(overrides: Variant) -> String:
 static func project_revision() -> String:
 	if not _project_revision.is_empty():
 		return _project_revision
-	var paths: PackedStringArray = ["res://project.godot", "res://tools/replay_battle.gd", "res://tools/replay_battle.tscn"]
+	var paths: PackedStringArray = [
+		"res://project.godot", "res://default_bus_layout.tres",
+		"res://tools/replay_battle.gd", "res://tools/replay_battle.tscn",
+	]
 	for directory: String in SOURCE_DIRS:
 		_append_source_paths("res://" + directory, paths)
 	paths.sort()

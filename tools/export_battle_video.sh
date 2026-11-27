@@ -41,7 +41,7 @@ mkdir "$capture_project"
 
 # Movie Maker 在场景启动前读取录制尺寸。通过临时项目启用专用画面配置，
 # 原工程设置与对阵配置的项目指纹继续使用同一份源码。
-for entry in project.godot icon.svg icon.svg.import .godot assets resources scenes scripts shaders tools; do
+for entry in project.godot default_bus_layout.tres icon.svg icon.svg.import .godot assets resources scenes scripts shaders tools; do
   ln -s "$project_dir/$entry" "$capture_project/$entry"
 done
 cat > "$capture_project/override.cfg" <<'CFG'

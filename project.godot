@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+AudioMix="*res://scripts/autoload/audio_mix.gd"
 UnitCatalog="*res://scripts/autoload/unit_catalog.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 StatusCatalog="*res://scripts/autoload/status_catalog.gd"

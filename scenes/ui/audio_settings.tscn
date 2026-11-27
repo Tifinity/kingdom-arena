@@ -1,0 +1,49 @@
+[gd_scene format=3]
+
+[node name="AudioSettings" type="AcceptDialog"]
+process_mode = 3
+title = "音量设置"
+initial_position = 1
+size = Vector2i(392, 172)
+visible = false
+exclusive = true
+transient = true
+unresizable = true
+ok_button_text = "完成"
+
+[node name="Mix" type="GridContainer" parent="."]
+columns = 3
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 16
+
+[node name="BgmLabel" type="Label" parent="Mix"]
+layout_mode = 2
+text = "背景音乐"
+
+[node name="BgmSlider" type="HSlider" parent="Mix"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BgmValue" type="Label" parent="Mix"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(46, 0)
+layout_mode = 2
+horizontal_alignment = 2
+
+[node name="SfxLabel" type="Label" parent="Mix"]
+layout_mode = 2
+text = "音效"
+
+[node name="SfxSlider" type="HSlider" parent="Mix"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SfxValue" type="Label" parent="Mix"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(46, 0)
+layout_mode = 2
+horizontal_alignment = 2

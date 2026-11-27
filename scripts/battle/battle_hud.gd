@@ -71,6 +71,7 @@ func _ready() -> void:
 	speed_button.pressed.connect(_on_speed_pressed)
 	pause_button.pressed.connect(_on_pause_pressed)
 	range_button.toggled.connect(_on_range_toggled)
+	$Root/Controls/AudioButton.pressed.connect(AudioMix.open_settings)
 	exit_button.pressed.connect(_on_exit_pressed)
 	rematch_button.pressed.connect(_on_rematch_pressed)
 	back_button.pressed.connect(_on_back_pressed)
