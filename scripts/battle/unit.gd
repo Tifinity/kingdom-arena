@@ -752,7 +752,7 @@ func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectD
 
 	if battle != null:
 		battle.play_action_sound(effect.effect_sound)
-	if effect.effect_scene != null and effect.kind != ActionEffectDefinition.Kind.VISUAL:
+	if effect.effect_scene != null and effect.kind not in [ActionEffectDefinition.Kind.VISUAL, ActionEffectDefinition.Kind.SUMMON]:
 		_spawn_action_visual(effect)
 
 

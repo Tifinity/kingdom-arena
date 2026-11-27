@@ -6,6 +6,13 @@ extends StatusBehavior
 
 @export var attack_speed_per_stack := 0.05
 @export var max_stack_bonus_damage := 5.0
+@export var ready_sound: AudioStream
+
+
+func on_stack(instance: StatusInstance, old_stacks: int) -> void:
+	var maximum := instance.definition.max_stacks
+	if old_stacks < maximum and instance.stacks == maximum and instance.target.battle != null:
+		instance.target.battle.play_action_sound(ready_sound)
 
 
 func modify_stat(instance: StatusInstance, stat: StringName, value: float) -> float:

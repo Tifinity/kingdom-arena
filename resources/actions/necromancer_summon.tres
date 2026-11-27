@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/data/effects/summon_effect_behavior.gd" id="summon_behavior_script"]
 [ext_resource type="PackedScene" path="res://scenes/fx/necromancer_summon_circle.tscn" id="3"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/necro_summon.wav" id="necro_summon"]
 
 [sub_resource type="Resource" id="summon_behavior"]
 script = ExtResource("summon_behavior_script")
@@ -13,6 +14,7 @@ script = ExtResource("2")
 kind = 7
 shape = 0
 trigger_frame = 2
+effect_sound = ExtResource("necro_summon")
 damage_ratio = 0.00
 radius = 0.0
 half_angle = 0.0
