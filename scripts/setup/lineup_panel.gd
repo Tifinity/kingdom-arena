@@ -56,6 +56,20 @@ func refresh() -> void:
 	power_label.text = "战力 %d" % GameState.lineup_power(team)
 
 
+func set_compact(compact: bool) -> void:
+	var spacing := 4 if compact else 5
+	var padding := 4 if compact else 8
+	$Margin.add_theme_constant_override("margin_top", padding)
+	$Margin.add_theme_constant_override("margin_bottom", padding)
+	$Margin/VBox.add_theme_constant_override("separation", 3 if compact else 5)
+	slots_box.add_theme_constant_override("separation", spacing)
+	accent_bar.custom_minimum_size.y = 28.0 if compact else 36.0
+	preset_option.custom_minimum_size.y = accent_bar.custom_minimum_size.y
+	for slot in slots:
+		slot.set_compact(compact)
+	size.y = 344.0 if compact else 448.0
+
+
 func _on_preset_selected(index: int) -> void:
 	GameState.select_team_preset(team, index)
 	refresh()

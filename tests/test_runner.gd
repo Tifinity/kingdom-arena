@@ -33,8 +33,10 @@ func _run_all() -> void:
 	await _test_archer_kit()
 	await _test_setup_scene()
 	await _test_hero_lab()
+	await _test_compact_ui()
 	await _test_swordsman_kit()
 	await _test_priest_kit()
+	await _test_roster_skill_timing()
 	await _test_knight_kit()
 	await _test_flame_slash()
 	await _test_templar_holy_blades()
@@ -931,8 +933,10 @@ func _test_priest_kit() -> void:
 		"牧师配置圣光弹、祈福与圣光普照")
 	_check(holy_bolt != null and not holy_bolt.effects.is_empty()
 		and holy_bolt.effects[0].kind == ActionEffectDefinition.Kind.PROJECTILE
-		and holy_bolt.effects[0].projectile_kind == UnitDefinition.ProjectileKind.HOLY_BOLT,
-		"圣光弹使用圣光投射物")
+		and holy_bolt.effects[0].projectile_kind == UnitDefinition.ProjectileKind.HOLY_BOLT
+		and holy_bolt.effects[0].projectile_collision_width == 70.0
+		and holy_bolt.display_name == "圣光弹" and holy_bolt.cooldown == 8.0 and holy_bolt.mana_cost == 0.0,
+		"圣光弹保留名称与零蓝耗，复用星火裂变的直线弹道和冷却")
 	_check(blessing != null and blessing.target_mode == CombatActionDefinition.TargetMode.ALLY
 		and blessing.targeting != null
 		and blessing.targeting.selection == ActionTargetingDefinition.Selection.LOWEST_HP_ALLY
@@ -947,7 +951,7 @@ func _test_priest_kit() -> void:
 		and is_equal_approx(grace.heal_below_hp_ratio, 0.4)
 		and is_equal_approx(grace.heal_bonus_ratio, 0.2),
 		"恩泽配置为低于 40% 生命时治疗 +20%")
-	if holy_bolt == null or blessing == null or grace == null:
+	if holy_bolt == null or blessing == null or sanctuary == null or grace == null:
 		_check(false, "牧师技能资源完整")
 		return
 
@@ -956,20 +960,25 @@ func _test_priest_kit() -> void:
 	GameState.set_slot(0, 0, &"priest")
 	GameState.set_slot(0, 1, &"soldier")
 	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"knight")
 	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
 	add_child(battle)
 	await get_tree().process_frame
 	var priest: Unit = null
 	var patient: Unit = null
 	var enemy: Unit = null
+	var blocker: Unit = null
 	for unit in battle.units:
 		if unit.team == 1:
-			enemy = unit
+			if unit.definition.unit_id == &"knight":
+				blocker = unit
+			else:
+				enemy = unit
 		elif unit.definition.unit_id == &"priest":
 			priest = unit
 		else:
 			patient = unit
-	if priest == null or patient == null or enemy == null:
+	if priest == null or patient == null or enemy == null or blocker == null:
 		_check(false, "牧师测试固定场景生成")
 		battle.queue_free()
 		await get_tree().process_frame
@@ -979,10 +988,15 @@ func _test_priest_kit() -> void:
 	battle.battle_active = true
 	priest.position = Vector2(700, 650)
 	patient.position = Vector2(760, 650)
-	enemy.position = Vector2(850, 650)
+	enemy.position = Vector2(1020, 650)
+	blocker.position = Vector2(860, 650)
 	patient.hp = patient.max_hp * 0.35
 	priest.mana = priest.max_mana
 	var before_heal := patient.hp
+	var played: Array[AudioStream] = []
+	battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+		if node is AudioStreamPlayer:
+			played.append(node.stream))
 	priest.target = enemy
 	priest.planned_action = blessing
 	priest.planned_target = patient
@@ -991,17 +1005,215 @@ func _test_priest_kit() -> void:
 	var heal_gain := patient.hp - before_heal
 	_check(heal_gain > 17.0 and heal_gain <= 21.0,
 		"祈福治疗受伤队友并按恩泽提高 20% 治疗量")
+	_check(grace.heal_bonus_sound != null and grace.heal_bonus_fx != null
+		and played.count(grace.heal_bonus_sound) == 1 and grace.heal_multiplier(0.4) == 1.0,
+		"恩泽在生命低于阈值时提供反馈，恰好 40% 时不加成")
 
 	var enemy_hp := enemy.hp
-	priest.position = Vector2(700, 650)
-	enemy.position = Vector2(850, 650)
-	priest.mana = 0.0
+	var blocker_hp := blocker.hp
+	var shots_before := battle.projectiles_fired
+	var bolt := holy_bolt.effects[0]
+	_check(priest.brain._plan_victims(holy_bolt, bolt, enemy, Vector2.ZERO) == [blocker],
+		"牧师 AI 按圣光弹的首个接触目标估算命中")
+	played.clear()
+	priest.mana = holy_bolt.mana_cost
 	priest.target = enemy
 	priest.planned_action = holy_bolt
 	priest.state_machine.transition_to(&"action", true)
-	await get_tree().create_timer(1.0).timeout
-	_check(enemy.hp < enemy_hp, "圣光弹命中敌人并造成伤害")
+	await get_tree().create_timer(0.13).timeout
+	_check(battle.projectiles_fired == shots_before and played.is_empty(), "圣光弹前摇阶段尚未发射")
+	await get_tree().create_timer(0.43).timeout
+	var damage := (9.0 + priest.attack_damage * 0.85) * (1.0 - blocker.current_armor())
+	_check(is_equal_approx(blocker_hp - blocker.hp, damage) and is_equal_approx(enemy.hp, enemy_hp)
+		and is_equal_approx(patient.hp, before_heal + heal_gain) and is_equal_approx(blocker.slow_factor, 0.65)
+		and blocker.slow_time > 1.0 and enemy.slow_time == 0.0,
+		"圣光弹穿过友军，在首名接触的敌人处停止并施加减速")
+	_check(played == [bolt.projectile_release_sound, bolt.impact_sound], "圣光弹分别在发射和接触时播放音效")
 
+	played.clear()
+	priest.mana = priest.max_mana
+	priest.action_cooldowns.erase(holy_bolt.action_id)
+	priest.planned_action = holy_bolt
+	priest.planned_direction = Vector2.ZERO
+	priest.state_machine.transition_to(&"action", true)
+	enemy.position.y += 180.0
+	blocker.position.y -= 180.0
+	await get_tree().create_timer(1.0).timeout
+	_check(battle.projectiles_fired == shots_before + 2 and battle.projectiles_root.get_child_count() == 0
+		and is_equal_approx(enemy.hp, enemy_hp) and played == [bolt.projectile_release_sound],
+		"敌人离开瞄准线后，圣光弹继续直行至射程结束且不播放命中声")
+
+	played.clear()
+	var sanctuary_scenes: Array[String] = []
+	var grace_scene := grace.heal_bonus_fx.resource_path if grace.heal_bonus_fx != null else ""
+	battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+		if not node.scene_file_path.is_empty() and node.scene_file_path != grace_scene:
+			sanctuary_scenes.append(node.scene_file_path))
+	var priest_before := priest.max_hp * 0.3
+	var patient_before := patient.max_hp * 0.35
+	priest.hp = priest_before
+	patient.hp = patient_before
+	priest.mana = priest.max_mana
+	priest.planned_action = sanctuary
+	priest.planned_target = priest
+	priest.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.6).timeout
+	_check(priest.hp > priest_before and patient.hp > patient_before and played.count(grace.heal_bonus_sound) == 1,
+		"圣光普照同时治疗两名低血量友军时只播放一次恩泽声")
+	_check(sanctuary_scenes == [sanctuary.effects[0].effect_scene.resource_path], "圣光普照只播放一套范围特效")
+
+	battle.queue_free()
+	await get_tree().process_frame
+	GameState.reset_lineups()
+
+
+func _test_compact_ui() -> void:
+	print("\n[小窗布局] 布阵、实战和试炼场")
+	var window := get_window()
+	var previous_aspect := window.content_scale_aspect
+	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+	GameState.reset_lineups()
+	var setup: ArenaSetup = load("res://scenes/setup/setup_screen.tscn").instantiate()
+	add_child(setup)
+	setup.editor.fit_window(Vector2(1600, 900))
+	setup._select_definition(UnitCatalog.get_definition(&"priest"))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var desktop_columns := setup.roster_grid.columns
+	var field_rect := setup.field.get_global_rect()
+	setup.editor.fit_window(Vector2(1024, 600))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var drawer_rect := setup.drawer.get_global_rect()
+	var viewport := get_viewport().get_visible_rect()
+	_check(setup.editor.compact and viewport.encloses(setup.start_button.get_global_rect())
+		and setup.blue_panel.get_global_rect().end.y < drawer_rect.position.y
+		and setup.red_panel.get_global_rect().end.y < drawer_rect.position.y,
+		"小窗中的开始按钮完整可见，名册不遮住阵容槽位")
+	_check(setup.roster_grid.columns < desktop_columns and setup.field.get_global_rect() == field_rect,
+		"名册列数随可用宽度缩减，场地输入仍使用战场视口")
+	setup.editor.fit_window(Vector2(1600, 900))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(not setup.editor.compact and setup.roster_grid.columns == desktop_columns,
+		"恢复大窗时名册回到宽屏列数")
+	setup.battle.start_deployed_battle()
+	var hud := setup.battle.hud
+	hud.ui_root.fit_window(Vector2(1024, 600))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var left_roster := hud.roster_columns[0]
+	var right_roster := hud.roster_columns[1]
+	var first_right: Control = right_roster.get_child(0)
+	var last_right: Control = right_roster.get_child(right_roster.get_child_count() - 1)
+	var topbar: Control = hud.get_node("Root/TopBar")
+	var controls: Control = hud.get_node("Root/Controls")
+	_check(not setup.field.visible and not setup.editor.visible and hud.visible
+		and first_right.get_global_rect().position.y >= topbar.get_global_rect().end.y
+		and last_right.get_global_rect().end.y < controls.get_global_rect().position.y
+		and not controls.get_global_rect().intersects(hud.hint_label.get_global_rect()),
+		"实战小窗的头像完整可见，底部提示与操作按钮各占一侧")
+	var field_left := (setup.battle.stage.ground_transform * setup.battle.field_min).x
+	var field_right := (setup.battle.stage.ground_transform * setup.battle.field_max).x
+	_check(left_roster.get_global_rect().end.x < field_left
+		and right_roster.get_global_rect().position.x > field_right,
+		"实战小窗的英雄卡留在场地边界外")
+	setup.queue_free()
+	await get_tree().process_frame
+
+	var lab = load("res://scenes/debug/hero_lab.tscn").instantiate()
+	add_child(lab)
+	lab.ui_root.fit_window(Vector2(1024, 600))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var right_panel: Control = lab.ui_root.get_node("RightPanel")
+	var skill_panel: Control = lab.ui_root.get_node("SkillPanel")
+	var stat_bar: VScrollBar = lab.stats_scroll.get_v_scroll_bar()
+	_check(right_panel.get_global_rect().end.y < skill_panel.get_global_rect().position.y
+		and viewport.encloses(skill_panel.get_global_rect())
+		and right_panel.get_global_rect().encloses(lab.start_button.get_global_rect())
+		and stat_bar.max_value > stat_bar.page,
+		"试炼场小窗的技能栏和实战按钮均可见，属性表可独立滚动")
+	lab.queue_free()
+	await get_tree().process_frame
+	window.content_scale_aspect = previous_aspect
+	GameState.reset_lineups()
+
+
+func _test_roster_skill_timing() -> void:
+	print("\n[新版技能] 连射节奏、酸液范围与落空")
+	GameState.set_lineup(0, [&"skeleton_archer", &"slime", null, null, null])
+	GameState.set_lineup(1, [&"soldier", &"knight", &"archer", null, null])
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	add_child(battle)
+	await get_tree().process_frame
+	var allies := battle.living_units(0)
+	var enemies := battle.living_units(1)
+	if allies.size() != 2 or enemies.size() != 3:
+		_check(false, "新版技能测试阵容完整")
+		battle.queue_free()
+		await get_tree().process_frame
+		GameState.reset_lineups()
+		return
+	for unit in battle.units:
+		unit.brain.enabled = false
+	var archer := allies[0]
+	var slime := allies[1]
+	var volley := archer.definition.actions[1]
+	var acid := slime.definition.actions[1]
+	var primary := enemies[0]
+	var nearby := enemies[1]
+	var outside := enemies[2]
+	var origin := battle.field_min + Vector2(500, 300)
+	archer.position = origin
+	slime.position = origin + Vector2(110, -130)
+	primary.position = origin + Vector2(250, -40)
+	nearby.position = origin + Vector2(320, -80)
+	outside.position = origin + Vector2(480, -50)
+	battle.battle_active = true
+	var played: Array[AudioStream] = []
+	battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+		if node is AudioStreamPlayer:
+			played.append(node.stream))
+	archer.target = primary
+	archer.mana = archer.max_mana
+	archer.planned_action = volley
+	var before := primary.hp
+	archer.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.23).timeout
+	_check(battle.projectiles_fired == 0 and played.is_empty(), "骸骨连射拉弓期间尚未发射或发声")
+	await get_tree().create_timer(0.75).timeout
+	_check(battle.projectiles_fired == 3 and primary.hp < before and is_equal_approx(nearby.hp, nearby.max_hp),
+		"骸骨连射三支投射物锁定同一目标")
+	_check(played.count(volley.effects[0].projectile_release_sound) == 3
+		and played.count(volley.effects[0].impact_sound) == 3,
+		"骸骨连射每箭独立播放松弦声与命中声")
+
+	played.clear()
+	primary.hp = 1.0
+	slime.target = primary
+	slime.mana = slime.max_mana
+	slime.planned_action = acid
+	slime.state_machine.transition_to(&"action", true)
+	await get_tree().create_timer(0.7).timeout
+	_check(not primary.alive and nearby.hp < nearby.max_hp and nearby.slow_time > 0.0
+		and nearby.status_controller.has_status(&"poison") and is_equal_approx(outside.hp, outside.max_hp),
+		"酸液击杀中心目标时，仍在原溅射位置给其他命中目标附加减速与中毒")
+	_check(played.count(acid.effects[0].effect_sound) == 1, "酸液范围音效在结算帧只播放一次")
+
+	await get_tree().create_timer(0.4).timeout
+	played.clear()
+	outside.position = slime.position + Vector2(160, 0)
+	slime.target = outside
+	slime.mana = slime.max_mana
+	slime.action_cooldowns.erase(acid.action_id)
+	slime.planned_action = acid
+	slime.state_machine.transition_to(&"action", true)
+	var started := slime.current_cast != null
+	outside.position += Vector2(300, 0)
+	await get_tree().create_timer(0.7).timeout
+	_check(started and is_equal_approx(outside.hp, outside.max_hp) and played.is_empty(),
+		"目标在喷吐前离开范围时，酸液落空且不播放溅射音效")
 	battle.queue_free()
 	await get_tree().process_frame
 	GameState.reset_lineups()

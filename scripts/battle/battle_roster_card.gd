@@ -9,6 +9,8 @@ const ACTIVE := Color("#a9d39d")
 var unit: Unit
 var team: int
 var slot: int
+var _margin: MarginContainer
+var _rows: VBoxContainer
 var _portrait: TextureRect
 var _health: ProgressBar
 var _mana: ProgressBar
@@ -33,23 +35,20 @@ func bind(fighter: Unit) -> void:
 	_normal_style = get_theme_stylebox("normal")
 	_selected_style = get_theme_stylebox("pressed")
 
-	var margin := MarginContainer.new()
-	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(margin)
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for edge in ["left", "right"]:
-		margin.add_theme_constant_override("margin_" + edge, 8)
-	for edge in ["top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + edge, 8)
-	var rows := VBoxContainer.new()
-	rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rows.add_theme_constant_override("separation", 4)
-	margin.add_child(rows)
+	_margin = MarginContainer.new()
+	_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_margin)
+	_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_margin.add_theme_constant_override("margin_left", 8)
+	_margin.add_theme_constant_override("margin_right", 8)
+	_rows = VBoxContainer.new()
+	_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_margin.add_child(_rows)
 
 	var header := HBoxContainer.new()
 	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.add_theme_constant_override("separation", 8)
-	rows.add_child(header)
+	_rows.add_child(header)
 	var portrait_frame := PanelContainer.new()
 	portrait_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	portrait_frame.theme_type_variation = &"PixelInset"
@@ -72,7 +71,7 @@ func bind(fighter: Unit) -> void:
 	_status_row = HBoxContainer.new()
 	_status_row.mouse_filter = Control.MOUSE_FILTER_PASS
 	_status_row.add_theme_constant_override("separation", 4)
-	rows.add_child(_status_row)
+	_rows.add_child(_status_row)
 	_state = _label("", 12, MUTED)
 	_state.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_status_row.add_child(_state)
@@ -91,7 +90,7 @@ func bind(fighter: Unit) -> void:
 	var skills := HBoxContainer.new()
 	skills.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	skills.add_theme_constant_override("separation", 4)
-	rows.add_child(skills)
+	_rows.add_child(skills)
 	for action in fighter.actions:
 		if action == null or action.category == CombatActionDefinition.Category.BASIC:
 			continue
@@ -114,7 +113,15 @@ func bind(fighter: Unit) -> void:
 		_skills.append(action)
 		_skill_timers.append(timer)
 	refresh(false)
-	custom_minimum_size.y = maxf(124.0, margin.get_combined_minimum_size().y)
+
+
+func set_compact(compact: bool) -> void:
+	var padding := 4 if compact else 8
+	_margin.add_theme_constant_override("margin_top", padding)
+	_margin.add_theme_constant_override("margin_bottom", padding)
+	_rows.add_theme_constant_override("separation", 2 if compact else 4)
+	_portrait.custom_minimum_size = Vector2(40, 32) if compact else Vector2(52, 48)
+	custom_minimum_size.y = maxf(100.0 if compact else 124.0, _margin.get_combined_minimum_size().y)
 
 
 func refresh(selected: bool, respawn_seconds := 0.0) -> void:

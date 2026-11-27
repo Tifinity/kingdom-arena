@@ -671,10 +671,8 @@ func heal(amount: float, healer: Unit = null) -> void:
 	if not alive or amount <= 0.0:
 		return
 	var before := hp
-	if healer != null and healer.definition != null and healer.definition.passive != null \
-			and healer.definition.passive.heal_below_hp_ratio > 0.0 \
-			and hp_ratio() < healer.definition.passive.heal_below_hp_ratio:
-		amount *= 1.0 + healer.definition.passive.heal_bonus_ratio
+	if healer != null and healer.definition != null and healer.definition.passive != null:
+		amount *= healer.definition.passive.heal_multiplier(hp_ratio())
 	hp = minf(max_hp, hp + amount)
 	health_bar.set_ratio(hp / max_hp)
 	if hp > before:
@@ -718,7 +716,7 @@ func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 	var impact := victim.get_effect_point()
 	var blocked := victim.is_guarding()
 	var is_skill := current_cast != null and current_cast.action.category == CombatActionDefinition.Category.SKILL
-	var damage := current_attack_damage() * maxf(effect.damage_ratio, 0.0)
+	var damage := effect.raw_damage(current_attack_damage())
 	damage = apply_status_damage_bonus(damage, not is_skill)
 	_record_action_hit(victim)
 	victim.take_damage(damage, self, impact, false, effect.ignore_shield)
@@ -743,7 +741,7 @@ func apply_knockback(origin: Vector2, distance: float) -> void:
 func resolve_action_effect(action: CombatActionDefinition, effect: ActionEffectDefinition) -> void:
 	if effect == null:
 		return
-	var damage := current_attack_damage() * maxf(effect.damage_ratio, 0.0)
+	var damage := effect.raw_damage(current_attack_damage())
 	var cast_target: Unit = current_cast.target if current_cast != null else target
 	if effect.behavior != null:
 		effect.behavior.execute(self, current_cast, effect)
@@ -761,7 +759,10 @@ func _resolve_legacy_action_effect(action: CombatActionDefinition, effect: Actio
 		ActionEffectDefinition.Kind.DAMAGE:
 			_resolve_damage_effect(action, effect, damage)
 		ActionEffectDefinition.Kind.PROJECTILE:
-			if cast_target != null and is_instance_valid(cast_target) and cast_target.alive \
+			if effect.projectile_collision_width > 0.0:
+				damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
+				battle.spawn_projectile(self, null, damage, effect.projectile_kind, accent_color, effect)
+			elif cast_target != null and is_instance_valid(cast_target) and cast_target.alive \
 					and (action.movement_kind() == ActionMovementDefinition.Kind.RETREAT
 					or is_target_in_action_range(action, 24.0, false)):
 				damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
@@ -986,9 +987,12 @@ func hp_ratio() -> float:
 	return clampf(hp / maxf(max_hp, 1.0), 0.0, 1.0)
 
 
+func get_visual_height() -> float:
+	return character_height * absf(visual.scale.y) if visual != null else character_height * definition.visual_scale
+
+
 func get_hit_point() -> Vector2:
-	var visual_height := character_height * absf(visual.scale.y) if visual != null else character_height * definition.visual_scale
-	return global_position + Vector2(0.0, -visual_height * 0.52)
+	return global_position + Vector2(0.0, -get_visual_height() * 0.52)
 
 
 ## 投影后的旧特效层仍用 Vector2 接口。这个锚点表示角色身上的视觉高度。
@@ -1012,10 +1016,9 @@ func get_muzzle_point() -> Vector2:
 	if _muzzle_marker != null and _visual_root != null:
 		var local := _muzzle_marker.position
 		return _visual_root.to_global(Vector2(local.x * float(facing), local.y))
-	var visual_height := character_height * absf(visual.scale.y) if visual != null else character_height * definition.visual_scale
 	return global_position + Vector2(
 		float(facing) * body_radius * 0.72,
-		-visual_height * 0.56
+		-get_visual_height() * 0.56
 	)
 
 

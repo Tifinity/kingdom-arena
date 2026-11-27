@@ -8,14 +8,14 @@ const LAB_SCENE := "res://scenes/debug/hero_lab.tscn"
 
 const DRAWER_HEIGHT := 291.0
 const DRAWER_CLOSED_TOP := -60.0
-const DRAWER_OPEN_TOP := DRAWER_CLOSED_TOP - DRAWER_HEIGHT
+const COMPACT_DRAWER_HEIGHT := 218.0
 const OPEN_VIEW_OFFSET := 154.0
 const LINEUP_OPEN_TOP := 76.0
 
 var selected_definition: UnitDefinition
 var cards: Array[UnitCard] = []
 
-@onready var field: Control = $UI/Root/Field
+@onready var field: Control = $UI/Field
 @onready var roster_grid: GridContainer = $UI/Root/Drawer/Panel/Split/Roster/RosterScroll/RosterGrid
 @onready var roster_count: Label = $UI/Root/Drawer/Panel/Split/Roster/RosterHeader/RosterCount
 @onready var blue_panel: LineupPanel = $UI/Root/BluePanel
@@ -49,7 +49,7 @@ var cards: Array[UnitCard] = []
 @onready var toast_label: Label = $UI/Root/ToastBox/ToastLabel
 
 @onready var battle: Battle = $Battle
-@onready var editor: Control = $UI/Root
+@onready var editor: ArenaUIRoot = $UI/Root
 @onready var drawer: Control = $UI/Root/Drawer
 @onready var drawer_toggle: Button = $UI/Root/Footer/Row/Toggle
 @onready var drawer_panel: PanelContainer = $UI/Root/Drawer/Panel
@@ -61,6 +61,7 @@ var cards: Array[UnitCard] = []
 var _toast_tween: Tween
 var _drawer_tween: Tween
 var _drawer_open := true
+var _drawer_height := DRAWER_HEIGHT
 var _camera_tween: Tween
 var _camera_offset := 0.0
 
@@ -104,7 +105,8 @@ func _ready() -> void:
 	wilderness_filter.pressed.connect(_set_filter.bind(UnitDefinition.Faction.WILDERNESS))
 	monster_filter.pressed.connect(_set_filter.bind(UnitDefinition.Faction.MONSTER))
 	toast_box.visible = false
-	_animate_drawer_top(DRAWER_OPEN_TOP)
+	editor.layout_changed.connect(_apply_ui_layout)
+	_apply_ui_layout(editor.compact)
 	_build_roster()
 	_refresh_panels()
 	editor.resized.connect(_layout_lineup_panels)
@@ -154,9 +156,11 @@ func _select_definition(definition: UnitDefinition) -> void:
 
 
 func _update_roster_columns() -> void:
-	if roster_scroll.size.x <= 1.0:
+	if roster_scroll.size.x <= 1.0 or cards.is_empty():
 		return
-	var columns := clampi(int((roster_scroll.size.x - 14.0) / 134.0), 1, 12)
+	var spacing := roster_grid.get_theme_constant("h_separation")
+	var available := roster_scroll.size.x - roster_scroll.get_v_scroll_bar().get_combined_minimum_size().x
+	var columns := clampi(int((available + spacing) / (cards[0].get_combined_minimum_size().x + spacing)), 1, 12)
 	if roster_grid.columns != columns:
 		roster_grid.columns = columns
 
@@ -263,16 +267,33 @@ func _toggle_drawer() -> void:
 	if _camera_tween != null and _camera_tween.is_valid():
 		_camera_tween.kill()
 	drawer_panel.show()
-	var target := DRAWER_OPEN_TOP if _drawer_open else DRAWER_CLOSED_TOP
+	var target := _drawer_target_top()
 	_drawer_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_drawer_tween.tween_method(_animate_drawer_top, drawer.offset_top, target, 0.22)
 	if not _drawer_open:
 		_drawer_tween.tween_callback(drawer_panel.hide)
 
 
+func _drawer_target_top() -> float:
+	return DRAWER_CLOSED_TOP - _drawer_height if _drawer_open else DRAWER_CLOSED_TOP
+
+
+func _apply_ui_layout(compact: bool) -> void:
+	if _drawer_tween != null and _drawer_tween.is_valid():
+		_drawer_tween.kill()
+	_drawer_height = COMPACT_DRAWER_HEIGHT if compact else DRAWER_HEIGHT
+	roster_scroll.custom_minimum_size.y = 150.0 if compact else 222.0
+	blue_panel.set_compact(compact)
+	red_panel.set_compact(compact)
+	drawer_panel.visible = _drawer_open
+	_set_drawer_top(_drawer_target_top())
+	if battle.deploying:
+		_set_camera_offset(_drawer_view_offset())
+
+
 func _set_drawer_top(top: float) -> void:
 	drawer.offset_top = top
-	drawer.offset_bottom = top + DRAWER_HEIGHT
+	drawer.offset_bottom = top + _drawer_height
 
 
 func _animate_drawer_top(top: float) -> void:
@@ -281,7 +302,7 @@ func _animate_drawer_top(top: float) -> void:
 
 
 func _drawer_view_offset() -> float:
-	return clampf((DRAWER_CLOSED_TOP - drawer.offset_top) / DRAWER_HEIGHT, 0.0, 1.0) * OPEN_VIEW_OFFSET
+	return clampf((DRAWER_CLOSED_TOP - drawer.offset_top) / _drawer_height, 0.0, 1.0) * OPEN_VIEW_OFFSET
 
 
 func _set_camera_offset(pixels: float) -> void:
@@ -291,8 +312,8 @@ func _set_camera_offset(pixels: float) -> void:
 
 
 func _layout_lineup_panels() -> void:
-	var extra_height := maxf(0.0, editor.size.y - Battle.BASE_SIZE.y)
-	var lineup_top := LINEUP_OPEN_TOP + extra_height * 0.5 + OPEN_VIEW_OFFSET - _camera_offset
+	var extra_height := maxf(0.0, editor.size.y - Battle.BASE_SIZE.y / editor.scale.y)
+	var lineup_top := LINEUP_OPEN_TOP + extra_height * 0.5 + (OPEN_VIEW_OFFSET - _camera_offset) / editor.scale.y
 	blue_panel.position.y = lineup_top
 	red_panel.position.y = lineup_top
 
@@ -300,13 +321,14 @@ func _layout_lineup_panels() -> void:
 func _on_deployment_changed(active: bool) -> void:
 	if _drawer_tween != null and _drawer_tween.is_valid():
 		_drawer_tween.kill()
-		_set_drawer_top(DRAWER_OPEN_TOP if _drawer_open else DRAWER_CLOSED_TOP)
+		_set_drawer_top(_drawer_target_top())
 		drawer_panel.visible = _drawer_open
 	if _camera_tween != null and _camera_tween.is_valid():
 		_camera_tween.kill()
 	_camera_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_camera_tween.tween_method(_set_camera_offset, _camera_offset, _drawer_view_offset() if active else 0.0, 0.22)
 	editor.visible = active
+	field.visible = active
 	close_details()
 	toast_box.hide()
 	if active:

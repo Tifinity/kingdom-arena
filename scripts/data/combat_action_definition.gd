@@ -39,6 +39,8 @@ enum TargetMode { ENEMY, ALLY, SELF, POINT, DIRECTION }
 @export var min_targets := 1
 ## 治疗/辅助动作只在存在受伤队友时参与决策。
 @export var requires_wounded_ally := false
+## 在效果帧重新检查本次锁定目标。该帧的伤害、状态与表现共用一次校验。
+@export var recheck_target_at_effect := false
 ## 自动战斗只在最近敌人的地面距离不超过此值时考虑该动作；0 表示不限。
 @export var ai_enemy_proximity := 0.0
 ## 多个动作同时可用时，决策层的偏好权重。
@@ -125,7 +127,7 @@ func detail_text(attack_damage: float = -1.0) -> String:
 					ActionEffectDefinition.Shape.CIRCLE: shape = "范围"
 					ActionEffectDefinition.Shape.CONE: shape = "扇形"
 					ActionEffectDefinition.Shape.RECT: shape = "直线"
-				var formula := _damage_formula(effect.damage_ratio, attack_damage)
+				var formula := _damage_formula(effect.damage_ratio, attack_damage, effect.base_damage)
 				var placeholder := "{damage_%d}" % damage_index
 				if rendered_description.contains(placeholder):
 					rendered_description = rendered_description.replace(placeholder, formula)
@@ -197,10 +199,12 @@ func detail_text(attack_damage: float = -1.0) -> String:
 	if not description.is_empty():
 		if rendered_description.contains("{total_damage}"):
 			var total_ratio := 0.0
+			var total_base := 0.0
 			for effect in effects:
 				if effect.kind == ActionEffectDefinition.Kind.DAMAGE or effect.kind == ActionEffectDefinition.Kind.PROJECTILE:
 					total_ratio += effect.damage_ratio
-			rendered_description = rendered_description.replace("{total_damage}", _damage_formula(total_ratio, attack_damage))
+					total_base += effect.base_damage
+			rendered_description = rendered_description.replace("{total_damage}", _damage_formula(total_ratio, attack_damage, total_base))
 			has_damage_placeholder = true
 		if attack_damage >= 0.0 and not has_damage_placeholder and not damage_parts.is_empty():
 			rendered_description += " 基础伤害：%s。" % "、".join(PackedStringArray(damage_parts))
@@ -208,13 +212,12 @@ func detail_text(attack_damage: float = -1.0) -> String:
 	return "、".join(PackedStringArray(parts)) if not parts.is_empty() else category_label()
 
 
-func _damage_formula(damage_ratio: float, attack_damage: float) -> String:
+func _damage_formula(damage_ratio: float, attack_damage: float, base_damage: float) -> String:
+	var base := "%s + " % _number_text(base_damage) if base_damage > 0.0 else ""
 	if attack_damage < 0.0:
-		return "%.0f%%攻击" % (damage_ratio * 100.0)
-	var damage := attack_damage * maxf(damage_ratio, 0.0)
-	var rounded := snappedf(damage, 0.001)
-	var value := str(roundi(rounded)) if is_equal_approx(rounded, float(roundi(rounded))) else str(rounded)
-	return "%s（AD × %s）" % [value, str(damage_ratio)]
+		return "%s%.0f%%攻击" % [base, damage_ratio * 100.0]
+	var value := _number_text(base_damage + attack_damage * maxf(damage_ratio, 0.0))
+	return "%s（%sAD × %s）" % [value, base, str(damage_ratio)]
 
 
 func _number_text(value: float) -> String:

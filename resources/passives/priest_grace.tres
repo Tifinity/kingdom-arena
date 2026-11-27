@@ -1,10 +1,15 @@
 [gd_resource type="Resource" script_class="PassiveDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/status/status_definition.gd" id="1_0cky6"]
+[ext_resource type="PackedScene" path="res://scenes/fx/roster_grace.tscn" id="2_vr2ik"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/roster_grace.wav" id="3_liljd"]
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="4_1fx0q"]
 
 [resource]
-script = ExtResource("1")
+script = ExtResource("4_1fx0q")
 display_name = "恩泽"
-description = "治疗生命低于 40% 的友军时，治疗量提高 20%。"
+description = "治疗生命低于 40.0% 的友军时，治疗量提高 20.0%。"
 heal_below_hp_ratio = 0.4
 heal_bonus_ratio = 0.2
+heal_bonus_fx = ExtResource("2_vr2ik")
+heal_bonus_sound = ExtResource("3_liljd")

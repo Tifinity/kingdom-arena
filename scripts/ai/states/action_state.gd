@@ -146,6 +146,8 @@ func update(delta: float) -> void:
 	var fps := 10.0
 	if unit.definition.sprite_frames != null and unit.definition.sprite_frames.has_animation(_action.animation):
 		fps = unit.definition.sprite_frames.get_animation_speed(_action.animation)
+	var checked_frame := -1
+	var can_resolve_frame := true
 	while _cast.next_effect < _cast.effects.size():
 		var effect := _cast.effects[_cast.next_effect]
 		var trigger_time := float(maxi(effect.trigger_frame, 0)) / maxf(fps * unit.visual.speed_scale, 0.01)
@@ -159,7 +161,15 @@ func update(delta: float) -> void:
 				and _cast.advanced_distance < _action.movement_distance() - 1.0 \
 				and _cast.elapsed < _cast.duration + 0.4:
 			break
-		if not (_action.movement_kind() == ActionMovementDefinition.Kind.CHARGE and effect.kind == ActionEffectDefinition.Kind.DAMAGE):
+		if _action.recheck_target_at_effect and checked_frame != effect.trigger_frame:
+			checked_frame = effect.trigger_frame
+			can_resolve_frame = _target_remains_in_range()
+			if can_resolve_frame:
+				# Pin the center for this frame, even if the first effect defeats the target.
+				_cast.point = _cast.target.global_position
+				_cast.has_point = true
+		if can_resolve_frame and not (_action.movement_kind() == ActionMovementDefinition.Kind.CHARGE \
+				and effect.kind == ActionEffectDefinition.Kind.DAMAGE):
 			unit.resolve_action_effect(_action, effect)
 		_cast.next_effect += 1
 
@@ -167,6 +177,16 @@ func update(delta: float) -> void:
 			and (_cast.next_effect >= _cast.effects.size() or _cast.elapsed >= _cast.duration + 0.4):
 		unit.visual.speed_scale = 1.0
 		machine.transition_to(&"idle")
+
+
+func _target_remains_in_range() -> bool:
+	var target := _cast.target
+	if not is_instance_valid(target) or not target.alive:
+		return false
+	var reach := _action.action_range + target.body_radius
+	if _action.target_mode == CombatActionDefinition.TargetMode.ENEMY:
+		reach = ActionActivation.enemy_reach(unit, _action, target)
+	return unit.global_position.distance_to(target.global_position) <= reach
 
 
 func _charge_hit_segment(start: Vector2, finish: Vector2) -> void:

@@ -60,6 +60,26 @@ static func _inside_rect(offset: Vector2, aim: Vector2, side: Vector2, length: f
 	return forward >= -radius and forward <= length + radius and absf(offset.dot(side)) <= half_width + radius
 
 
+## 对地面上的圆形碰撞体做扫掠，按进入圆形的距离选第一个接触点。
+static func first_projectile_contact(origin: Vector2, direction: Vector2, distance: float, half_width: float, enemies: Array[Unit]) -> Dictionary:
+	var closest: Unit
+	var contact_distance := distance
+	for enemy in enemies:
+		var offset := enemy.global_position - origin
+		var along := offset.dot(direction)
+		var radius := enemy.body_radius + half_width
+		var chord_sq := radius * radius - direction.cross(offset) ** 2
+		if chord_sq < 0.0:
+			continue
+		var chord := sqrt(chord_sq)
+		var entry := maxf(0.0, along - chord)
+		if along + chord < 0.0 or entry > contact_distance or (is_equal_approx(entry, contact_distance) and closest != null):
+			continue
+		closest = enemy
+		contact_distance = entry
+	return {"unit": closest, "distance": contact_distance}
+
+
 ## 在可到达区域内寻找覆盖最多敌人的圆形施法点；同人数时优先救援被追击友军，再靠近敌群中心。
 static func densest_circle_point(source: Unit, enemies: Array, radius: float, max_distance: float) -> Dictionary:
 	if not is_instance_valid(source) or source.battle == null or radius <= 0.0 or max_distance <= 0.0:

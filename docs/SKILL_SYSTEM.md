@@ -13,7 +13,14 @@
 「圣盾守护」的数值在 `resources/actions/knight_templar_block.tres`。满蓝时用 `move_02` 动画以最高 850px/s 冲向 340px 内敌群最密集的可达位置。抵达后对周围 160px 内的敌人施加 2.5 秒嘲讽，每名命中的敌人提供最大生命 12% 的护盾，最多 48%，持续 4 秒。嘲讽锁定敌人的下一次决策和攻击目标，已开始的动作会继续执行。位置搜索先最大化覆盖人数，再优先保护正在被追击的友军，最后选择更靠近敌群中心的位置。
 pixelfx 法阵以正圆绘制，作为 `Sprite3D` 贴在战场地面，由同一相机投影。目标头顶标记由 `scenes/fx/taunt_mark.tscn` 显示。
 
-牧师「圣光弹」位于 `resources/actions/priest_holy_bolt.tres`，使用 `HOLY_BOLT` 投射物和 `assets/fx/pixelfx/holy_laser_bolt.png`；「祈福」与「圣光普照」使用 `LOWEST_HP_ALLY` 目标规则，默认选择范围内生命比例最低的受伤友军。治疗量由 `heal_amount + 攻击力 × heal_ratio` 计算，`PriestGrace` 被动在目标生命低于 40% 时把治疗量提高 20%；战斗中可在观察镜里看到「恩泽 · 被动 · 常驻」。
+骷髅弓箭手、史莱姆、牧师与法师的已上线技能蓝图可以从「技能实验室」顶部目录打开，并导出为 `.arena-skill.json`。在本仓库根目录运行 `godot --headless --path . res://tools/import_arena_skill.tscn -- <技能文件>`。导入器按技能槽校验结算类型与动画帧，并保留技能绑定的特效和音效。技能槽分别为骸骨连射、酸液喷吐、圣光弹、祈福、圣光普照、恩泽、火球术和冰封术。
+
+- 骸骨连射用 20 FPS 的 `volley` 动作，在第 6、9、12 帧各向同一目标发射一支骨箭。每支箭分别播放松弦声和接触声。
+- 酸液喷吐在第 8 帧复查目标是否仍在射程内，以结算位置为圆心造成一次范围伤害。减速与中毒覆盖这次实际命中的存活敌人。范围音效在溅射时播放一次。
+- 祈福与圣光普照用 `LOWEST_HP_ALLY` 选范围内生命比例最低的受伤友军，第 2 帧治疗。圣光普照以该友军的结算位置为范围中心。恩泽在每名受治疗者的生命严格低于 40% 时，把该次治疗提高 20%，并在受益者身上播放羽光。同一次群体治疗只播放一次恩泽音效。
+- 圣光弹源自技能实验室的「星火裂变」。起手 0.2 秒后沿瞄准方向发射，弹体速度 1400px/s、全宽 70px、最远飞行 900px。接触第一名敌人时停止，造成 9 + 0.85 AD 伤害并减速 35%，持续 1.5 秒。冷却 8 秒，沿用竞技场普通技能的零蓝耗。火球术和冰封术沿用锁定弹道。三招在发射和接触时各播放一次音效。
+
+四名单位的技能资源重生成方法见 [特效与技能音效工作流](VFX_WORKFLOW.md#四名单位的技能资源)。
 
 骑士的被动资源位于 `resources/passives/knight_morale.tres`，引用两份 20 秒的属性状态：护甲加 0.05（5 个百分点）与攻击力加 5。`UnitDefinition.passive` 决定单位是否拥有被动；战斗倒计时结束时由 `Unit.on_battle_started()` 施加，状态到期自动恢复基础值。调数值时改对应的 `resources/status/knight_morale_armor.tres`、`resources/status/knight_morale_attack.tres` 的 `base_power` 和 `duration`；被动描述中的占位符会按资源当前数值重新渲染。
 剑士「追击步」位于 `resources/actions/swordsman_chase_step.tres`：动作选择范围内血量比例最低的敌人，朝其方向以 `ADVANCE` 位移 160 像素，不造成伤害，随后施加 `swordsman_chase_haste` 状态（`attack_speed` 乘区 ×1.10，持续 4 秒）。`Unit.start_action_cooldown()` 对普攻使用 `current_attack_interval()`，因此攻速 buff/debuff 会直接改变实际出手间隔；状态资源的 `power` 是乘区，`1.10` 表示 +10%。

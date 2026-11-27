@@ -840,6 +840,12 @@ func spawn_action_effect(scene: PackedScene, source: Unit, effect: ActionEffectD
 		fx.setup_from_effect(source, effect)
 
 
+func spawn_billboard_effect_at(scene: PackedScene, unit: Unit) -> void:
+	var fx := scene.instantiate() as ArenaBillboardEffect
+	effects_root.add_child(fx)
+	fx.setup_projection(stage, unit.global_position, unit.get_hit_point() - unit.global_position)
+
+
 func spawn_projectile(source: Unit, target: Unit, damage: float, kind: int, color: Color, effect: ActionEffectDefinition = null) -> void:
 	projectiles_fired += 1
 	var projectile: Projectile = PROJECTILE_SCENE.instantiate()

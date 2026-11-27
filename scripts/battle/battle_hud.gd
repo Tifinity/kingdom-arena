@@ -22,6 +22,7 @@ const DEBUG_FIELD_DEFS := [
 	["mana_regen", "每秒回蓝", 0.0, 50.0, 1.0],
 ]
 
+@onready var ui_root: ArenaUIRoot = $Root
 @onready var blue_name: Label = $Root/TopBar/Margin/Row/BlueTeam/BlueHeader/BlueName
 @onready var blue_alive: Label = $Root/TopBar/Margin/Row/BlueTeam/BlueHeader/BlueAlive
 @onready var red_name: Label = $Root/TopBar/Margin/Row/RedTeam/RedHeader/RedName
@@ -66,6 +67,8 @@ func _ready() -> void:
 	countdown_label.visible = false
 	inspector.visible = false
 	hint_label.visible = true
+	ui_root.layout_changed.connect(_apply_ui_layout)
+	_apply_ui_layout(ui_root.compact)
 	blue_name.add_theme_color_override("font_color", GameState.team_color(0))
 	red_name.add_theme_color_override("font_color", GameState.team_color(1))
 	speed_button.pressed.connect(_on_speed_pressed)
@@ -79,6 +82,26 @@ func _ready() -> void:
 	_build_status_row()
 	_build_debug_panel()
 	refresh_controls()
+
+
+func _apply_ui_layout(compact: bool) -> void:
+	hint_label.anchor_left = 0.0 if compact else 0.5
+	hint_label.anchor_right = 1.0 if compact else 0.5
+	hint_label.offset_left = 20.0 if compact else -340.0
+	hint_label.offset_right = -516.0 if compact else 340.0
+	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if compact else HORIZONTAL_ALIGNMENT_CENTER
+	inspector.offset_top = 88.0 if compact else 128.0
+	var outside_edge := 194.0 if compact else 246.0
+	roster_columns[0].offset_right = outside_edge
+	roster_columns[1].offset_left = -outside_edge
+	for roster in roster_columns:
+		roster.anchor_top = 0.0 if compact else 0.5
+		roster.anchor_bottom = 1.0 if compact else 0.5
+		roster.offset_top = 78.0 if compact else -324.0
+		roster.offset_bottom = -64.0 if compact else 324.0
+		roster.add_theme_constant_override("separation", 7 if compact else 9)
+	for card in _roster_cards:
+		card.set_compact(compact)
 
 
 func bind(p_battle: Battle) -> void:
@@ -102,6 +125,7 @@ func set_roster(units: Array[Unit]) -> void:
 		var card := BattleRosterCard.new()
 		roster_columns[unit.team].add_child(card)
 		card.bind(unit)
+		card.set_compact(ui_root.compact)
 		card.pressed.connect(_select_from_roster.bind(card))
 		_roster_cards.append(card)
 	_refresh()

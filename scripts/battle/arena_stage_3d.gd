@@ -91,6 +91,15 @@ func ground_to_world(point: Vector2, height := 0.0) -> Vector3:
 	return Vector3(point.x, height, point.y)
 
 
+## 试炼场中只显示后墙以内、有地面承接的部分。
+func training_floor_bounds() -> Rect2:
+	var floor_bounds: AABB = $Floor.global_transform * $Floor.get_aabb()
+	var wall_bounds: AABB = $Walls/BackWall.global_transform * $Walls/BackWall.get_aabb()
+	var start := Vector2(floor_bounds.position.x, maxf(floor_bounds.position.z, wall_bounds.end.z))
+	var end := Vector2(floor_bounds.end.x, floor_bounds.end.z)
+	return Rect2(start, end - start)
+
+
 ## 保留编辑场景中 Sprite2D 的贴图、帧和脚下尺寸，让它参与 3D 场地的绘制顺序。
 func add_ground_sprite(source: Sprite2D, parent: Node, priority: int) -> Sprite3D:
 	var sprite := Sprite3D.new()
