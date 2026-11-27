@@ -160,7 +160,9 @@ cmp /tmp/arena-first.json /tmp/arena-second.json
 
 ### 导出战斗视频
 
-保存对阵 JSON 后运行以下命令，需要 Godot 4.6+、FFmpeg 和可用的图形环境。省略第二个参数时，视频会保存为与对阵 JSON 同目录、同名的 `.mp4`。
+在 macOS 或 Linux 上从 Godot 工程运行游戏时，布阵页右上角点「导出录像」，选择 MP4 保存位置即可。当前阵容、站位、模式和音量用于录制，游戏会自动打开录制窗口并在导出结束后显示结果。首次使用前先完成 Godot 资源导入，并安装 FFmpeg。
+
+也可以保存对阵 JSON 后运行以下命令，需要 Godot 4.6+、FFmpeg 和可用的图形环境。省略第二个参数时，视频会保存为与对阵 JSON 同目录、同名的 `.mp4`。
 
 ```sh
 tools/export_battle_video.sh "/tmp/arena-match.json" "/tmp/arena-battle.mp4"
