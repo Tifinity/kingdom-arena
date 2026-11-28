@@ -33,7 +33,7 @@ var last_heal_amount := 0.0
 ## 兼容旧测试/UI 的只读视图；真实状态数据在 StatusController 的 StatusInstance 里。
 var stun_time: float:
 	get:
-		return status_controller.remaining(&"stun") if status_controller != null else 0.0
+		return status_controller.remaining_for_tag(&"stun") if status_controller != null else 0.0
 var slow_time: float:
 	get:
 		return status_controller.remaining(&"slow") if status_controller != null else 0.0
@@ -70,6 +70,7 @@ var planned_point := Vector2.ZERO
 var planned_has_point := false
 var current_cast: ActionCast
 var action_cooldowns: Dictionary = {}
+var basic_mana_hit_count := 0
 var is_selected := false
 var initialized := false
 var preview_mode := false
@@ -86,8 +87,6 @@ var team_ring: UnitTeamRing
 var selection_ring: UnitSelectionRing
 var visual: AnimatedSprite2D
 var health_bar: UnitHealthBar
-## 视觉子场景根节点与其中的投射物出手锚点（场景里名为 Muzzle）。
-## 锚点缺失时回退到按体型推算的位置，旧视觉场景无需立刻迁移。
 var _visual_root: Node2D
 var _health_bar_anchor: Vector2
 var _health_bar_scale: Vector2
@@ -125,6 +124,7 @@ func setup(p_battle: Node, p_team: int, p_slot: int, p_definition: UnitDefinitio
 	max_mana = p_definition.max_mana
 	mana = clampf(p_definition.starting_mana, 0.0, max_mana)
 	mana_regen = p_definition.mana_regen
+	basic_mana_hit_count = 0
 	hp_regen_ratio = p_definition.passive.hp_regen_ratio_per_second if p_definition.passive != null else 0.0
 	attack_damage = p_definition.attack_damage
 	attack_interval = p_definition.attack_interval()
@@ -600,7 +600,7 @@ func advance_step(direction: Vector2, speed: float, delta: float) -> void:
 
 
 func is_stunned() -> bool:
-	return status_controller != null and status_controller.has_status(&"stun")
+	return status_controller != null and status_controller.has_tag(&"stun")
 
 
 func can_move() -> bool:
@@ -638,7 +638,7 @@ func begin_action_effects() -> void:
 
 ## 记录一次实际造成伤害的命中；技能命中会为“热诚决斗”类被动叠一层。
 ## DoT 的周期伤害不经过这里，因此不会叠被动。
-func register_damage_hit(victim: Unit, is_skill := false) -> void:
+func register_damage_hit(victim: Unit, is_skill := false, blocked := false) -> void:
 	if not alive or victim == null or not is_instance_valid(victim):
 		return
 	var passive: PassiveDefinition = definition.passive if definition != null else null
@@ -647,6 +647,11 @@ func register_damage_hit(victim: Unit, is_skill := false) -> void:
 	if passive.on_hit_status != null and victim.team != team and victim.status_controller != null:
 		victim.status_controller.apply(passive.on_hit_status, self)
 	if not is_skill:
+		if not blocked and victim.team != team and passive.basic_hits_per_mana_proc > 0 and passive.basic_hit_mana_restore > 0.0:
+			basic_mana_hit_count += 1
+			if basic_mana_hit_count >= passive.basic_hits_per_mana_proc:
+				basic_mana_hit_count = 0
+				mana = minf(max_mana, mana + passive.basic_hit_mana_restore)
 		return
 	if passive.skill_hit_stacks_status != null and status_controller != null:
 		status_controller.apply(passive.skill_hit_stacks_status, self)
@@ -720,7 +725,7 @@ func hit_by_action(victim: Unit, effect: ActionEffectDefinition) -> void:
 	damage = apply_status_damage_bonus(damage, not is_skill)
 	_record_action_hit(victim)
 	victim.take_damage(damage, self, impact, false, effect.ignore_shield)
-	register_damage_hit(victim, is_skill)
+	register_damage_hit(victim, is_skill, blocked)
 	ActionImpact.apply_on_hit(effect, self, victim, blocked)
 	battle.spawn_hit_spark(impact, accent_color, 1.2)
 	battle.action_hits += 1
@@ -759,7 +764,11 @@ func _resolve_legacy_action_effect(action: CombatActionDefinition, effect: Actio
 		ActionEffectDefinition.Kind.DAMAGE:
 			_resolve_damage_effect(action, effect, damage)
 		ActionEffectDefinition.Kind.PROJECTILE:
-			if effect.projectile_collision_width > 0.0:
+			if effect.projectile_ground_arc:
+				if current_cast != null and current_cast.has_point:
+					damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
+					battle.spawn_projectile(self, null, damage, effect.projectile_kind, accent_color, effect)
+			elif effect.projectile_collision_width > 0.0:
 				damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
 				battle.spawn_projectile(self, null, damage, effect.projectile_kind, accent_color, effect)
 			elif cast_target != null and is_instance_valid(cast_target) and cast_target.alive \
@@ -811,7 +820,9 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 		damage = apply_status_damage_bonus(damage, action.category == CombatActionDefinition.Category.BASIC)
 	for victim in victims:
 		var impact := victim.get_effect_point()
-		if effect.shape == ActionEffectDefinition.Shape.SINGLE:
+		if effect.impact_scene != null:
+			battle.spawn_billboard_effect_at(effect.impact_scene, victim)
+		elif effect.shape == ActionEffectDefinition.Shape.SINGLE:
 			battle.spawn_slash(impact, accent_color, signf(victim.global_position.x - global_position.x))
 		elif effect.shape == ActionEffectDefinition.Shape.CONE:
 			battle.spawn_hit_spark(impact, Color(1.0, 0.55, 0.18), 1.4)
@@ -820,7 +831,7 @@ func _resolve_damage_effect(action: CombatActionDefinition, effect: ActionEffect
 		_record_action_hit(victim)
 		var blocked := victim.is_guarding()
 		victim.take_damage(damage, self, impact, false, effect.ignore_shield)
-		register_damage_hit(victim, action.category == CombatActionDefinition.Category.SKILL)
+		register_damage_hit(victim, action.category == CombatActionDefinition.Category.SKILL, blocked)
 		ActionImpact.apply_on_hit(effect, self, victim, blocked)
 		if effect.shape == ActionEffectDefinition.Shape.SINGLE and victim.alive and effect.knockback > 0.0:
 			victim.apply_knockback(global_position, effect.knockback)
@@ -1009,12 +1020,19 @@ func update_arena_projection(depth_scale: float) -> void:
 	$StatusVisuals/AttributeBadges.scale.y = 1.0 / depth_scale
 
 
-## 投射物出生点：优先读取视觉场景里的 Muzzle 锚点，方便按角色在编辑器里拖拽调试。
+## 投射物出生点：按施法动画查找同名锚点（如 attack_01 对应 Attack01），其次使用 Muzzle。
 ## 朝向翻转只作用于 Body 贴图（flip_h），锚点自身不会翻，因此水平坐标要按 facing 镜像。
-## 没有 Muzzle 锚点的视觉场景回退到按体型推算，新角色可以逐步迁移。
+## 缺少锚点时按体型推算。
 func get_muzzle_point() -> Vector2:
-	if _muzzle_marker != null and _visual_root != null:
-		var local := _muzzle_marker.position
+	var marker := _muzzle_marker
+	if current_cast != null and _visual_root != null:
+		var animation_marker := _visual_root.get_node_or_null(
+			String(current_cast.action.animation).to_pascal_case()
+		) as Marker2D
+		if animation_marker != null:
+			marker = animation_marker
+	if marker != null:
+		var local := marker.position
 		return _visual_root.to_global(Vector2(local.x * float(facing), local.y))
 	return global_position + Vector2(
 		float(facing) * body_radius * 0.72,

@@ -238,7 +238,7 @@ scenes/units/armored_axeman_visual.tscn
 - `Hurtbox` 的 `CollisionShape2D`：受击范围（圆形，红色调试轮廓）；
 - `AttackBox` 的 `CollisionShape2D`：基础普攻范围（圆形，蓝色调试轮廓）；
 - `FootMarker`、`HitPoint`：命中点/脚底锚点；
-- `Muzzle`：投射物出手点。箭矢、法术弹从这里生成，朝左时自动镜像到身体另一侧。
+- `Muzzle` 是通用的投射物出手点。动画可以使用独立锚点，朝左时两种锚点都会水平镜像。
 
 `Hurtbox` / `AttackBox` 目前是**编辑器可视化和调试形状**：`monitoring = false`、
 碰撞层为 0，不参与实际伤害结算。当前伤害仍由 Action 的距离/扇形/矩形数据判定。
@@ -257,8 +257,8 @@ scenes/units/soldier_visual.tscn
 
 - 坐标是**视觉场景像素**，和 `Body` 的 `position` 同一空间，不是 100×100 帧内坐标；
 - 只需要按“朝右”摆一次，代码会按 `facing` 镜像水平坐标，朝左时自动换到另一侧；
-- 普通射箭、后撤射击、法术弹共用这个点；飞行方向由 `projectile.gd` 在生成时重新瞄准目标；
-- 没有 `Muzzle` 的视觉场景会回退到按 `body_radius` / `character_height` 推算的位置，
+- 发射时优先查找动作动画对应的 `Marker2D`，例如法师的 `attack_01` 用 `Attack01`，`attack_02` 用 `Attack02`。没有对应锚点时使用 `Muzzle`；
+- 两种锚点都缺失时会回退到按 `body_radius` / `character_height` 推算的位置，
   所以新增英雄可以先生成场景、之后再补锚点；
 - 首次生成（或批量补锚点）时，`position` 与旧公式算出的点完全一致，所以接入锚点不会让现有单位突然位移；之后可以随时在编辑器里拖拽。
 

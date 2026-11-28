@@ -4,10 +4,10 @@ extends RefCounted
 ## 近战、冲锋和投射物共用的命中反馈与附加状态结算。
 
 
-static func apply_on_hit(effect: ActionEffectDefinition, source: Unit, victim: Unit, blocked: bool) -> void:
+static func apply_on_hit(effect: ActionEffectDefinition, source: Unit, victim: Unit, blocked: bool, play_sound := true) -> void:
 	if effect == null or not is_instance_valid(victim):
 		return
-	if victim.battle != null:
+	if play_sound and victim.battle != null:
 		victim.battle.play_action_sound(effect.impact_sound)
 	if not victim.alive or blocked:
 		return

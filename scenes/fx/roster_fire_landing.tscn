@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/fx/roster_area_fx.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/fx/pixelfx/roster_fire_landing.png" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/fx/roster_fire_contact.tscn" id="3"]
+
+[node name="RosterAreaFx" type="Node2D"]
+script = ExtResource("1")
+frame_count = 21
+frames_per_second = 30.0
+sheet_radius = 80.0
+clip_to_training_floor = true
+burst_scene = ExtResource("3")
+
+[node name="Ground" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = ExtResource("2")
+hframes = 5
+vframes = 5

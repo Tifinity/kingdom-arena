@@ -1,14 +1,14 @@
 [gd_resource type="SpriteFrames" format=3 uid="uid://brlegq46t6olf"]
 
 [ext_resource type="Texture2D" uid="uid://di444qs4u3ki8" path="res://assets/characters/greatsword_skeleton/attack01.png" id="tex_attack_01"]
-[ext_resource type="Texture2D" path="res://assets/characters/greatsword_skeleton/heavy_chop.png" id="tex_attack_02"]
+[ext_resource type="Texture2D" uid="uid://cn66bxouihnqc" path="res://assets/characters/greatsword_skeleton/heavy_chop.png" id="tex_attack_02"]
 [ext_resource type="Texture2D" uid="uid://dut6jenmcbima" path="res://assets/characters/greatsword_skeleton/attack03.png" id="tex_attack_03"]
 [ext_resource type="Texture2D" uid="uid://oh0aopilj4jc" path="res://assets/characters/greatsword_skeleton/death.png" id="tex_death"]
 [ext_resource type="Texture2D" uid="uid://bpb3fvsjwf2q0" path="res://assets/characters/greatsword_skeleton/hurt.png" id="tex_hurt"]
 [ext_resource type="Texture2D" uid="uid://0pncdnj561g7" path="res://assets/characters/greatsword_skeleton/idle.png" id="tex_idle"]
 [ext_resource type="Texture2D" uid="uid://c6knj65sa4cei" path="res://assets/characters/greatsword_skeleton/walk.png" id="tex_move"]
+[ext_resource type="Texture2D" uid="uid://d6mfiv2vwbt3" path="res://assets/characters/greatsword_skeleton/soul_cleave.png" id="tex_soul_cleave"]
 [ext_resource type="Texture2D" uid="uid://dtvuaneixeqr6" path="res://assets/characters/greatsword_skeleton/summon.png" id="tex_summon"]
-[ext_resource type="Texture2D" path="res://assets/characters/greatsword_skeleton/soul_cleave.png" id="tex_soul_cleave"]
 
 [sub_resource type="AtlasTexture" id="attack_01_0"]
 atlas = ExtResource("tex_attack_01")
@@ -218,26 +218,6 @@ region = Rect2(700, 0, 100, 100)
 atlas = ExtResource("tex_move")
 region = Rect2(800, 0, 100, 100)
 
-[sub_resource type="AtlasTexture" id="summon_0"]
-atlas = ExtResource("tex_summon")
-region = Rect2(0, 0, 100, 100)
-
-[sub_resource type="AtlasTexture" id="summon_1"]
-atlas = ExtResource("tex_summon")
-region = Rect2(100, 0, 100, 100)
-
-[sub_resource type="AtlasTexture" id="summon_2"]
-atlas = ExtResource("tex_summon")
-region = Rect2(200, 0, 100, 100)
-
-[sub_resource type="AtlasTexture" id="summon_3"]
-atlas = ExtResource("tex_summon")
-region = Rect2(300, 0, 100, 100)
-
-[sub_resource type="AtlasTexture" id="summon_4"]
-atlas = ExtResource("tex_summon")
-region = Rect2(400, 0, 100, 100)
-
 [sub_resource type="AtlasTexture" id="soul_cleave_0"]
 atlas = ExtResource("tex_soul_cleave")
 region = Rect2(0, 0, 100, 100)
@@ -273,6 +253,26 @@ region = Rect2(700, 0, 100, 100)
 [sub_resource type="AtlasTexture" id="soul_cleave_8"]
 atlas = ExtResource("tex_soul_cleave")
 region = Rect2(800, 0, 100, 100)
+
+[sub_resource type="AtlasTexture" id="summon_0"]
+atlas = ExtResource("tex_summon")
+region = Rect2(0, 0, 100, 100)
+
+[sub_resource type="AtlasTexture" id="summon_1"]
+atlas = ExtResource("tex_summon")
+region = Rect2(100, 0, 100, 100)
+
+[sub_resource type="AtlasTexture" id="summon_2"]
+atlas = ExtResource("tex_summon")
+region = Rect2(200, 0, 100, 100)
+
+[sub_resource type="AtlasTexture" id="summon_3"]
+atlas = ExtResource("tex_summon")
+region = Rect2(300, 0, 100, 100)
+
+[sub_resource type="AtlasTexture" id="summon_4"]
+atlas = ExtResource("tex_summon")
+region = Rect2(400, 0, 100, 100)
 
 [resource]
 animations = [{
@@ -469,26 +469,6 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("summon_0")
-}, {
-"duration": 1.0,
-"texture": SubResource("summon_1")
-}, {
-"duration": 1.0,
-"texture": SubResource("summon_2")
-}, {
-"duration": 1.0,
-"texture": SubResource("summon_3")
-}, {
-"duration": 1.0,
-"texture": SubResource("summon_4")
-}],
-"loop": false,
-"name": &"summon",
-"speed": 12.0
-}, {
-"frames": [{
-"duration": 1.0,
 "texture": SubResource("soul_cleave_0")
 }, {
 "duration": 1.0,
@@ -518,4 +498,24 @@ animations = [{
 "loop": false,
 "name": &"soul_cleave",
 "speed": 16.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("summon_0")
+}, {
+"duration": 1.0,
+"texture": SubResource("summon_1")
+}, {
+"duration": 1.0,
+"texture": SubResource("summon_2")
+}, {
+"duration": 1.0,
+"texture": SubResource("summon_3")
+}, {
+"duration": 1.0,
+"texture": SubResource("summon_4")
+}],
+"loop": false,
+"name": &"summon",
+"speed": 12.0
 }]

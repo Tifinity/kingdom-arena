@@ -28,8 +28,10 @@ function stem(name) {
   return stems.get(name);
 }
 
+const selected = process.argv[2];
+if (selected && !Object.hasOwn(layered.clips, selected)) throw new Error(`Unknown clip: ${selected}`);
 for (const [name, layers] of Object.entries(layered.clips)) {
-  if (!name.startsWith('roster_')) continue;
+  if (!name.startsWith('roster_') || (selected && name !== selected)) continue;
   const mix = new Float64Array(Math.max(...layers.map(layer => samples(layer.offset_ms) + samples(layer.length_ms))));
   for (const layer of layers) {
     const offset = samples(layer.offset_ms);

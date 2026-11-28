@@ -189,16 +189,6 @@ animations = [{
 "name": &"attack_01",
 "speed": 16.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("attack_01_0")},
-{"duration": 1.0, "texture": SubResource("attack_01_3")},
-{"duration": 1.0, "texture": SubResource("attack_01_6")},
-{"duration": 1.0, "texture": SubResource("attack_01_7")},
-{"duration": 1.0, "texture": SubResource("attack_01_8")},
-{"duration": 1.0, "texture": SubResource("attack_01_8")}],
-"loop": false,
-"name": &"holy_bolt",
-"speed": 15.0
-}, {
 "frames": [{
 "duration": 1.0,
 "texture": SubResource("death_0")
@@ -238,6 +228,29 @@ animations = [{
 "loop": false,
 "name": &"heal",
 "speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("attack_01_0")
+}, {
+"duration": 1.0,
+"texture": SubResource("attack_01_3")
+}, {
+"duration": 1.0,
+"texture": SubResource("attack_01_6")
+}, {
+"duration": 1.0,
+"texture": SubResource("attack_01_7")
+}, {
+"duration": 1.0,
+"texture": SubResource("attack_01_8")
+}, {
+"duration": 1.0,
+"texture": SubResource("attack_01_8")
+}],
+"loop": false,
+"name": &"holy_bolt",
+"speed": 15.0
 }, {
 "frames": [{
 "duration": 1.0,

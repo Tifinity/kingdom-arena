@@ -83,6 +83,8 @@
 
 - `assets/fx/pixelfx/stunned.png` 来自 pixelfx 的 `status/stunned`。图集为每帧 60×64 像素、8 列、30 FPS、60 帧循环。在 pixelfx 检出中运行 `node tools/render.mjs status/stunned --sheet`，将 `records/status/stunned/stunned.png` 复制到游戏资源目录。
 - 眩晕、重击和普攻命中特效的完整许可见 [Stunned](assets/status/STUNNED_LICENSE.md)、[Heavy cleave](assets/FX_HEAVY_CLEAVE_LICENSE.md) 和 [Hit spark](assets/HIT_SPARK_LICENSE.md)。
+- `assets/fx/pixelfx/freeze_status.png` 来自 pixelfx 的 `ice/freeze`。游戏图集为 64 帧、30 FPS，改编保留结霜、封冰和碎冰阶段。碎冰手法的上游来源使用 MIT License，Copyright (c) 2026 Hugo Duprez。[pixelfx](https://github.com/patch-gg/pixelfx) · [Sprite Fusion Ice](https://www.spritefusion.com/pixel-art-vfx/ice)
+- 雷暴的云层和落雷来自 pixelfx 的 `lightning/storm-cloud` 与 `lightning/lightning-strike`。源效果的闪电画法源自 Sprite Fusion，MIT License，Copyright (c) 2026 Hugo Duprez。[pixelfx](https://github.com/patch-gg/pixelfx) · [Sprite Fusion Lightning](https://www.spritefusion.com/pixel-art-vfx/lightning)
 
 ## Pixelfx 高压水枪特效
 

@@ -82,10 +82,14 @@ enum StatusKind { STUN, SLOW, BLEED, BURN }
 
 ## 投射物、AOE、治疗等视觉场景；可选。
 @export var effect_scene: PackedScene
+## 伤害实际命中时，播放在受击点的序列帧。
+@export var impact_scene: PackedScene
 
 ## 大于 0 时，直线弹体按该全宽检测首个接触的敌人。
 @export var projectile_collision_width := 0.0
 @export var projectile_speed_override := 0.0
+## 用固定的施放地点作为弧线弹道终点；到达后结算圆形伤害。
+@export var projectile_ground_arc := false
 
 ## 技能可覆写弹道的贴图，沿用投射物的速度、碰撞与命中结算。
 @export var projectile_frames: SpriteFrames
