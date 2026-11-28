@@ -1,3 +1,4 @@
+class_name RosterAreaFx
 extends Node2D
 
 const FLOOR_CLIP := preload("res://shaders/ground_fx_clip.gdshader")
@@ -22,12 +23,16 @@ func setup_from_effect(source: Unit, effect: ActionEffectDefinition) -> void:
 		center = cast.point
 	if effect.center_on_self:
 		center = source.global_position
+	setup_at(source.battle, center, effect.radius)
+
+
+func setup_at(battle: Battle, center: Vector2, radius: float) -> void:
 	global_position = center
-	_ground.scale = Vector2.ONE * (effect.radius / sheet_radius)
-	var stage: ArenaStage3D = source.battle.stage
+	_ground.scale = Vector2.ONE * (radius / sheet_radius)
+	var stage := battle.stage
 	_projected_ring = stage.add_ground_sprite(_ground, self, ArenaStage3D.GROUND_MARKER_PRIORITY + 1)
 	stage.sync_ground_sprite(_projected_ring, _ground, 0.2)
-	if clip_to_training_floor and source.battle.training_mode:
+	if clip_to_training_floor and battle.training_mode:
 		var material := ShaderMaterial.new()
 		material.shader = FLOOR_CLIP
 		material.render_priority = _projected_ring.render_priority

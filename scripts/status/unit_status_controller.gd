@@ -128,7 +128,7 @@ func _remove_instance(instance: StatusInstance, natural: bool) -> void:
 		instance.definition.behavior.on_expire(instance)
 	else:
 		instance.definition.behavior.on_remove(instance)
-	_free_vfx(instance)
+	_free_vfx(instance, natural)
 	changed.emit()
 
 
@@ -152,10 +152,13 @@ func _spawn_vfx(instance: StatusInstance) -> void:
 	instance.vfx = vfx as Node2D
 
 
-func _free_vfx(instance: StatusInstance) -> void:
+func _free_vfx(instance: StatusInstance, natural := false) -> void:
 	var vfx := instance.vfx
 	instance.vfx = null
 	if vfx == null or not is_instance_valid(vfx):
+		return
+	if natural and vfx.has_method("finish"):
+		vfx.finish()
 		return
 	if vfx.has_method("stop"):
 		vfx.stop()
@@ -163,6 +166,9 @@ func _free_vfx(instance: StatusInstance) -> void:
 
 
 func _refresh_attribute_visuals() -> void:
+	var stars := get_vfx(&"stun")
+	if is_instance_valid(stars):
+		stars.visible = not has_status(&"freeze")
 	if _attribute_badges == null:
 		return
 	var directions := PackedInt32Array()
@@ -222,6 +228,14 @@ func remaining(status_id: StringName) -> float:
 		if instance.definition.id == status_id:
 			return instance.remaining
 	return 0.0
+
+
+func remaining_for_tag(tag: StringName) -> float:
+	var longest := 0.0
+	for instance in _instances:
+		if instance.definition.has_tag(tag):
+			longest = maxf(longest, instance.remaining)
+	return longest
 
 
 func stacks(status_id: StringName) -> int:

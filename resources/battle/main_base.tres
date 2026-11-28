@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" format=3 uid="uid://dl4n4wmiqln0t"]
 
-[ext_resource type="Script" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://bu55wkuo84wfe" path="res://scripts/data/unit_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://hq4wq54ylw3j" path="res://scripts/data/combat_action_definition.gd" id="1_hvi2l"]
 [ext_resource type="PackedScene" path="res://scenes/units/main_base_visual.tscn" id="2"]
 
 [resource]
@@ -20,5 +21,5 @@ attack_kind = 1
 projectile_kind = 1
 visual_scene = ExtResource("2")
 visual_scale = 3.14
-body_radius = 52.0
 character_height = 94.0
+body_radius = 52.0

@@ -9,6 +9,8 @@ extends Resource
 @export var skill_hit_stacks_status: StatusDefinition
 ## 普通攻击或技能造成伤害时，给受击目标施加的状态（例如破甲/战栗）。
 @export var on_hit_status: StatusDefinition
+@export_range(0, 100, 1) var basic_hits_per_mana_proc := 0
+@export_range(0.0, 100.0, 0.5) var basic_hit_mana_restore := 0.0
 ## 每次技能伤害命中获得的最大生命护盾比例及持续时间。
 @export var skill_hit_shield_ratio := 0.0
 @export var skill_hit_shield_duration := 0.0
@@ -44,6 +46,8 @@ func heal_multiplier(patient_hp_ratio: float) -> float:
 
 func detail_text() -> String:
 	var rendered := description
+	rendered = rendered.replace("{basic_hits_per_mana_proc}", str(basic_hits_per_mana_proc))
+	rendered = rendered.replace("{basic_hit_mana_restore}", _number_text(basic_hit_mana_restore))
 	rendered = rendered.replace("{hp_regen_percent}", _number_text(hp_regen_ratio_per_second * 100.0))
 	rendered = rendered.replace("{armor_aura_radius}", _number_text(armor_aura_radius))
 	rendered = rendered.replace("{armor_aura_percent}", _number_text(armor_aura_bonus * 100.0))

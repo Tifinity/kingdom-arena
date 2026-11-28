@@ -21,6 +21,44 @@
     "fade_in_ms": 1,
     "fade_out_ms": 7,
     "stems": {
+      "roster_thunder_crack": {
+        "wave_type": 3,
+        "p_env_attack": 0.006,
+        "p_env_sustain": 0.064,
+        "p_env_decay": 0.19,
+        "p_base_freq": 0.63,
+        "p_freq_ramp": -0.55,
+        "p_lpf_freq": 0.91,
+        "p_hpf_freq": 0.064,
+        "p_env_punch": 0.38,
+        "sound_vol": 0.13,
+        "p_lpf_ramp": 0,
+        "p_hpf_ramp": 0,
+        "p_vib_strength": 0,
+        "p_vib_speed": 0,
+        "p_arp_mod": 0,
+        "p_arp_speed": 0,
+        "p_repeat_speed": 0
+      },
+      "roster_thunder_rumble": {
+        "wave_type": 3,
+        "p_env_attack": 0.024,
+        "p_env_sustain": 0.122,
+        "p_env_decay": 0.34,
+        "p_base_freq": 0.24,
+        "p_freq_ramp": -0.19,
+        "p_lpf_freq": 0.43,
+        "p_hpf_freq": 0.022,
+        "p_env_punch": 0.24,
+        "sound_vol": 0.13,
+        "p_lpf_ramp": 0,
+        "p_hpf_ramp": 0,
+        "p_vib_strength": 0,
+        "p_vib_speed": 0,
+        "p_arp_mod": 0,
+        "p_arp_speed": 0,
+        "p_repeat_speed": 0
+      },
       "blade_air": {"p_vib_strength": 0, "p_vib_speed": 0, "p_arp_mod": 0, "p_arp_speed": 0, "p_repeat_speed": 0, "p_lpf_ramp": -0.16, "p_hpf_ramp": 0, "wave_type": 3, "p_env_attack": 0.118, "p_env_sustain": 0.101, "p_env_decay": 0.178, "p_base_freq": 0.52, "p_freq_ramp": -0.12, "p_lpf_freq": 0.73, "p_hpf_freq": 0.12, "p_env_punch": 0.1, "sound_vol": 0.15},
       "heavy_air": {"p_vib_strength": 0, "p_vib_speed": 0, "p_arp_mod": 0, "p_arp_speed": 0, "p_repeat_speed": 0, "p_lpf_ramp": -0.18, "p_hpf_ramp": 0, "wave_type": 3, "p_env_attack": 0.105, "p_env_sustain": 0.154, "p_env_decay": 0.231, "p_base_freq": 0.42, "p_freq_ramp": -0.11, "p_lpf_freq": 0.66, "p_hpf_freq": 0.078, "p_env_punch": 0.2, "sound_vol": 0.16},
       "steel_tick": {"p_vib_strength": 0, "p_vib_speed": 0, "p_arp_mod": 0, "p_arp_speed": 0, "p_repeat_speed": 0, "p_lpf_ramp": 0, "p_hpf_ramp": 0, "wave_type": 3, "p_env_attack": 0.02, "p_env_sustain": 0.041, "p_env_decay": 0.131, "p_base_freq": 0.72, "p_freq_ramp": -0.08, "p_lpf_freq": 0.93, "p_hpf_freq": 0.26, "p_env_punch": 0.26, "sound_vol": 0.16},
@@ -62,6 +100,20 @@
       "roster_ice_crack": {"wave_type": 3, "p_env_attack": 0.01, "p_env_sustain": 0.043, "p_env_decay": 0.18, "p_base_freq": 0.82, "p_freq_ramp": -0.31, "p_lpf_freq": 0.95, "p_hpf_freq": 0.19, "p_env_punch": 0.38, "sound_vol": 0.13, "p_lpf_ramp": 0, "p_hpf_ramp": 0, "p_vib_strength": 0, "p_vib_speed": 0, "p_arp_mod": 0, "p_arp_speed": 0, "p_repeat_speed": 0}
     },
     "clips": {
+      "roster_thunder_strike": [
+        {
+          "stem": "roster_thunder_crack",
+          "offset_ms": 0,
+          "length_ms": 105,
+          "peak": 0.32
+        },
+        {
+          "stem": "roster_thunder_rumble",
+          "offset_ms": 14,
+          "length_ms": 400,
+          "peak": 0.43
+        }
+      ],
       "holy_edge": [{"stem": "blade_air", "offset_ms": 0, "length_ms": 126, "peak": 0.35}, {"stem": "steel_tick", "offset_ms": 38, "length_ms": 45, "peak": 0.105}, {"stem": "steel_low", "offset_ms": 44, "length_ms": 98, "peak": 0.059}, {"stem": "steel_high", "offset_ms": 52, "length_ms": 94, "peak": 0.041}],
       "holy_finish": [{"stem": "heavy_air", "offset_ms": 0, "length_ms": 200, "peak": 0.5}, {"stem": "steel_tick", "offset_ms": 55, "length_ms": 45, "peak": 0.15}, {"stem": "steel_low", "offset_ms": 64, "length_ms": 170, "peak": 0.14}, {"stem": "steel_high", "offset_ms": 70, "length_ms": 125, "peak": 0.089}],
       "holy_barrier": [{"stem": "radiance_air", "offset_ms": 0, "length_ms": 415, "peak": 0.18}, {"stem": "radiance_body", "offset_ms": 10, "length_ms": 475, "peak": 0.175}, {"stem": "radiance_fifth", "offset_ms": 30, "length_ms": 400, "peak": 0.113}, {"stem": "radiance_glint", "offset_ms": 91, "length_ms": 240, "peak": 0.06}],

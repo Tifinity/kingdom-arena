@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="PassiveDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "奥术蓄能"
+description = "每 {basic_hits_per_mana_proc} 次普攻命中敌人，额外回复 {basic_hit_mana_restore} 点法力。"
+basic_hits_per_mana_proc = 3
+basic_hit_mana_restore = 8.0

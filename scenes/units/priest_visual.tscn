@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://babl2snucqggk" path="res://scripts/battle/selection_ring.gd" id="2"]
 [ext_resource type="Script" uid="uid://bx24eitnuqwg2" path="res://scripts/battle/health_bar.gd" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/units/unit_shadow.tscn" id="4"]
-[ext_resource type="SpriteFrames" path="res://resources/visuals/priest_frames.tres" id="5"]
+[ext_resource type="SpriteFrames" uid="uid://b4kboxe67s1ns" path="res://resources/visuals/priest_frames.tres" id="5"]
 
 [sub_resource type="CircleShape2D" id="hurt_shape"]
 radius = 29.4
@@ -30,6 +30,7 @@ position = Vector2(0, -32)
 scale = Vector2(4.48, 4.48)
 sprite_frames = ExtResource("5")
 animation = &"idle"
+metadata/_edit_lock_ = true
 
 [node name="HealthBar" type="Node2D" parent="." unique_id=1300185636]
 z_index = 20
@@ -58,10 +59,10 @@ monitorable = false
 shape = SubResource("attack_shape")
 debug_color = Color(0.35, 0.7, 1, 0.45)
 
-[node name="Muzzle" type="Marker2D" parent="."]
-position = Vector2(21.17, -52.68)
+[node name="Muzzle" type="Marker2D" parent="." unique_id=1181375815]
+position = Vector2(41, -44)
 
 [node name="FootMarker" type="Marker2D" parent="." unique_id=1932790642]
 
 [node name="HitPoint" type="Marker2D" parent="." unique_id=1568690173]
-position = Vector2(0, -94.1)
+position = Vector2(0, -86)

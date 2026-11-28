@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="1_npjeq"]
+[ext_resource type="Script" path="res://scripts/data/effects/lightning_storm_effect_behavior.gd" id="2_jc3og"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/roster_thunder_strike.wav" id="3_fl35e"]
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="4_2u546"]
+[ext_resource type="Script" path="res://scripts/data/action_targeting_definition.gd" id="5_7pw5k"]
+
+[sub_resource type="Resource" id="lightning"]
+script = ExtResource("2_jc3og")
+
+[sub_resource type="Resource" id="storm"]
+script = ExtResource("1_npjeq")
+shape = 1
+trigger_frame = 6
+radius = 190.0
+duration = 10.0
+behavior = SubResource("lightning")
+impact_sound = ExtResource("3_fl35e")
+
+[sub_resource type="Resource" id="targeting"]
+script = ExtResource("5_7pw5k")
+selection = 2
+
+[resource]
+script = ExtResource("4_2u546")
+action_id = &"wizard_storm"
+display_name = "雷暴"
+description = "在半径 190.0 内召唤雷云，持续 10 秒。每 0.5 秒随机落雷，对落点半径 66.0 内的敌人造成 {damage_0} 伤害。"
+category = 1
+target_mode = 3
+animation = &"attack_02"
+action_range = 440.0
+cooldown = 16.0
+mana_cost = 100.0
+priority = 16
+targeting = SubResource("targeting")
+effects = Array[ExtResource("1_npjeq")]([SubResource("storm")])

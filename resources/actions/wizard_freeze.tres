@@ -1,34 +1,28 @@
 [gd_resource type="Resource" script_class="CombatActionDefinition" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="1_rmhla"]
-[ext_resource type="AudioStream" path="res://assets/audio/skills/roster_ice_hit.wav" id="2_l22kl"]
-[ext_resource type="SpriteFrames" path="res://resources/visuals/roster_icebolt.tres" id="3_hygwf"]
-[ext_resource type="PackedScene" path="res://scenes/fx/roster_ice_contact.tscn" id="4_2q5g1"]
-[ext_resource type="AudioStream" path="res://assets/audio/skills/roster_ice_launch.wav" id="5_8po5l"]
-[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="6_vxocu"]
+[ext_resource type="Script" path="res://scripts/data/action_effect_definition.gd" id="1_4t1ap"]
+[ext_resource type="PackedScene" path="res://scenes/fx/roster_ice_contact.tscn" id="2_to26u"]
+[ext_resource type="AudioStream" path="res://assets/audio/skills/roster_ice_hit.wav" id="3_60bhs"]
+[ext_resource type="Script" path="res://scripts/data/combat_action_definition.gd" id="4_ikcf0"]
 
 [sub_resource type="Resource" id="effect_0"]
-script = ExtResource("1_rmhla")
-kind = 1
+script = ExtResource("1_4t1ap")
 trigger_frame = 5
 damage_ratio = 2.0
+status_id = &"freeze"
 status_duration = 1.5
-projectile_kind = 3
-projectile_frames = ExtResource("3_hygwf")
-projectile_visual_scale = 0.9
-projectile_visual_offset = Vector2(-58, 0)
-projectile_impact_scene = ExtResource("4_2q5g1")
-projectile_release_sound = ExtResource("5_8po5l")
-impact_sound = ExtResource("2_l22kl")
+impact_scene = ExtResource("2_to26u")
+impact_sound = ExtResource("3_60bhs")
 
 [resource]
-script = ExtResource("6_vxocu")
+script = ExtResource("4_ikcf0")
 action_id = &"wizard_freeze"
 display_name = "冰封术"
-description = "发射冰封弹，命中造成 {damage_0} 单体伤害并眩晕 1.5 秒。"
+description = "直接冰封目标，造成 {damage_0} 单体伤害，并使其冰冻 1.5 秒。"
 category = 1
 action_range = 360.0
 cooldown = 14.0
 mana_cost = 100.0
+recheck_target_at_effect = true
 priority = 10
-effects = Array[ExtResource("1_rmhla")]([SubResource("effect_0")])
+effects = Array[ExtResource("1_4t1ap")]([SubResource("effect_0")])

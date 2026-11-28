@@ -799,9 +799,13 @@ func units_in_cone(source: Unit, direction: Vector2, radius: float, half_angle_d
 
 
 func units_in_circle(source: Unit, center: Vector2, radius: float) -> Array[Unit]:
+	return enemies_in_circle(source.team, center, radius)
+
+
+func enemies_in_circle(source_team: int, center: Vector2, radius: float) -> Array[Unit]:
 	var result: Array[Unit] = []
 	for unit in living_units():
-		if unit.team == source.team:
+		if unit.team == source_team:
 			continue
 		if unit.global_position.distance_to(center) <= radius + unit.body_radius:
 			result.append(unit)

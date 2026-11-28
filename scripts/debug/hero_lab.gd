@@ -398,6 +398,9 @@ func _refresh_skill_states() -> void:
 			else:
 				passive_card.set_live_state("热诚 0/%d" % stacks_status.max_stacks,
 					TrainingSkillCard.COOLDOWN_COLOR)
+		elif passive_card.passive.basic_hits_per_mana_proc > 0:
+			passive_card.set_live_state("普攻 %d/%d" % [hero.basic_mana_hit_count,
+				passive_card.passive.basic_hits_per_mana_proc], TrainingSkillCard.PASSIVE_COLOR)
 		elif passive_card.passive.hp_threshold_status != null:
 			var active := passive_card.passive.threshold_active(hero.status_controller)
 			passive_card.set_live_state("生效中" if active else "未生效",

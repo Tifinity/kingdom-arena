@@ -26,6 +26,12 @@ godot --path . res://tools/armor_guard_capture.tscn --resolution 1600x900
 
 圣光普照参考 pixelfx 的 `holy/heal-aoe`（Healing ring）。`tools/sanctuary_fx.mjs` 将向外扩散的光环与治疗十字合成一张俯视图集。Godot 以治疗结算点为中心，按技能半径缩放后贴在战场地面，由场景相机投影。试炼场把显示裁在后墙内侧的地面。可用 `node tools/export_roster_skill_fx.mjs --effect sanctuary` 重新导出。
 
+火球术的弹体沿用 pixelfx 的 `fire/fireball`，放大火核并加长拖尾，可用 `node tools/export_roster_skill_fx.mjs --effect fireball` 重生成。落地复用火焰命中序列，在同一落点叠加与结算半径一致的 pixelfx 地面脉冲。可用 `node tools/export_roster_skill_fx.mjs --effect fire_landing` 重新导出脉冲图集。
+
+冰封术的冰壳改编自 pixelfx 的 `ice/freeze`。按竞技场的 1.5 秒冰冻节奏重新取帧，图集保留冰壳和碎冰层，由 Godot 按目标脚底和立绘尺寸定位。冰冻结束时播放碎冰。可运行 `node tools/export_freeze_status_fx.mjs` 重生成图集，传入预览目录可生成联系表和动图。
+
+雷暴用 pixelfx 的 `lightning/storm-cloud` 与 `lightning/lightning-strike`。`tools/wizard_storm_cloud_fx.mjs` 改编了前者的云团密度与光照，生成错落的云顶、波浪状云底和云内闪光。落雷图集取单次主雷击的短帧段。Godot 在固定圆域上方播放云层，每次结算时把闪电接到实际落点。范围圈图集使用本项目的地面脉冲。用 `node tools/export_lightning_storm_fx.mjs` 可重生成三个图集，传入预览目录可生成联系表和动图。雷声用 `node tools/export_roster_skill_audio.cjs roster_thunder_strike` 重生成。
+
 `assets/audio/skills/sources.json` 的 `roster_` 记录使用 Jsfxr Pro 参数格式。导出脚本用 Jsfxr 1.4.1 的合成器渲染各层，按设定的时间偏移和峰值合成 WAV。参数可以在 [Jsfxr Pro](https://pro.sfxr.me/) 中编辑。
 
 ```sh

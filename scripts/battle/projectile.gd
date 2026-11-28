@@ -39,6 +39,8 @@ var _intercepts := false
 var _enemy_team := -1
 var _remaining_range := 0.0
 var _flight_ground: Vector2
+var _arc_duration := 0.0
+var _arc_ground_origin: Vector2
 
 @onready var sprite: Sprite2D = $Sprite
 
@@ -58,6 +60,8 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 	straight_flight = effect != null and effect.straight_projectile
 	is_skill = p_source.current_cast != null and p_source.current_cast.action.category == CombatActionDefinition.Category.SKILL
 	global_position = p_source.get_muzzle_point()
+	_launch_point = global_position
+	_launch_height = source.global_position.y - _launch_point.y
 
 	if kind == UnitDefinition.ProjectileKind.HOLY_BOLT:
 		sprite.scale = Vector2(0.8, 0.8)
@@ -90,7 +94,15 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 		sprite.texture = _flight_frames.get_frame_texture(&"default", 0)
 
 	_intercepts = effect != null and effect.projectile_collision_width > 0.0
-	if _intercepts:
+	if effect != null and effect.projectile_ground_arc:
+		_aim_point = source.current_cast.point
+		_arc_ground_origin = _launch_point + Vector2(0, _launch_height)
+		_flight_ground = _arc_ground_origin
+		var distance := source.global_position.distance_to(_aim_point)
+		speed = effect.projectile_speed_override if effect.projectile_speed_override > 0.0 else speed
+		_arc_duration = maxf(0.08, 1.15 * distance / speed)
+		life = maxf(life, _arc_duration + 0.1)
+	elif _intercepts:
 		var cast := source.current_cast
 		var direction := cast.direction if cast != null else Vector2(float(source.facing), 0.0)
 		speed = effect.projectile_speed_override if effect.projectile_speed_override > 0.0 else speed
@@ -108,10 +120,9 @@ func setup(p_source: Unit, p_target: Unit, p_damage: float, p_kind: int, p_color
 	_started = true
 	if battle is Battle:
 		_stage = battle.stage
-		_launch_point = global_position
-		_launch_height = source.global_position.y - _launch_point.y
-		_aim_point = _launch_point + _velocity
-		_aim_height = _launch_height
+		if _arc_duration <= 0.0:
+			_aim_point = _launch_point + _velocity
+			_aim_height = _launch_height
 		_sprite_3d = Sprite3D.new()
 		_sprite_3d.pixel_size = 1.0
 		_sprite_3d.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
@@ -146,6 +157,15 @@ func _sync_presentation() -> void:
 		var projected_path := _stage.ground_transform.basis_xform(ground_path) + Vector2(0.0, _launch_height - _aim_height) * screen_scale
 		if projected_path.length_squared() > 1.0:
 			angle = projected_path.angle()
+	if _arc_duration > 0.0:
+		var arc_progress := clampf(_travel_elapsed / _arc_duration, 0.0, 1.0)
+		ground = _flight_ground
+		height = ground.y - global_position.y
+		offset = Vector2(0, -height)
+		var height_slope := -2.0 * _launch_height * arc_progress
+		var tangent := _stage.ground_transform.basis_xform(_aim_point - _arc_ground_origin)
+		tangent.y -= height_slope * screen_scale
+		angle = tangent.angle()
 	_sprite_3d.global_transform = Transform3D(basis.rotated(basis.z, -angle), _stage.ground_to_world(ground, height / basis.y.y))
 	_sprite_3d.scale = Vector3(sprite.scale.x, sprite.scale.y, 1.0)
 	_sprite_3d.offset = Vector2(sprite.offset.x, -sprite.offset.y)
@@ -181,6 +201,14 @@ func _physics_process(delta: float) -> void:
 	elif kind == UnitDefinition.ProjectileKind.GHOSTFIRE:
 		_set_effect_frame(mini(2, int(_travel_elapsed * 12.0)))
 
+	if _arc_duration > 0.0:
+		var progress := clampf(_travel_elapsed / _arc_duration, 0.0, 1.0)
+		_flight_ground = _arc_ground_origin.lerp(_aim_point, progress)
+		var height := _launch_height * (1.0 - progress * progress)
+		global_position = _flight_ground - Vector2(0, height)
+		if progress >= 1.0:
+			_land()
+		return
 	if _intercepts:
 		_advance_intercepting_projectile(delta)
 		return
@@ -239,14 +267,7 @@ func _advance_intercepting_projectile(delta: float) -> void:
 
 func _hit() -> void:
 	if target != null and is_instance_valid(target) and target.alive:
-		var shooter: Unit = source if is_instance_valid(source) else null
-		var blocked := target.is_guarding()
-		var pierces_shield := effect != null and effect.ignore_shield
-		var impact_point := target.get_effect_point() if _stage != null else global_position
-		target.take_damage(damage, shooter, impact_point, false, pierces_shield)
-		if is_instance_valid(shooter):
-			shooter.register_damage_hit(target, is_skill)
-		ActionImpact.apply_on_hit(effect, shooter, target, blocked)
+		_apply_hit(target)
 	if effect != null and effect.projectile_impact_scene != null and is_instance_valid(target) and _stage != null:
 		battle.spawn_billboard_effect_at(effect.projectile_impact_scene, target)
 		queue_free()
@@ -266,6 +287,29 @@ func _hit() -> void:
 		_set_effect_frame(0 if kind == UnitDefinition.ProjectileKind.ICE else (3 if kind == UnitDefinition.ProjectileKind.GHOSTFIRE else 4))
 	else:
 		queue_free()
+
+
+func _land() -> void:
+	for victim in battle.units_in_circle(source, _aim_point, effect.radius):
+		if victim.alive:
+			_apply_hit(victim, false)
+	battle.play_action_sound(effect.impact_sound)
+	if effect.projectile_impact_scene != null:
+		var impact := effect.projectile_impact_scene.instantiate() as RosterAreaFx
+		battle.effects_root.add_child(impact)
+		impact.setup_at(battle, _aim_point, effect.radius)
+	queue_free()
+
+
+func _apply_hit(victim: Unit, play_sound := true) -> void:
+	var shooter: Unit = source if is_instance_valid(source) else null
+	var blocked := victim.is_guarding()
+	var pierces_shield := effect != null and effect.ignore_shield
+	var impact_point := victim.get_effect_point() if _stage != null else global_position
+	victim.take_damage(damage, shooter, impact_point, false, pierces_shield)
+	if is_instance_valid(shooter):
+		shooter.register_damage_hit(victim, is_skill, blocked)
+	ActionImpact.apply_on_hit(effect, shooter, victim, blocked, play_sound)
 
 
 func _set_effect_frame(frame: int) -> void:

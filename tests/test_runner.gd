@@ -43,6 +43,8 @@ func _run_all() -> void:
 	await _test_templar_guardian_ultimate()
 	await _test_smart_knight()
 	await _test_wizard_and_elite_orc()
+	await _test_wizard_storm()
+	await _test_wizard_arcane_charge()
 	await _test_lancer_charge()
 	await _test_lancer_charge_setup()
 	await _test_orc_rider_tank()
@@ -121,11 +123,15 @@ func _test_catalog() -> void:
 		if definition.visual_scene == null:
 			continue
 		var visual_instance := definition.visual_scene.instantiate()
-		if visual_instance.get_node_or_null("Muzzle") == null:
-			missing_muzzle.append(definition.display_name)
+		if not visual_instance.get_node_or_null("Muzzle") is Marker2D:
+			for action in definition.actions:
+				if action.effects.any(func(effect: ActionEffectDefinition) -> bool:
+					return effect.kind == ActionEffectDefinition.Kind.PROJECTILE
+				) and not visual_instance.get_node_or_null(String(action.animation).to_pascal_case()) is Marker2D:
+					missing_muzzle.append("%s / %s" % [definition.display_name, action.display_name])
 		visual_instance.free()
 	_check(missing_muzzle.is_empty(),
-		"所有英雄视觉场景都有 Muzzle 出手锚点（缺失：%s）" % ", ".join(PackedStringArray(missing_muzzle)))
+		"所有投射物动作都有出手锚点（缺失：%s）" % ", ".join(PackedStringArray(missing_muzzle)))
 	_check(missing_behavior.is_empty(), "22 名英雄都有索敌/移动行为配置")
 	_check(nonzero_starting_mana == [&"swordsman"] and is_equal_approx(swordsman.starting_mana, 50.0),
 		"剑士入场蓝量为 50，其余英雄为 0")
@@ -552,7 +558,7 @@ func _test_hero_lab() -> void:
 	if fireball != null:
 		lab.hero.brain.enabled = false
 		lab._cast_action(fireball)
-		await get_tree().create_timer(0.9).timeout
+		await get_tree().create_timer(1.0).timeout
 		_check(lab.hero.action_cooldown(fireball) > 0.0,
 			"点击技能卡会真实施放技能并进入冷却")
 		_check(lab.battle.training_damage() > 0.0,
@@ -1853,45 +1859,248 @@ func _test_smart_knight() -> void:
 	await get_tree().process_frame
 
 
+func _test_wizard_arcane_charge() -> void:
+	print("\n[法师] 奥术蓄能")
+	var definition := UnitCatalog.get_definition(&"wizard")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	battle.training_mode = true
+	battle.training_positioning = true
+	battle.training_definition = definition
+	add_child(battle)
+	await get_tree().process_frame
+	var wizard := battle.training_hero
+	var dummy := battle.training_dummy
+	wizard.mana = 0.0
+	var basic := wizard.actions[0].effects[0]
+	for index in 7:
+		battle.spawn_projectile(wizard, dummy, basic.raw_damage(wizard.current_attack_damage()),
+			basic.projectile_kind, wizard.accent_color, basic)
+		var projectile: Projectile = battle.projectiles_root.get_child(-1)
+		match index:
+			0:
+				_check(wizard.basic_mana_hit_count == 0 and is_zero_approx(wizard.mana),
+					"普攻发射时不计数")
+				projectile.target = null
+			2:
+				projectile.is_skill = true
+			3:
+				dummy.guard_time = 1.0
+			6:
+				wizard.mana = wizard.max_mana - 3.0
+		projectile._hit()
+		dummy.guard_time = 0.0
+		if index == 3:
+			_check(wizard.basic_mana_hit_count == 1 and is_zero_approx(wizard.mana),
+				"只有有效的敌方普攻命中计数，技能、落空和格挡均排除")
+		elif index == 5:
+			_check(wizard.basic_mana_hit_count == 0 and is_equal_approx(wizard.mana, 8.0),
+				"第三次有效普攻命中额外回复 8 点法力并清空计数")
+	_check(wizard.basic_mana_hit_count == 1, "完成一轮后可以重新蓄能")
+	for _hit in 2:
+		battle.spawn_projectile(wizard, dummy, basic.raw_damage(wizard.current_attack_damage()),
+			basic.projectile_kind, wizard.accent_color, basic)
+		var projectile: Projectile = battle.projectiles_root.get_child(-1)
+		projectile._hit()
+	_check(wizard.basic_mana_hit_count == 0 and is_equal_approx(wizard.mana, wizard.max_mana),
+		"再次触发时法力不超过上限")
+	battle.hud.set_selected_unit(wizard)
+	_check(battle.hud.skill_status.text.contains("奥术蓄能 · 被动 · 普攻 0/3"), "战斗技能详情显示被动计数")
+	battle.queue_free()
+	await get_tree().process_frame
+
+
+func _test_wizard_storm() -> void:
+	print("\n[法师] 雷暴固定区域与随机落雷")
+	var definition := UnitCatalog.get_definition(&"wizard")
+	var storm_action: CombatActionDefinition = definition.actions[3]
+	var effect := storm_action.effects[0]
+	_check(storm_action.action_id == &"wizard_storm" and storm_action.mana_cost == definition.max_mana
+		and storm_action.select_densest_cluster(), "雷暴是法师第三主动技，满蓝时自动选敌群")
+	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
+	battle.training_mode = true
+	battle.training_positioning = true
+	battle.training_definition = definition
+	add_child(battle)
+	await get_tree().process_frame
+	var wizard := battle.training_hero
+	var dummy := battle.training_dummy
+	wizard.brain.enabled = false
+	wizard.state_machine.transition_to(&"idle", true)
+	var center_point := battle.clamp_unit_position(wizard.global_position + Vector2(180.0, 0.0))
+	dummy.global_position = center_point
+	wizard.target = dummy
+	wizard.planned_action = storm_action
+	wizard.planned_point = center_point
+	wizard.planned_has_point = true
+	wizard.mana = wizard.max_mana
+	var thunders: Array[AudioStream] = []
+	battle.effects_root.child_entered_tree.connect(func(node: Node) -> void:
+		if node is AudioStreamPlayer and node.stream == effect.impact_sound:
+			thunders.append(node.stream)
+	)
+	var started := wizard.state_machine.transition_to(&"action", true)
+	var storm: LightningStorm
+	for _frame in 40:
+		await get_tree().physics_frame
+		for node in battle.effects_root.get_children():
+			if node is LightningStorm:
+				storm = node
+				break
+		if storm != null:
+			break
+	_check(started and is_instance_valid(storm) and storm.center.is_equal_approx(center_point)
+		and wizard.mana < 5.0 and storm.strike_count == 0,
+		"第 6 帧召唤雷云并锁定指定地点，起手时未提前落雷")
+	if storm == null:
+		battle.queue_free()
+		await get_tree().process_frame
+		return
+	storm.set_physics_process(false)
+	storm._elapsed = 0.0
+	storm._rng.seed = 2048
+	storm._physics_process(0.49)
+	_check(storm.strike_count == 0 and is_zero_approx(battle.training_damage()), "首雷在雷云生成后 0.5 秒出现")
+	storm._physics_process(0.01)
+	var strikes := PackedVector2Array()
+	for index in 20:
+		var bolt_at := storm._fx._bolt.global_position
+		strikes.append(Vector2(bolt_at.x, bolt_at.z))
+		if index < 19:
+			storm._physics_process(0.5)
+	_check(storm.strike_count == 20 and thunders.size() == 20
+		and not storm.is_physics_processing(), "每 0.5 秒落雷并播放一次雷声，10 秒共 20 次")
+	var positions := {}
+	var all_inside := true
+	for point in strikes:
+		positions[point] = true
+		all_inside = all_inside and point.distance_to(center_point) <= effect.radius + 0.001 \
+			and point.is_equal_approx(battle.clamp_unit_position(point))
+	_check(positions.size() == 20 and all_inside, "所有雷击都落在战场内的指定圆域")
+	_check(battle.training_damage() > 0.0 and battle.action_hits < 20,
+		"每次仅结算落点附近目标，可以连续命中也可以落空")
+	var hits_before := battle.action_hits
+	wizard.free()
+	storm._strike(center_point)
+	_check(battle.action_hits == hits_before + 1, "法师退场后，已召唤的雷暴仍能命中敌人")
+	await get_tree().create_timer(0.45).timeout
+	_check(not is_instance_valid(storm), "雷暴结束后雷云和落雷节点都被释放")
+	battle.queue_free()
+	await get_tree().process_frame
+
+
 func _test_wizard_and_elite_orc() -> void:
 	print("\n[法师/精锐兽人] 技能与战斗信息")
 	var wizard_def := UnitCatalog.get_definition(&"wizard")
 	var fireball: CombatActionDefinition = wizard_def.actions[1]
 	var freeze: CombatActionDefinition = wizard_def.actions[2]
 	_check(fireball.effects[0].projectile_kind == UnitDefinition.ProjectileKind.FIREBALL
-		and freeze.effects[0].projectile_kind == UnitDefinition.ProjectileKind.ICE,
-		"法师两招使用火球和冰封素材")
+		and freeze.effects[0].kind == ActionEffectDefinition.Kind.DAMAGE
+		and freeze.effects[0].impact_scene != null and freeze.recheck_target_at_effect,
+		"火球使用飞行弹，冰封术在命中帧直接播放冰晶特效")
 	_check(fireball.mana_cost == 0.0 and freeze.mana_cost >= wizard_def.max_mana,
 		"法师火球按 CD、冰封按满蓝释放")
 	GameState.clear_lineup(0)
 	GameState.clear_lineup(1)
 	GameState.set_slot(0, 0, &"wizard")
 	GameState.set_slot(1, 0, &"soldier")
+	GameState.set_slot(1, 1, &"soldier")
+	GameState.set_slot(1, 2, &"soldier")
+	GameState.set_slot(1, 3, &"soldier")
 	var battle: Battle = load("res://scenes/battle/battle.tscn").instantiate()
 	add_child(battle)
 	await get_tree().process_frame
 	var wizard: Unit = battle.living_units(0)[0]
-	var enemy: Unit = battle.living_units(1)[0]
+	var fire_targets := battle.living_units(1)
+	var enemy := fire_targets[0]
+	var splash_enemy := fire_targets[1]
+	var late_enemy := fire_targets[2]
+	var pass_enemy := fire_targets[3]
 	wizard.brain.enabled = false
-	enemy.brain.enabled = false
-	wizard.position = battle.field_min + Vector2(180, 150)
-	enemy.position = wizard.position + Vector2(230, 0)
+	for fighter in fire_targets:
+		fighter.brain.enabled = false
+	wizard.position = battle.field_min + Vector2(300, 150)
+	var landing := wizard.position + Vector2(290, 0)
+	enemy.position = landing
+	splash_enemy.position = landing + Vector2(30, 65)
+	late_enemy.position = landing + Vector2(190, 0)
+	pass_enemy.position = wizard.position + Vector2(90, 0)
+	var launch_points: Array[Vector2] = []
+	battle.projectiles_root.child_entered_tree.connect(func(projectile: Projectile) -> void:
+		launch_points.append(projectile._launch_point)
+	, CONNECT_DEFERRED)
+	var fire_marker: Marker2D = wizard._visual_root.get_node("Attack02")
+	var fire_origin := fire_marker.global_position
 	wizard.target = enemy
 	wizard.planned_action = fireball
+	wizard.planned_point = landing
+	wizard.planned_has_point = true
 	wizard.state_machine.transition_to(&"action", true)
 	battle.hud.set_selected_unit(wizard)
 	_check(battle.hud.skill_status.text.contains("火球术") and battle.hud.skill_status.text.contains("冰封术")
 		and battle.hud.skill_status.text.contains("CD"), "战斗观察镜显示每招冷却和蓝耗")
 	_check(battle.hud.skill_status.text.contains(fireball.detail_text(wizard.attack_damage)),
 		"战斗观察镜显示按当前攻击力计算的技能伤害")
-	await get_tree().create_timer(0.9).timeout
-	_check(enemy.burn_time > 0.0 and enemy.hp < enemy.max_hp and battle.projectiles_fired > 0,
-		"火球飞行命中后造成伤害和灼烧")
+	await get_tree().create_timer(0.47).timeout
+	_check(launch_points.size() == 1 and launch_points[0].is_equal_approx(fire_origin),
+		"朝右的火球术从 Attack02 锚点发射")
+	var fire_projectile := battle.projectiles_root.get_child(0) as Projectile
+	if fire_projectile != null:
+		_check(is_equal_approx(fire_projectile._arc_duration, 1.15 * wizard.position.distance_to(landing) / 1400.0),
+			"火球使用加快后的弹速到达固定落点")
+		var progress := fire_projectile._travel_elapsed / fire_projectile._arc_duration
+		var height := fire_projectile._flight_ground.y - fire_projectile.global_position.y
+		var launch_height := wizard.global_position.y - fire_origin.y
+		_check(progress > 0.0 and progress < 1.0 and height < launch_height
+			and is_equal_approx(height, launch_height * (1.0 - progress * progress)),
+			"火球从锚点水平出手后按二次曲线下坠")
+	else:
+		_check(false, "火球从锚点水平出手后按二次曲线下坠")
+	_check(fire_targets.all(func(fighter: Unit) -> bool: return is_equal_approx(fighter.hp, fighter.max_hp)),
+		"火球飞行途中对沿途和落点附近的敌人均不结算伤害")
+	enemy.position = wizard.position - Vector2(230, 0)
+	late_enemy.position = landing + Vector2(45, -55)
+	await get_tree().create_timer(0.34).timeout
+	_check(splash_enemy.burn_time > 0.0 and splash_enemy.hp < splash_enemy.max_hp
+		and late_enemy.burn_time > 0.0 and late_enemy.hp < late_enemy.max_hp,
+		"火球在固定落点按引爆时站位对多名敌人造成伤害和灼烧")
+	_check(is_equal_approx(enemy.hp, enemy.max_hp) and is_equal_approx(pass_enemy.hp, pass_enemy.max_hp),
+		"移出落点的原目标和范围外的沿途敌人都不会被火球命中")
 	wizard.mana = wizard.max_mana
 	wizard.planned_action = freeze
+	wizard.planned_direction = Vector2.LEFT
 	wizard.state_machine.transition_to(&"action", true)
-	await get_tree().create_timer(0.8).timeout
-	_check(enemy.stun_time > 0.0, "冰封弹命中后眩晕目标")
+	await get_tree().create_timer(0.20).timeout
+	_check(is_equal_approx(enemy.hp, enemy.max_hp) and is_zero_approx(enemy.stun_time),
+		"冰封术前摇阶段尚未造成伤害或冰冻")
+	await get_tree().create_timer(0.20).timeout
+	var freeze_damage := freeze.effects[0].raw_damage(wizard.current_attack_damage()) * (1.0 - enemy.current_armor())
+	_check(enemy.stun_time > 1.35 and is_equal_approx(enemy.max_hp - enemy.hp, freeze_damage)
+		and launch_points.size() == 1,
+		"冰封术第 5 帧直接造成单体伤害和冰冻，没有新投射物")
+	var ice_fx := battle.effects_root.get_children().filter(func(node: Node) -> bool:
+		return node.scene_file_path == "res://scenes/fx/roster_ice_contact.tscn")
+	_check(ice_fx.size() == 1 and ice_fx[0].global_position.is_equal_approx(enemy.global_position),
+		"冰晶从目标身上出现")
+	var shell := enemy.status_controller.get_vfx(&"freeze") as FreezeStatusFx
+	_check(is_instance_valid(shell) and enemy.is_stunned() and not enemy.can_act()
+		and enemy.status_controller.get_vfx(&"stun") == null,
+		"冰封术在控制持续时用冰壳表现冰冻")
+	wizard.mana = wizard.max_mana
+	wizard.action_cooldowns[freeze.action_id] = 0.0
+	wizard.target = pass_enemy
+	wizard.planned_direction = Vector2.RIGHT
+	wizard.state_machine.transition_to(&"action", true)
+	pass_enemy.position = wizard.position + Vector2(450, 0)
+	await get_tree().create_timer(0.40).timeout
+	_check(is_equal_approx(pass_enemy.hp, pass_enemy.max_hp) and is_zero_approx(pass_enemy.stun_time),
+		"目标在冰封术出手前离开射程时，伤害和冰冻都不触发")
+	await get_tree().create_timer(1.10).timeout
+	var shell_sprite: Sprite3D = shell.get_node("Ice") if is_instance_valid(shell) else null
+	_check(not enemy.is_stunned() and enemy.status_controller.get_vfx(&"freeze") == null
+		and is_instance_valid(shell_sprite) and shell_sprite.frame >= FreezeStatusFx.SHATTER_FRAME,
+		"冰冻到期立即解除控制并播放碎冰")
+	await get_tree().create_timer(0.64).timeout
+	_check(not is_instance_valid(shell), "碎冰播完释放冰冻特效")
 	battle.queue_free()
 	await get_tree().process_frame
 
@@ -3554,7 +3763,7 @@ func _test_status_framework() -> void:
 	var bleed_def := StatusCatalog.get_definition(&"bleed")
 	var burn_def := StatusCatalog.get_definition(&"burn")
 	var poison_def := StatusCatalog.get_definition(&"poison")
-	_check(StatusCatalog.count() == 22, "状态目录包含 22 种状态（含通用属性增益与减益）")
+	_check(StatusCatalog.count() == 23, "状态目录包含 23 种状态（含通用属性增益与减益）")
 	_check(stun_def != null and slow_def != null and bleed_def != null
 		and burn_def != null and poison_def != null, "眩晕/减速/流血/燃烧/中毒定义齐全")
 	_check(stun_def != null and stun_def.stack_policy == StatusDefinition.StackPolicy.REFRESH,

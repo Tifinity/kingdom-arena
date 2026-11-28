@@ -482,7 +482,9 @@ func _update_inspector() -> void:
 	if definition.passive != null:
 		var passive: PassiveDefinition = definition.passive
 		var passive_state := "未生效"
-		if passive.hp_threshold_status != null:
+		if passive.basic_hits_per_mana_proc > 0:
+			passive_state = "普攻 %d/%d" % [selected_unit.basic_mana_hit_count, passive.basic_hits_per_mana_proc]
+		elif passive.hp_threshold_status != null:
 			passive_state = "生效中" if passive.threshold_active(selected_unit.status_controller) else "未生效"
 		elif passive.heal_bonus_ratio > 0.0 or passive.hp_regen_ratio_per_second > 0.0 \
 				or passive.bonus_damage_ratio > 0.0 or passive.on_hit_status != null:

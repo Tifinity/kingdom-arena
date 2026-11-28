@@ -2,6 +2,10 @@ extends Node
 
 const ARROW_RAIN_ID := "archer_arrow_rain"
 const ARROW_RAIN_PATH := "res://resources/actions/archer_arrow_rain.tres"
+const FIREBALL_ID := "wizard_fireball"
+const FREEZE_ID := "wizard_freeze"
+const ARCANE_CHARGE_ID := "wizard_arcane_charge"
+const FIREBALL_GROUND_SLOT := [["ground_arc_projectile", "burn"], [6, 6], "ground_point", true]
 const GREATSWORD_PASSIVE := "greatsword_skeleton_decapitate"
 const GREATSWORD_SHAPES := {
 	"greatsword_skeleton_cleave": ["cone", ActionEffectDefinition.Shape.CONE],
@@ -16,7 +20,8 @@ const UNIT_SLOTS := {
 	"priest_blessing": [["heal"], [2], "lowest_hp_ally"],
 	"priest_sanctuary": [["heal"], [2], "lowest_hp_ally", true],
 	"wizard_fireball": [["projectile", "burn"], [6, 6]],
-	"wizard_freeze": [["projectile", "stun"], [5, 5]],
+	"wizard_freeze": [["damage", "stun"], [5, 5]],
+	"wizard_storm": [["random_lightning_zone"], [6], "ground_point", true],
 }
 const GRACE_ID := "priest_grace"
 
@@ -71,7 +76,8 @@ func _validate(skill: Variant) -> String:
 		return "需要 schemaVersion 为 1 的竞技场单技能 JSON。"
 	var skill_id: Variant = skill.get("skillId")
 	if skill_id is not String or (skill_id != ARROW_RAIN_ID and skill_id != GREATSWORD_PASSIVE \
-			and skill_id != GRACE_ID and not GREATSWORD_SHAPES.has(skill_id) and not UNIT_SLOTS.has(skill_id)):
+			and skill_id != GRACE_ID and skill_id != ARCANE_CHARGE_ID \
+			and not GREATSWORD_SHAPES.has(skill_id) and not UNIT_SLOTS.has(skill_id)):
 		return "未找到 skillId 对应的技能槽：%s" % str(skill_id)
 	var skill_name: Variant = skill.get("name")
 	if skill_name is not String or skill_name.strip_edges().is_empty() or skill_name.length() > 40:
@@ -80,6 +86,15 @@ func _validate(skill: Variant) -> String:
 		return _validate_greatsword_passive(skill)
 	if skill_id == GRACE_ID:
 		return _validate_passive(skill, "heal_below_hp")
+	if skill_id == ARCANE_CHARGE_ID:
+		if not _has_fields(skill, ["schemaVersion", "skillId", "name", "passive"]):
+			return "奥术蓄能需要 passive 配置。"
+		var charge: Variant = skill.passive
+		if not _has_fields(charge, ["kind", "hits", "manaRestore"]) or charge.kind != "mana_per_basic_hits" \
+				or not _number_in(charge.hits, 1, 100) or charge.hits != int(charge.hits) \
+				or not _number_in(charge.manaRestore, 0.5, 100):
+			return "奥术蓄能需要 1 至 100 次整数命中和 0.5 至 100 点法力回复。"
+		return ""
 	if not _has_fields(skill, ["schemaVersion", "skillId", "name", "cast", "targeting", "effects"]):
 		return "技能文件包含缺失或未知的字段。"
 	var cast: Variant = skill.cast
@@ -89,6 +104,8 @@ func _validate(skill: Variant) -> String:
 			or not _number_in(cast.rangePx, 1, 2000):
 		return "cast 数值超出支持范围：冷却 0 至 300 秒、蓝耗 0 至 1000、射程 1 至 2000 像素。"
 	if UNIT_SLOTS.has(skill_id):
+		if skill_id == FIREBALL_ID and skill.targeting is Dictionary and skill.targeting.get("kind") == "ground_point":
+			return _validate_unit_action(skill, FIREBALL_GROUND_SLOT)
 		return _validate_unit_action(skill, UNIT_SLOTS[skill_id])
 	if skill_id != ARROW_RAIN_ID:
 		return _validate_greatsword_action(skill)
@@ -168,6 +185,11 @@ func _validate_unit_action(skill: Dictionary, slot: Array) -> String:
 		var fields: Array[String] = ["frame", "kind"]
 		var limits := {}
 		match kind:
+			"random_lightning_zone":
+				limits = {"durationSeconds": [10, 10], "intervalSeconds": [0.5, 0.5],
+					"strikeRadiusPx": [10, skill.targeting.radiusPx], "attackDamageMultiplier": [0, 3]}
+			"ground_arc_projectile":
+				limits = {"speedPxPerSecond": [100, 4000], "attackDamageMultiplier": [0, 3]}
 			"intercepting_projectile":
 				limits = {"speedPxPerSecond": [100, 4000], "widthPx": [20, 300], "baseDamage": [0, 300],
 					"attackDamageMultiplier": [0, 6], "durationSeconds": [0.1, 6], "slowPercent": [0, 99]}
@@ -198,11 +220,17 @@ func _import_unit_action(skill: Dictionary) -> String:
 	var action := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as CombatActionDefinition
 	var friendly: bool = skill.targeting.kind == "lowest_hp_ally"
 	var expected_mode := CombatActionDefinition.TargetMode.ALLY if friendly else CombatActionDefinition.TargetMode.ENEMY
-	if action == null or action.action_id != skill.skillId or action.target_mode != expected_mode \
+	if skill.targeting.kind == "ground_point":
+		expected_mode = CombatActionDefinition.TargetMode.POINT
+	var fireball: bool = skill.skillId == FIREBALL_ID
+	var freeze: bool = skill.skillId == FREEZE_ID
+	var ground_arc: bool = fireball and skill.targeting.kind == "ground_point"
+	if action == null or action.action_id != skill.skillId or (not fireball and action.target_mode != expected_mode) \
 			or (friendly and (action.targeting == null or action.targeting.selection != ActionTargetingDefinition.Selection.LOWEST_HP_ALLY)):
 		return "当前动作与选目标规则不匹配。"
 	var kinds := {"projectile": ActionEffectDefinition.Kind.PROJECTILE, "damage": ActionEffectDefinition.Kind.DAMAGE,
-		"intercepting_projectile": ActionEffectDefinition.Kind.PROJECTILE,
+		"intercepting_projectile": ActionEffectDefinition.Kind.PROJECTILE, "ground_arc_projectile": ActionEffectDefinition.Kind.PROJECTILE,
+		"random_lightning_zone": ActionEffectDefinition.Kind.DAMAGE,
 		"heal": ActionEffectDefinition.Kind.HEAL, "slow": ActionEffectDefinition.Kind.STATUS, "poison": ActionEffectDefinition.Kind.STATUS}
 	var radius: float = skill.targeting.get("radiusPx", 0.0)
 	var expected_shape := ActionEffectDefinition.Shape.CIRCLE if radius > 0 else ActionEffectDefinition.Shape.SINGLE
@@ -212,18 +240,50 @@ func _import_unit_action(skill: Dictionary) -> String:
 	action.cooldown = skill.cast.cooldownSeconds
 	action.mana_cost = skill.cast.manaCost
 	action.action_range = skill.cast.rangePx
+	if freeze:
+		action.recheck_target_at_effect = true
+	if fireball:
+		action.target_mode = CombatActionDefinition.TargetMode.POINT if ground_arc else CombatActionDefinition.TargetMode.ENEMY
+		if ground_arc:
+			if action.targeting == null:
+				action.targeting = ActionTargetingDefinition.new()
+			action.targeting.selection = ActionTargetingDefinition.Selection.DENSEST_CLUSTER
+		else:
+			action.targeting = null
 	for hit: Dictionary in skill.effects:
 		if kinds.has(hit.kind):
 			if next_effect >= action.effects.size():
 				return "动作缺少第 %d 个效果资源。" % (next_effect + 1)
 			effect = action.effects[next_effect]
 			next_effect += 1
+			if freeze and effect != null and effect.kind == ActionEffectDefinition.Kind.PROJECTILE:
+				effect.kind = ActionEffectDefinition.Kind.DAMAGE
+				effect.impact_scene = effect.projectile_impact_scene
+				effect.projectile_kind = UnitDefinition.ProjectileKind.NONE
+				effect.projectile_frames = null
+				effect.projectile_visual_scale = 1.0
+				effect.projectile_visual_offset = Vector2.ZERO
+				effect.projectile_impact_scene = null
+				effect.projectile_release_sound = null
 			if effect == null or effect.kind != kinds[hit.kind]:
 				return "动作的第 %d 个效果资源类型不匹配。" % next_effect
 			effect.trigger_frame = int(hit.frame)
 			effect.shape = expected_shape
 			effect.radius = radius
 		match hit.kind:
+			"random_lightning_zone":
+				var storm := effect.behavior as LightningStormEffectBehavior
+				if storm == null:
+					return "当前动作缺少雷暴区域结算行为。"
+				effect.duration = hit.durationSeconds
+				effect.damage_ratio = hit.attackDamageMultiplier
+				storm.interval = hit.intervalSeconds
+				storm.strike_radius = hit.strikeRadiusPx
+			"ground_arc_projectile":
+				effect.damage_ratio = hit.attackDamageMultiplier
+				effect.projectile_speed_override = hit.speedPxPerSecond
+				effect.projectile_ground_arc = true
+				effect.projectile_impact_scene = load("res://scenes/fx/roster_fire_landing.tscn")
 			"intercepting_projectile":
 				effect.base_damage = hit.baseDamage
 				effect.damage_ratio = hit.attackDamageMultiplier
@@ -234,6 +294,10 @@ func _import_unit_action(skill: Dictionary) -> String:
 				effect.status_power = 1.0 - hit.slowPercent / 100.0
 			"damage", "projectile":
 				effect.damage_ratio = hit.attackDamageMultiplier
+				if fireball:
+					effect.projectile_ground_arc = false
+					effect.projectile_speed_override = 0.0
+					effect.projectile_impact_scene = load("res://scenes/fx/roster_fire_contact.tscn")
 			"heal":
 				effect.heal_amount = hit.baseHeal
 				effect.heal_ratio = hit.attackDamageMultiplier
@@ -251,6 +315,8 @@ func _import_unit_action(skill: Dictionary) -> String:
 				effect.burn_duration = hit.durationSeconds
 				effect.burn_dps_ratio = hit.damagePerSecondRatio
 			"stun":
+				if freeze:
+					effect.status_id = &"freeze"
 				effect.status_kind = ActionEffectDefinition.StatusKind.STUN
 				effect.status_duration = hit.durationSeconds
 	if next_effect != action.effects.size():
@@ -278,9 +344,16 @@ func _unit_action_description(skill: Dictionary) -> String:
 				else "治疗生命比例最低的受伤友军"
 			return "%s %s + %s AD。" % [area, str(hit.baseHeal), str(hit.attackDamageMultiplier)]
 		"wizard_fireball":
+			if skill.targeting.kind == "ground_point":
+				return "向地面发射火球，落地时对半径 %s 内的敌人造成 {damage_0} 伤害，并燃烧 %s 秒。" % [
+					str(skill.targeting.radiusPx), str(skill.effects[1].durationSeconds)]
 			return "发射火球，命中造成 {damage_0} 单体伤害，并燃烧 %s 秒。" % str(skill.effects[1].durationSeconds)
+		"wizard_storm":
+			var hit: Dictionary = skill.effects[0]
+			return "在半径 %s 内召唤雷云，持续 10 秒。每 0.5 秒随机落雷，对落点半径 %s 内的敌人造成 {damage_0} 伤害。" % [
+				str(skill.targeting.radiusPx), str(hit.strikeRadiusPx)]
 		"wizard_freeze":
-			return "发射冰封弹，命中造成 {damage_0} 单体伤害并眩晕 %s 秒。" % str(skill.effects[1].durationSeconds)
+			return "直接冰封目标，造成 {damage_0} 单体伤害，并使其冰冻 %s 秒。" % str(skill.effects[1].durationSeconds)
 	return ""
 
 
@@ -290,6 +363,20 @@ func _import_skill(skill: Dictionary) -> String:
 		return _import_arrow_rain(skill)
 	if UNIT_SLOTS.has(skill_id):
 		return _import_unit_action(skill)
+	if skill_id == ARCANE_CHARGE_ID:
+		var path := "res://resources/passives/%s.tres" % skill_id
+		var passive := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as PassiveDefinition
+		if passive == null:
+			return "当前项目中缺少奥术蓄能资源。"
+		var hits := int(skill.passive.hits)
+		var restore := float(skill.passive.manaRestore)
+		if passive.display_name == skill.name and passive.basic_hits_per_mana_proc == hits \
+				and is_equal_approx(passive.basic_hit_mana_restore, restore):
+			return ""
+		passive.display_name = skill.name
+		passive.basic_hits_per_mana_proc = hits
+		passive.basic_hit_mana_restore = restore
+		return _save_resource(passive, path)
 	if skill_id == GRACE_ID:
 		var path := "res://resources/passives/priest_grace.tres"
 		var passive := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as PassiveDefinition
